@@ -15,7 +15,11 @@
 //   e os recibos dos demais (ou um recibo atrasado menor) não chamam o back de novo. O status nunca
 //   regride. Um envio que falhou não conta, e o próximo recibo tenta de novo;
 // - update sem id válido ou sem status mapeável não chama o back. Um id que o back não conhece é
-//   enviado normalmente (o back responde 200 sem efeito), e falha do back só loga.
+//   enviado normalmente (o back responde 200 sem efeito), e falha do back só loga;
+// - envio do CRM (Task 7.2): o back só grava a mensagem DEPOIS da resposta do `POST /enviar`, então
+//   um ENTREGUE/LIDA que chegasse antes cairia num id ainda desconhecido e se perderia. Os recibos de
+//   um id marcado com `adiarRecibos` ficam retidos por `RECIBO_ATRASO_ENVIO_MS` (padrão 3000 ms, 0
+//   desliga) e depois saem na ordem em que chegaram, pela mesma regra do maior status.
 const NodeCache = require("node-cache");
 const { mensagemWaIdValido, normalizarJid } = require("./filtroEntrada");
 const mensagemStatusInternoClient = require("../services/mensagemStatusInternoClient");
@@ -31,6 +35,8 @@ const STATUS_DO_CODIGO = new Map([
 const ORDEM = { ENVIADA: 1, ENTREGUE: 2, LIDA: 3 };
 /** Por quanto tempo o maior status enviado de cada mensagem fica em memória. */
 const MS_TTL_STATUS = 24 * 60 * 60 * 1000;
+/** Retenção padrão dos recibos de um envio do CRM (dá tempo de o back gravar a mensagem enviada). */
+const MS_ATRASO_ENVIO_PADRAO = 3000;
 
 /** @typedef {import("../services/mensagemStatusInternoClient").StatusMensagem} StatusMensagem */
 /** @typedef {import("../services/mensagemInternoClient").ContextoInstancia} ContextoInstancia */
@@ -117,15 +123,62 @@ function extrairDeRecibos(recibos, eu) {
 }
 
 /**
+ * Retenção dos recibos de um envio do CRM, lida do ambiente a cada envio (`RECIBO_ATRASO_ENVIO_MS`,
+ * inteiro ≥ 0; ausente ou inválido → 3000 ms; 0 desliga a retenção).
+ * @returns {number}
+ */
+function obterAtrasoReciboEnvio() {
+  const valor = process.env.RECIBO_ATRASO_ENVIO_MS;
+  const n = Number(valor);
+  return valor !== undefined && valor.trim() !== "" && Number.isSafeInteger(n) && n >= 0 ? n : MS_ATRASO_ENVIO_PADRAO;
+}
+
+/**
  * Envio dos status de uma equipe ao back, com o maior status já enviado de cada mensagem em memória.
  * @param {{
  *   contexto: ContextoInstancia,
  *   registrarStatusMensagem?: (mensagem_wa_id: string, status: StatusMensagem, contexto: ContextoInstancia) => Promise<unknown>,
  *   msTtl?: number,
- * }} opcoes
+ *   msAtrasoEnvio?: number,
+ *   liberar?: (itens: StatusRecebido[]) => unknown,
+ * }} opcoes `msAtrasoEnvio`: retenção dos recibos de um envio do CRM (padrão: `obterAtrasoReciboEnvio()`
+ *   a cada envio); `liberar`: para onde vão os recibos retidos ao fim da retenção (o adapter usa a fila
+ *   serial da entrada; padrão: `processar`)
  */
-function criarRecibos({ contexto, registrarStatusMensagem = mensagemStatusInternoClient.registrarStatusMensagem, msTtl = MS_TTL_STATUS }) {
+function criarRecibos({
+  contexto,
+  registrarStatusMensagem = mensagemStatusInternoClient.registrarStatusMensagem,
+  msTtl = MS_TTL_STATUS,
+  msAtrasoEnvio,
+  liberar,
+}) {
   const enviados = new NodeCache({ stdTTL: Math.ceil(msTtl / 1000), checkperiod: 600, useClones: false });
+  /** Recibos retidos dos envios do CRM: id → itens na ordem de chegada e o timer da liberação. */
+  /** @type {Map<string, { itens: StatusRecebido[], timer: ReturnType<typeof setTimeout> }>} */
+  const retidos = new Map();
+
+  /**
+   * Retém os recibos deste id (envio do CRM) até o back ter gravado a mensagem. Chamar antes do
+   * `sendMessage`, junto com o cache de eco.
+   * @param {string} mensagemWaId
+   */
+  function adiarRecibos(mensagemWaId) {
+    if (!mensagemWaIdValido(mensagemWaId)) return;
+    const ms = msAtrasoEnvio ?? obterAtrasoReciboEnvio();
+    if (!(ms > 0)) return;
+    const anterior = retidos.get(mensagemWaId);
+    if (anterior) clearTimeout(anterior.timer);
+    const timer = setTimeout(() => {
+      const retido = retidos.get(mensagemWaId);
+      retidos.delete(mensagemWaId);
+      if (!retido || retido.itens.length === 0) return;
+      Promise.resolve()
+        .then(() => (liberar ?? processar)(retido.itens))
+        .catch((erro) => console.error(`[RECIBOS] Falha ao liberar recibos retidos da equipe ${contexto.cod_equipe}:`, erro instanceof Error ? erro.name : "erro"));
+    }, ms);
+    timer.unref?.();
+    retidos.set(mensagemWaId, { itens: anterior?.itens ?? [], timer });
+  }
 
   /**
    * Envia os status em ordem, um por vez (o ENTREGUE nunca chega ao back depois do LIDA). Nunca rejeita.
@@ -134,6 +187,11 @@ function criarRecibos({ contexto, registrarStatusMensagem = mensagemStatusIntern
    */
   async function processar(itens) {
     for (const { mensagem_wa_id, status } of itens) {
+      const retido = retidos.get(mensagem_wa_id);
+      if (retido) {
+        retido.itens.push({ mensagem_wa_id, status });
+        continue;
+      }
       const anterior = /** @type {number | undefined} */ (enviados.get(mensagem_wa_id)) ?? 0;
       if (ORDEM[status] <= anterior) continue;
       try {
@@ -149,7 +207,21 @@ function criarRecibos({ contexto, registrarStatusMensagem = mensagemStatusIntern
     }
   }
 
-  return { processar, limpar: () => enviados.flushAll() };
+  function limpar() {
+    for (const { timer } of retidos.values()) clearTimeout(timer);
+    retidos.clear();
+    enviados.flushAll();
+  }
+
+  return { processar, adiarRecibos, limpar };
 }
 
-module.exports = { criarRecibos, extrairDeAtualizacoes, extrairDeRecibos, statusDoCodigo, statusDoRecibo };
+module.exports = {
+  criarRecibos,
+  extrairDeAtualizacoes,
+  extrairDeRecibos,
+  statusDoCodigo,
+  statusDoRecibo,
+  obterAtrasoReciboEnvio,
+  MS_ATRASO_ENVIO_PADRAO,
+};

@@ -36,6 +36,11 @@
 // com `presenceSubscribe` na primeira mensagem de cada chat; mensagem de grupo leva o `nome_chat`
 // (subject do `groupMetadata`, com cache e prazo curto; falha → sem `nome_chat`).
 //
+// Saída (Task 7.2): o pipeline de saída (envio.js/reacao.js) usa `socketConectado()` e chama
+// `marcarEnviadaPeloCrm(id)` ANTES do `sendMessage`: o id entra no cache de eco (o eco não vira
+// "aparelho") e os recibos dele ficam retidos por alguns segundos (o back só grava a mensagem enviada
+// depois da resposta do envio).
+//
 // A pasta `sessoes-baileys/` é credencial da sessão pareada: este código só cria (via Baileys),
 // confere a existência do `creds.json` e apaga no logout. Nunca lista nem loga o conteúdo.
 const fs = require("node:fs");
@@ -215,6 +220,7 @@ function existeSessaoEmDisco(codEquipe, diretorioSessoes = DIRETORIO_SESSOES) {
  *   obterQr: () => string | null,
  *   obterQrPng: () => Promise<Buffer | null>,
  *   marcarEnviadaPeloCrm: (mensagemWaId: string) => void,
+ *   socketConectado: () => SocketBaileys | null,
  * }} BaileysAdapter
  */
 
@@ -261,7 +267,8 @@ function criarAdapter({
   // Recibos, presença e nome dos grupos: também por equipe e só em memória.
   /** @type {ContextoInstancia} */
   const contexto = { hash_empresa: hashEmpresa, cod_equipe: cod };
-  const recibos = criarRecibos({ contexto, registrarStatusMensagem });
+  // Recibos retidos de um envio do CRM voltam pela fila serial (nunca em paralelo com outros recibos).
+  const recibos = criarRecibos({ contexto, registrarStatusMensagem, liberar: (itens) => enfileirarRecibos(itens) });
   const presenca = criarPresenca({ contexto, registrarPresenca });
   const nomesGrupo = criarCacheNomeGrupo();
   /** Fila serial da entrada: cada lote espera o anterior terminar (a ordem nunca se perde). */
@@ -601,8 +608,14 @@ function criarAdapter({
       if (!qr) return null;
       return QRCode.toBuffer(qr, { type: "png" });
     },
-    // Para o pipeline de saída: marcar o id ANTES do `sendMessage`, senão o eco vira "aparelho".
-    marcarEnviadaPeloCrm: (mensagemWaId) => registroAparelho.marcarEnviada(mensagemWaId),
+    // Para o pipeline de saída: marcar o id ANTES do `sendMessage`, senão o eco vira "aparelho" e um
+    // recibo que chegue antes de o back gravar a mensagem se perde.
+    marcarEnviadaPeloCrm(mensagemWaId) {
+      registroAparelho.marcarEnviada(mensagemWaId);
+      recibos.adiarRecibos(mensagemWaId);
+    },
+    // Só com a equipe CONECTADA: durante QR, queda ou reconexão não há para onde enviar.
+    socketConectado: () => (socket && estado.status_conexao === "CONECTADO" ? socket : null),
   };
 }
 

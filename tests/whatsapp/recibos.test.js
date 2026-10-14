@@ -141,3 +141,88 @@ test("um envio que falhou não conta como enviado: o próximo recibo com o mesmo
   await recibos.processar([{ mensagem_wa_id: "3EB0R", status: "LIDA" }]);
   assert.equal(enviados.length, 2);
 });
+
+/** @param {number} ms */
+const esperar = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Recibos com atraso para os envios do CRM: o `liberar` falso processa direto (no adapter, ele
+ * põe os itens na fila serial).
+ * @param {number} msAtrasoEnvio
+ */
+function recibosComAtraso(msAtrasoEnvio) {
+  /** @type {{ mensagem_wa_id: string, status: string }[]} */
+  const enviados = [];
+  /** @type {ReturnType<typeof criarRecibos>} */
+  const recibos = criarRecibos({
+    contexto: CONTEXTO,
+    msAtrasoEnvio,
+    registrarStatusMensagem: async (mensagem_wa_id, status) => void enviados.push({ mensagem_wa_id, status }),
+    liberar: (itens) => recibos.processar(itens),
+  });
+  return { recibos, enviados };
+}
+
+test("recibo de um envio do CRM espera o atraso (o back só grava a mensagem depois da resposta do envio) e sai em ordem", async () => {
+  const { recibos, enviados } = recibosComAtraso(40);
+  recibos.adiarRecibos("3EB0CRM1");
+  await recibos.processar([
+    { mensagem_wa_id: "3EB0CRM1", status: "ENTREGUE" },
+    { mensagem_wa_id: "3EB0OUTRA", status: "ENTREGUE" }, // id que não é do CRM: sai na hora
+  ]);
+  await recibos.processar([{ mensagem_wa_id: "3EB0CRM1", status: "LIDA" }]);
+  assert.deepEqual(enviados, [{ mensagem_wa_id: "3EB0OUTRA", status: "ENTREGUE" }]);
+
+  await esperar(80);
+  assert.deepEqual(enviados.slice(1), [
+    { mensagem_wa_id: "3EB0CRM1", status: "ENTREGUE" },
+    { mensagem_wa_id: "3EB0CRM1", status: "LIDA" },
+  ]);
+
+  // Passado o atraso, um recibo atrasado menor continua sem regredir, e um novo sai na hora.
+  await recibos.processar([{ mensagem_wa_id: "3EB0CRM1", status: "ENTREGUE" }]);
+  assert.equal(enviados.length, 3);
+});
+
+test("recibos retidos fora de ordem saem só avançando, e o atraso 0 desliga a retenção", async () => {
+  const { recibos, enviados } = recibosComAtraso(30);
+  recibos.adiarRecibos("3EB0CRM2");
+  await recibos.processar([
+    { mensagem_wa_id: "3EB0CRM2", status: "LIDA" },
+    { mensagem_wa_id: "3EB0CRM2", status: "ENTREGUE" },
+  ]);
+  await esperar(70);
+  assert.deepEqual(enviados.map((e) => e.status), ["LIDA"]);
+
+  const semAtraso = recibosComAtraso(0);
+  semAtraso.recibos.adiarRecibos("3EB0CRM3");
+  await semAtraso.recibos.processar([{ mensagem_wa_id: "3EB0CRM3", status: "ENTREGUE" }]);
+  assert.equal(semAtraso.enviados.length, 1);
+});
+
+test("limpar descarta os recibos retidos (logout) sem enviá-los depois", async () => {
+  const { recibos, enviados } = recibosComAtraso(30);
+  recibos.adiarRecibos("3EB0CRM4");
+  await recibos.processar([{ mensagem_wa_id: "3EB0CRM4", status: "ENTREGUE" }]);
+  recibos.limpar();
+  await esperar(60);
+  assert.deepEqual(enviados, []);
+});
+
+test("o atraso padrão vem de RECIBO_ATRASO_ENVIO_MS (padrão 3000 ms; inválido cai no padrão)", () => {
+  const { obterAtrasoReciboEnvio } = require("../../src/whatsapp/recibos");
+  const original = process.env.RECIBO_ATRASO_ENVIO_MS;
+  try {
+    delete process.env.RECIBO_ATRASO_ENVIO_MS;
+    assert.equal(obterAtrasoReciboEnvio(), 3000);
+    process.env.RECIBO_ATRASO_ENVIO_MS = "1500";
+    assert.equal(obterAtrasoReciboEnvio(), 1500);
+    process.env.RECIBO_ATRASO_ENVIO_MS = "0";
+    assert.equal(obterAtrasoReciboEnvio(), 0);
+    process.env.RECIBO_ATRASO_ENVIO_MS = "-5";
+    assert.equal(obterAtrasoReciboEnvio(), 3000);
+  } finally {
+    if (original === undefined) delete process.env.RECIBO_ATRASO_ENVIO_MS;
+    else process.env.RECIBO_ATRASO_ENVIO_MS = original;
+  }
+});

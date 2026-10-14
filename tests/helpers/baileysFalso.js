@@ -79,8 +79,19 @@ async function useMultiFileAuthState(pasta) {
   return { state: { creds: {}, keys: {} }, saveCreds: async () => {} };
 }
 
+/** Ids gerados pelo generateMessageIDV2 falso (sequenciais, como os do Baileys: `3EB0` + hex). */
+let sequenciaIds = 0;
+/** @type {(string | undefined)[]} `userId` recebido em cada chamada ao generateMessageIDV2 falso */
+const idsGerados = [];
+
 const exportsFalsos = {
   makeWASocket,
+  /** @param {string} [userId] */
+  generateMessageIDV2: (userId) => {
+    idsGerados.push(userId);
+    sequenciaIds += 1;
+    return `3EB0FALSO${String(sequenciaIds).padStart(12, "0")}`;
+  },
   useMultiFileAuthState,
   DisconnectReason,
   /** @param {any} keys */
@@ -116,6 +127,7 @@ function limparHistorico() {
   sockets.length = 0;
   pastasAuthState.length = 0;
   downloads.length = 0;
+  idsGerados.length = 0;
 }
 
 /** Último socket criado (falha o teste se nenhum foi criado). */
@@ -139,5 +151,6 @@ module.exports = {
   sockets,
   pastasAuthState,
   downloads,
+  idsGerados,
   DisconnectReason,
 };

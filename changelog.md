@@ -3,6 +3,19 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.8.0] - 2026-10-14
+
+### Adicionado
+
+- `src/whatsapp/envio.js`: `enviar(codEquipe, { hash_empresa, chat_jid, conteudo, citacao, mencoes })` envia uma mensagem do atendente ao cliente. O conteúdo vira o do Baileys campo a campo: texto vira `{ text }`, imagem e vídeo viram `{ image | video, mimetype, caption, jpegThumbnail: null }`, a nota de voz vira `{ audio, mimetype: "audio/ogg; codecs=opus", ptt: true, seconds }` com a duração real do Ogg/Opus, outro áudio vai com `ptt: false` e `seconds` sempre preenchido, e PDF/Office vira `{ document, mimetype, fileName, caption }` com o nome saneado e a extensão do tipo. A citação vira `quoted` com a `key` e o `message` originais guardados pelo back (os Buffers serializados voltam a ser Buffer), e só vale para uma mensagem da mesma conversa. As menções vão em `mentions`. O id é gerado com `generateMessageIDV2` e marcado no cache de eco ANTES do `sendMessage`, que recebe `messageId`. O sucesso já devolve `status: "ENVIADA"`, porque o Baileys não emite SERVER_ACK para o envio do próprio socket. Nada é gravado em disco pelo pipeline (sem miniatura nem medição de duração).
+- `src/whatsapp/reacao.js`: `reagir(codEquipe, chat_jid, key, emoji, hashEmpresa)` envia `{ react: { text, key } }` no chat da mensagem alvo. O emoji vazio remove a reação, e o id da reação também entra no cache de eco.
+- `src/http/EnvioController.js`: `POST /equipe/:cod_equipe/enviar` (multipart/form-data, arquivo no campo `midia`) e `POST /equipe/:cod_equipe/reagir` (JSON), com o token de serviço conferido antes de ler o corpo. O contrato é uma allowlist do conteúdo destinado ao cliente: qualquer outro campo (`transcricao`, `nota_interna`, `explicacao` ou outro) responde 400 sem chamar o Baileys, e também um campo que não se aplica ao tipo ou que vem repetido. O arquivo é lido só em memória e validado pelo conteúdo (magic bytes) e pelo teto `MIDIA_TETO_BYTES`. Um conteúdo que não bate com o tipo responde 400. Uma equipe de outra empresa responde 404, uma equipe desconectada ou sem instância responde 409 (nunca 200), e uma falha no `sendMessage` responde 502 com mensagem genérica. Sempre uma mensagem por requisição.
+- `src/whatsapp/recibos.js`: `adiarRecibos(id)` retém os recibos de um envio do CRM por `RECIBO_ATRASO_ENVIO_MS` (padrão 3000 ms, 0 desliga), porque o back só grava a mensagem enviada depois da resposta do envio. Ao fim da retenção, os recibos saem na ordem em que chegaram, pela fila serial da equipe e pela regra de "só avança". O logout descarta os recibos retidos.
+
+### Alterado
+
+- `src/whatsapp/BaileysAdapter.js`: `marcarEnviadaPeloCrm(id)` passa a reter também os recibos do id, e o novo `socketConectado()` devolve o socket só com a equipe `CONECTADO`.
+
 ## [0.7.0] - 2026-10-14
 
 ### Adicionado
