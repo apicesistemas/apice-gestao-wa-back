@@ -45,6 +45,51 @@ test("o encerrador fecha o HTTP e sai com 0, uma única vez mesmo com dois sinai
   assert.deepEqual(saidas, [0]);
 });
 
+test("o encerrador encerra as instâncias do WhatsApp antes de fechar o HTTP", async () => {
+  /** @type {string[]} */
+  const ordem = [];
+  const httpServer = /** @type {any} */ ({
+    /** @param {() => void} cb */
+    close(cb) {
+      ordem.push("http");
+      setImmediate(cb);
+    },
+  });
+  const encerrarInstancias = async () => {
+    await new Promise((resolve) => setImmediate(resolve));
+    ordem.push("instancias");
+  };
+
+  const encerrar = criarEncerrador(httpServer, { sair: (codigo) => ordem.push(`sair:${codigo}`), tetoMs: 1000, encerrarInstancias });
+  encerrar("SIGTERM");
+  await new Promise((resolve) => setTimeout(resolve, 20));
+
+  assert.deepEqual(ordem, ["instancias", "http", "sair:0"]);
+});
+
+test("uma falha ao encerrar as instâncias não impede o fechamento do HTTP", async () => {
+  /** @type {number[]} */
+  const saidas = [];
+  let fechou = false;
+  const httpServer = /** @type {any} */ ({
+    /** @param {() => void} cb */
+    close(cb) {
+      fechou = true;
+      setImmediate(cb);
+    },
+  });
+  const encerrarInstancias = async () => {
+    throw new Error("falha ao encerrar");
+  };
+
+  const encerrar = criarEncerrador(httpServer, { sair: (codigo) => saidas.push(codigo), tetoMs: 1000, encerrarInstancias });
+  encerrar("SIGINT");
+  await new Promise((resolve) => setTimeout(resolve, 20));
+
+  assert.equal(fechou, true);
+  assert.deepEqual(saidas, [0]);
+});
+
 test("se o encerramento travar, o teto força a saída com 1", async () => {
   /** @type {number[]} */
   const saidas = [];
