@@ -7,6 +7,10 @@ const express = require("express");
 const { registrarControllers } = require("./http");
 const { ativarLogEmArquivo, limparLogsAntigos } = require("./utils/logArquivo");
 const instanciaManager = require("./whatsapp/instanciaManager");
+const { criarInstanciaHealth } = require("./whatsapp/instanciaHealth");
+
+/** Heartbeat das conexões por equipe (a cada 60 s), ligado depois da reconexão do boot. */
+const heartbeat = criarInstanciaHealth();
 
 const PORTA_PADRAO = 3501;
 const INTERVALO_LIMPEZA_LOGS_MS = 24 * 60 * 60 * 1000;
@@ -63,7 +67,10 @@ function criarEncerrador(
   {
     sair = (codigo) => process.exit(codigo),
     tetoMs = MS_TETO_ENCERRAMENTO,
-    encerrarInstancias = () => instanciaManager.encerrarTodas(),
+    encerrarInstancias = () => {
+      heartbeat.parar(); // nenhuma reconexão do heartbeat começa durante o encerramento
+      return instanciaManager.encerrarTodas();
+    },
   } = {}
 ) {
   let encerrando = false;
@@ -112,7 +119,8 @@ async function iniciar() {
   instanciaManager
     .reconectarTodas()
     .then((reconectadas) => console.log(`[BOOT] Equipes reconectadas ao WhatsApp: ${reconectadas.length}`))
-    .catch((erro) => console.error("[BOOT] Falha ao reconectar as equipes:", erro instanceof Error ? erro.message : erro));
+    .catch((erro) => console.error("[BOOT] Falha ao reconectar as equipes:", erro instanceof Error ? erro.message : erro))
+    .finally(() => heartbeat.iniciar());
 
   const encerrar = criarEncerrador(httpServer);
   process.on("SIGINT", () => encerrar("SIGINT"));

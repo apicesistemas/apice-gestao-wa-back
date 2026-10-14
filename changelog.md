@@ -3,6 +3,23 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.7.0] - 2026-10-14
+
+### Adicionado
+
+- `src/whatsapp/recibos.js`: os recibos do Baileys (`messages.update` na conversa privada e `message-receipt.update` no grupo) viram o status da mensagem enviada pela equipe: `SERVER_ACK` vira `ENVIADA`, `DELIVERY_ACK` vira `ENTREGUE`, e `READ` ou `PLAYED` viram `LIDA`. `ERROR` e `PENDING` são ignorados. No grupo, `receiptTimestamp` vira `ENTREGUE`, e `readTimestamp` ou `playedTimestamp` viram `LIDA`. Só mensagens `fromMe` têm status, e o recibo de outro aparelho da própria equipe é ignorado. Vale o maior status recebido: no grupo, a mensagem fica `LIDA` quando o primeiro participante lê, e o status nunca regride. Um update sem id ou sem status mapeável não chama o back, e uma falha do back só vai para o log.
+- `src/services/mensagemStatusInternoClient.js`: `registrarStatusMensagem(mensagem_wa_id, status, contexto)` envia `POST /interno/mensagem-status` com `{ hash_empresa, cod_equipe, mensagem_wa_id, status }`. Para um id que ele não conhece, o back responde 200 sem efeito.
+- `src/whatsapp/presenca.js`: o "digitando..." do cliente sai do `presence.update`. `composing` vira `DIGITANDO`, `recording` vira `GRAVANDO`, e `paused`, `available` ou `unavailable` viram `PARADO`. Só a presença da outra ponta é enviada, e só quando o estado muda. A presença do chat é inscrita (`presenceSubscribe`) na primeira mensagem dele, uma vez por chat e por socket.
+- `src/services/presencaInternoClient.js`: `registrarPresenca({ chat_jid, participante_jid, estado }, contexto)` envia `POST /interno/presenca`, com `participante_jid` `null` na conversa privada. Até a rota existir no back (Task 7.1), a chamada falha e só vai para o log.
+- `src/whatsapp/nomeGrupo.js`: guarda em cache o subject do grupo (`groupMetadata`, TTL de 1 h, prazo de 2 s, uma consulta por grupo mesmo com mensagens simultâneas). O `groups.update` atualiza o cache. Uma falha fica em cache por 60 s e nunca rejeita.
+- `src/whatsapp/instanciaHealth.js`: heartbeat a cada 60 s para cada equipe do registro de pareadas. Uma equipe com instância em memória reporta o status atual. Uma equipe sem instância reporta `DESCONECTADO` e só reconecta se houver sessão salva, sem gerar QR à toa. As rodadas nunca se sobrepõem.
+- `src/whatsapp/instanciaManager.js`: `listarRegistradas()` e `temSessaoSalva(codEquipe)`.
+
+### Alterado
+
+- `src/whatsapp/BaileysAdapter.js`: passa a escutar `messages.update`, `message-receipt.update`, `presence.update` e `groups.update`. Os recibos entram na mesma fila serial da entrada, então o status nunca chega ao back antes do registro da mensagem. A mensagem de grupo vai a `/interno/mensagem-recebida` com `nome_chat` (o subject do grupo). Quando o subject falha, ela vai sem esse campo, e a mensagem privada nunca leva `nome_chat`.
+- `src/index.js`: o heartbeat começa depois da reconexão do boot e para antes de as instâncias serem encerradas no desligamento gracioso.
+
 ## [0.6.0] - 2026-10-14
 
 ### Adicionado

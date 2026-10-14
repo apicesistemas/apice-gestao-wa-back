@@ -29,6 +29,13 @@
 // em `POST /interno/transcricao`). A fila de entrada NÃO espera a transcrição, e nenhuma falha
 // dela desfaz ou impede o registro da mensagem.
 //
+// Recibos, presença e nome do grupo (Task 6.2): `messages.update` / `message-receipt.update` →
+// recibos (ENVIADA/ENTREGUE/LIDA, maior status, `POST /interno/mensagem-status`) na MESMA fila
+// serial da entrada (o recibo de uma mensagem nunca passa na frente do registro dela);
+// `presence.update` → presenca ("digitando" do cliente, só na mudança, `POST /interno/presenca`),
+// com `presenceSubscribe` na primeira mensagem de cada chat; mensagem de grupo leva o `nome_chat`
+// (subject do `groupMetadata`, com cache e prazo curto; falha → sem `nome_chat`).
+//
 // A pasta `sessoes-baileys/` é credencial da sessão pareada: este código só cria (via Baileys),
 // confere a existência do `creds.json` e apaga no logout. Nunca lista nem loga o conteúdo.
 const fs = require("node:fs");
@@ -45,6 +52,11 @@ const midiaEntrada = require("./midiaEntrada");
 const mensagemInternoClient = require("../services/mensagemInternoClient");
 const midiaInternoClient = require("../services/midiaInternoClient");
 const filaTranscricao = require("../audio/filaTranscricao");
+const { criarRecibos, extrairDeAtualizacoes, extrairDeRecibos } = require("./recibos");
+const { criarPresenca } = require("./presenca");
+const { criarCacheNomeGrupo } = require("./nomeGrupo");
+const mensagemStatusInternoClient = require("../services/mensagemStatusInternoClient");
+const presencaInternoClient = require("../services/presencaInternoClient");
 
 /** Diretório base das sessões: `./sessoes-baileys/<cod_equipe>` na raiz do projeto. */
 const DIRETORIO_SESSOES = path.join(__dirname, "..", "..", "sessoes-baileys");
@@ -67,6 +79,10 @@ const EVENTOS_SOCKET = /** @type {const} */ ([
   "chats.phoneNumberShare",
   "contacts.upsert",
   "contacts.update",
+  "messages.update",
+  "message-receipt.update",
+  "presence.update",
+  "groups.update",
 ]);
 
 /** @typedef {"DESCONECTADO" | "QR_PENDENTE" | "CONECTADO" | "ERRO"} StatusConexao */
@@ -168,6 +184,9 @@ function existeSessaoEmDisco(codEquipe, diretorioSessoes = DIRETORIO_SESSOES) {
 /** @typedef {import("../services/midiaInternoClient").MetadadosEnvioMidia} MetadadosEnvioMidia */
 /** @typedef {import("./midiaEntrada").LimitesMidia} LimitesMidia */
 /** @typedef {import("../audio/filaTranscricao").TarefaTranscricao} TarefaTranscricao */
+/** @typedef {import("../services/mensagemInternoClient").MensagemParaRegistro} MensagemParaRegistro */
+/** @typedef {import("../services/mensagemStatusInternoClient").StatusMensagem} StatusMensagem */
+/** @typedef {import("../services/presencaInternoClient").DadosPresenca} DadosPresenca */
 
 /**
  * @typedef {{
@@ -177,10 +196,12 @@ function existeSessaoEmDisco(codEquipe, diretorioSessoes = DIRETORIO_SESSOES) {
  *   msReconexao?: number,
  *   onStatusChange?: (estado: EstadoConexao) => void,
  *   onSessaoRemovida?: () => void,
- *   registrarMensagem?: (mensagem: MensagemRecebida, contexto: ContextoInstancia, estadoMidia: EstadoMidia) => Promise<unknown>,
+ *   registrarMensagem?: (mensagem: MensagemParaRegistro, contexto: ContextoInstancia, estadoMidia: EstadoMidia) => Promise<unknown>,
  *   enviarMidia?: (mensagem_wa_id: string, buffer: Buffer, metadados: MetadadosEnvioMidia) => Promise<unknown>,
  *   obterLimitesMidia?: () => LimitesMidia,
  *   enfileirarTranscricao?: (tarefa: TarefaTranscricao) => Promise<unknown>,
+ *   registrarStatusMensagem?: (mensagem_wa_id: string, status: StatusMensagem, contexto: ContextoInstancia) => Promise<unknown>,
+ *   registrarPresenca?: (dados: DadosPresenca, contexto: ContextoInstancia) => Promise<unknown>,
  * }} OpcoesAdapter
  */
 
@@ -213,6 +234,8 @@ function criarAdapter({
   enviarMidia = midiaInternoClient.enviarMidia,
   obterLimitesMidia = midiaEntrada.obterLimitesMidia,
   enfileirarTranscricao = filaTranscricao.enfileirarTranscricao,
+  registrarStatusMensagem = mensagemStatusInternoClient.registrarStatusMensagem,
+  registrarPresenca = presencaInternoClient.registrarPresenca,
 }) {
   const cod = normalizarCodEquipe(codEquipe);
   const pastaSessao = diretorioSessao(cod, diretorioSessoes);
@@ -235,6 +258,12 @@ function criarAdapter({
   // Entrada: eco dos envios do CRM e pares LID ↔ telefone, por equipe e só em memória.
   const registroAparelho = criarRegistroAparelho();
   const resolvedorLid = criarResolvedorLid();
+  // Recibos, presença e nome dos grupos: também por equipe e só em memória.
+  /** @type {ContextoInstancia} */
+  const contexto = { hash_empresa: hashEmpresa, cod_equipe: cod };
+  const recibos = criarRecibos({ contexto, registrarStatusMensagem });
+  const presenca = criarPresenca({ contexto, registrarPresenca });
+  const nomesGrupo = criarCacheNomeGrupo();
   /** Fila serial da entrada: cada lote espera o anterior terminar (a ordem nunca se perde). */
   /** @type {Promise<void>} */
   let filaEntrada = Promise.resolve();
@@ -303,6 +332,7 @@ function criarAdapter({
 
     if (connection === "open") {
       qrAtual = null;
+      presenca.limparInscricoes(); // sessão nova no WhatsApp: as inscrições de presença não valem mais
       atualizarStatus({ status_conexao: "CONECTADO", ultimo_erro_conexao: null });
     }
 
@@ -323,6 +353,9 @@ function criarAdapter({
         userDevicesCache.flushAll();
         registroAparelho.limpar();
         resolvedorLid.limpar();
+        recibos.limpar();
+        presenca.limpar();
+        nomesGrupo.limpar();
         try {
           await fsp.rm(pastaSessao, { recursive: true, force: true });
         } catch (erroRm) {
@@ -360,6 +393,9 @@ function criarAdapter({
     resolvedorLid.aprenderDaMensagem(waMessage);
     const normalizada = normalizarMensagem(waMessage, { eu: { jid: s.user?.id, lid: s.user?.lid } });
     if (!normalizada || !registroAparelho.deveRegistrar(normalizada)) return;
+    // Sem `await`: a inscrição de presença e o nome do grupo correm junto com o resto (LID, mídia).
+    void presenca.inscrever(s, normalizada.chat_jid);
+    const nomeChat = normalizada.tipo_chat === "GRUPO" ? nomesGrupo.obterNome(s, normalizada.chat_jid) : Promise.resolve(null);
 
     let remetente = resolvedorLid.completarIdentidade(normalizada.remetente);
     let contato = normalizada.contato && resolvedorLid.completarIdentidade(normalizada.contato);
@@ -390,8 +426,13 @@ function criarAdapter({
       }
     }
 
+    /** @type {MensagemParaRegistro} */
+    const paraRegistro = { ...normalizada, remetente, contato };
+    const nome_chat = await nomeChat; // nunca rejeita, e o prazo é curto
+    if (nome_chat) paraRegistro.nome_chat = nome_chat;
+
     try {
-      await registrarMensagem({ ...normalizada, remetente, contato }, { hash_empresa: hashEmpresa, cod_equipe: cod }, estadoMidia);
+      await registrarMensagem(paraRegistro, { hash_empresa: hashEmpresa, cod_equipe: cod }, estadoMidia);
     } catch (erro) {
       // Sem a mensagem no back não há a que associar a mídia: o binário é descartado.
       console.error(`[ENTRADA] Falha ao registrar a mensagem ${id} da equipe ${cod}:`, resumoFalha(erro));
@@ -451,6 +492,20 @@ function criarAdapter({
     return filaEntrada;
   }
 
+  /**
+   * Põe os status de um recibo na fila serial da entrada, atrás do registro das mensagens já
+   * recebidas. Itens sem id ou sem status mapeável não chegam aqui. A fila nunca fica rejeitada.
+   * @param {import("./recibos").StatusRecebido[]} itens
+   * @returns {Promise<void>}
+   */
+  function enfileirarRecibos(itens) {
+    if (itens.length === 0) return filaEntrada;
+    filaEntrada = filaEntrada.then(() =>
+      recibos.processar(itens).catch((erro) => console.error(`[RECIBOS] Falha ao processar recibos da equipe ${cod}:`, nomeDoErro(erro)))
+    );
+    return filaEntrada;
+  }
+
   /** @returns {Promise<EstadoConexao>} */
   async function abrirSocket() {
     // Nunca dois sockets na mesma pasta de sessão: fecha o anterior e cancela a reconexão pendente.
@@ -496,6 +551,10 @@ function criarAdapter({
     s.ev.on("chats.phoneNumberShare", (par) => resolvedorLid.aprenderContatos([par]));
     s.ev.on("contacts.upsert", (contatos) => resolvedorLid.aprenderContatos(contatos));
     s.ev.on("contacts.update", (contatos) => resolvedorLid.aprenderContatos(contatos));
+    s.ev.on("messages.update", (atualizacoes) => enfileirarRecibos(extrairDeAtualizacoes(atualizacoes)));
+    s.ev.on("message-receipt.update", (lista) => enfileirarRecibos(extrairDeRecibos(lista, { jid: s.user?.id, lid: s.user?.lid })));
+    s.ev.on("presence.update", (evento) => presenca.tratarAtualizacao(evento, { jid: s.user?.id, lid: s.user?.lid }));
+    s.ev.on("groups.update", (grupos) => nomesGrupo.aprender(grupos));
 
     return { ...estado };
   }

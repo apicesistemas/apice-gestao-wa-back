@@ -189,6 +189,36 @@ function criarInstanciaManager({
   }
 
   /**
+   * Equipes do registro de pareadas (para o heartbeat), só as entradas válidas.
+   * @returns {{ cod_equipe: string, hash_empresa: string }[]}
+   */
+  function listarRegistradas() {
+    return Object.entries(lerRegistro())
+      .filter(([cod, dados]) => {
+        try {
+          BaileysAdapter.normalizarCodEquipe(cod);
+        } catch {
+          return false;
+        }
+        return typeof dados?.hash_empresa === "string" && dados.hash_empresa !== "";
+      })
+      .map(([cod_equipe, dados]) => ({ cod_equipe, hash_empresa: dados.hash_empresa }));
+  }
+
+  /**
+   * A equipe tem sessão pareada em disco? (só confere o `creds.json`, sem ler)
+   * @param {string | number} codEquipe
+   * @returns {boolean}
+   */
+  function temSessaoSalva(codEquipe) {
+    try {
+      return BaileysAdapter.existeSessaoEmDisco(codEquipe, diretorioSessoes);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Desligamento gracioso: encerra todos os sockets (a sessão fica em disco) e esvazia o Map.
    * @returns {Promise<void>}
    */
@@ -202,7 +232,7 @@ function criarInstanciaManager({
     );
   }
 
-  return { conectar, obter, reconectarTodas, encerrarTodas };
+  return { conectar, obter, reconectarTodas, encerrarTodas, listarRegistradas, temSessaoSalva };
 }
 
 /** Instância do processo (o PM2 roda `instances: 1`). Os testes criam a sua com `criarInstanciaManager`. */

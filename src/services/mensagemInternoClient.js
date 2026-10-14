@@ -6,6 +6,11 @@ const { chamarRotaInterna } = require("./internoHttpClient");
 
 /** @typedef {import("../whatsapp/filtroEntrada").MensagemRecebida} MensagemRecebida */
 /** @typedef {{ hash_empresa: string, cod_equipe: string | number }} ContextoInstancia */
+/**
+ * A MensagemRecebida com o `nome_chat` (subject do grupo, Task 6.2). Só vai em mensagem de grupo e
+ * quando o subject foi obtido; ausente no privado (o back usa o nome do contato).
+ * @typedef {MensagemRecebida & { nome_chat?: string }} MensagemParaRegistro
+ */
 /** @typedef {import("../whatsapp/midiaEntrada").MotivoPendenciaMidia} MotivoPendenciaMidia */
 /**
  * Estado do binário da mídia no momento do registro. `midia_pendente: true` quando a mensagem tem
@@ -22,7 +27,7 @@ const SEM_PENDENCIA = Object.freeze({ midia_pendente: false, midia_motivo_penden
  * Envia ao back a MensagemRecebida normalizada, com o tenant e a equipe da instância que recebeu.
  * `hash_empresa` e `cod_equipe` vêm da instância e não podem ser sobrescritos pela mensagem.
  * Rejeita com `ErroRotaInterna` (configuração, rede, prazo ou HTTP não-2xx).
- * @param {MensagemRecebida} mensagem
+ * @param {MensagemParaRegistro} mensagem
  * @param {ContextoInstancia} contexto
  * @param {EstadoMidia} [estadoMidia] padrão: sem pendência
  * @returns {Promise<any>}
