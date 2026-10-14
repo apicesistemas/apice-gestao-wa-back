@@ -3,6 +3,19 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.6.0] - 2026-10-14
+
+### Adicionado
+
+- `src/audio/transcricaoService.js`: `transcrever(buffer, mimetype, { duracaoSegundos })` transcreve o áudio pela MiniMax ASR (`POST /v1/speech_to_text`, modelo `asr-1.0`, idioma pt), no padrão já usado em produção no comandax e no financeiro. Nunca rejeita: devolve `{ texto }` ou `{ erro, transitorio }`. OGG/Opus, MP3 e AAC vão direto. MP4, 3GP, QuickTime e M4A são convertidos (a MiniMax não aceita contêiner de vídeo) e vão como `audio/aac`. AMR, que a MiniMax não aceita, falha sem chamar a API. Áudio acima dos limites da API (50 MB ou 500 s), vazio ou sem `MINIMAX_API_KEY` também não chega a ser enviado. 429, 5xx, prazo esgotado e falha de rede são falhas transitórias. As demais são definitivas. A chave e o corpo da resposta nunca vão para o log.
+- `src/audio/trilhaVideo.js`: `extrairTrilhaAudio(bufferVideo)` extrai em memória a trilha AAC de um vídeo (ou M4A) e a devolve em ADTS (`audio/aac`), sem ffmpeg, sem processo externo e sem disco. Funciona com o `moov` no fim do arquivo (MP4 sem "faststart"), com `co64`, com descritores de tamanho estendido e com QuickTime (`esds` dentro de `wave`). Um vídeo sem áudio, uma trilha em outro codec ou um contêiner truncado geram erro com código.
+- `src/audio/filaTranscricao.js`: uma fila de concorrência 1 para o processo todo, porque a MiniMax limita as conexões por chave (6 áudios em paralelo derrubaram 5 com 429 no comandax). Uma falha transitória ganha uma nova tentativa, depois de 2 s e ainda na mesma vez da fila. O resultado vai ao back como `CONCLUIDA`, `PENDENTE` (falha transitória que persistiu, ou chave não configurada) ou `FALHOU` (erro definitivo). A fila nunca rejeita, e uma falha no back só gera log.
+- `src/services/transcricaoInternoClient.js`: `registrarTranscricao(mensagem_wa_id, { status, texto }, { hash_empresa, cod_equipe })` envia `POST /interno/transcricao` com `{ hash_empresa, cod_equipe, mensagem_wa_id, status, texto }`. `texto` só vai preenchido em `CONCLUIDA`.
+
+### Alterado
+
+- `src/whatsapp/BaileysAdapter.js`: um áudio ou vídeo registrado, com a mídia aceita, entra na fila de transcrição sem bloquear a fila de entrada da equipe. Uma falha na transcrição não desfaz nem impede o registro da mensagem.
+
 ## [0.5.0] - 2026-10-14
 
 ### Adicionado

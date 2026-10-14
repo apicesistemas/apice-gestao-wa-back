@@ -14,6 +14,8 @@ baileysFalso.instalarBaileysFalso();
 const { criarAdapter } = require("../../src/whatsapp/BaileysAdapter");
 const { mensagemWa, EU, long } = require("../helpers/mensagensWa");
 const arquivos = require("../helpers/arquivosMidia");
+const { mp4ComAudio } = require("../helpers/mp4Falso");
+const { criarFilaTranscricao } = require("../../src/audio/filaTranscricao");
 
 const { ultimoSocket, drenar, definirDownload } = baileysFalso;
 
@@ -28,15 +30,24 @@ const streamDe = (buffer) => Readable.from([buffer.subarray(0, 5), buffer.subarr
 /**
  * Adapter conectado com o registro e o envio de mídia ao back trocados por falsos que guardam a
  * ordem das chamadas.
- * @param {{ tetoBytes?: number, prazoMs?: number, registrar?: () => Promise<unknown>, enviar?: () => Promise<unknown> }} [opcoes]
+ * A transcrição é trocada por um falso que só guarda as tarefas (ou pela fila passada no teste).
+ * @param {{
+ *   tetoBytes?: number,
+ *   prazoMs?: number,
+ *   registrar?: () => Promise<unknown>,
+ *   enviar?: () => Promise<unknown>,
+ *   enfileirarTranscricao?: (tarefa: any) => Promise<unknown>,
+ * }} [opcoes]
  */
-async function adapterConectado({ tetoBytes = 1024, prazoMs = 1000, registrar, enviar } = {}) {
+async function adapterConectado({ tetoBytes = 1024, prazoMs = 1000, registrar, enviar, enfileirarTranscricao } = {}) {
   /** @type {string[]} */
   const ordem = [];
   /** @type {{ mensagem: any, contexto: any, estadoMidia: any }[]} */
   const registradas = [];
   /** @type {{ mensagem_wa_id: string, buffer: Buffer, metadados: any }[]} */
   const midiasEnviadas = [];
+  /** @type {any[]} */
+  const transcricoes = [];
   const adapter = criarAdapter({
     codEquipe: "21",
     hashEmpresa: "hash-empresa-teste",
@@ -52,6 +63,11 @@ async function adapterConectado({ tetoBytes = 1024, prazoMs = 1000, registrar, e
       midiasEnviadas.push({ mensagem_wa_id, buffer, metadados });
       if (enviar) await enviar();
     },
+    enfileirarTranscricao: (tarefa) => {
+      ordem.push(`transcricao:${tarefa.mensagem_wa_id}`);
+      transcricoes.push(tarefa);
+      return enfileirarTranscricao ? enfileirarTranscricao(tarefa) : Promise.resolve();
+    },
   });
   await adapter.iniciar();
   const socket = /** @type {any} */ (ultimoSocket());
@@ -63,7 +79,7 @@ async function adapterConectado({ tetoBytes = 1024, prazoMs = 1000, registrar, e
     await socket.emitir("messages.upsert", { messages, type: "notify" });
     await drenar();
   };
-  return { socket, ordem, registradas, midiasEnviadas, receber };
+  return { socket, ordem, registradas, midiasEnviadas, transcricoes, receber };
 }
 
 /** @param {string} [mimetype] @param {number} [tamanho] */
@@ -185,4 +201,135 @@ test("se o registro da mensagem falha, a mídia não é enviada (o back não ter
   const msg = documentoWa();
   await receber([msg]);
   assert.deepEqual(ordem, [`registrar:${msg.key.id}`]);
+});
+
+// Transcrição (Task 5.2): áudio e vídeo registrados com a mídia aceita entram na fila de
+// transcrição (concorrência 1, global), sem bloquear a fila de entrada da equipe.
+
+/** @param {number} [segundos] */
+const audioPttWa = (segundos = 6) =>
+  mensagemWa({ audioMessage: { mimetype: "audio/ogg; codecs=opus", ptt: true, seconds: segundos, fileLength: long(80), url: "https://mmg.whatsapp.net/a" } });
+const videoWa = () => mensagemWa({ videoMessage: { mimetype: "video/mp4", seconds: 3, fileLength: long(400), url: "https://mmg.whatsapp.net/v", caption: "olha o erro" } });
+
+test("um áudio PTT registrado com a mídia aceita entra na fila de transcrição depois do registro e do envio da mídia", async () => {
+  const ogg = arquivos.oggOpus(6);
+  definirDownload(async () => streamDe(ogg));
+  const { ordem, transcricoes, receber } = await adapterConectado();
+  const msg = audioPttWa();
+  await receber([msg]);
+  assert.deepEqual(ordem, [`registrar:${msg.key.id}`, `midia:${msg.key.id}`, `transcricao:${msg.key.id}`]);
+  assert.deepEqual(transcricoes, [
+    { mensagem_wa_id: msg.key.id, buffer: ogg, mimetype: "audio/ogg", duracao_segundos: 6, contexto: { hash_empresa: "hash-empresa-teste", cod_equipe: "21" } },
+  ]);
+});
+
+test("um vídeo registrado com a mídia aceita entra na fila de transcrição com o tipo detectado", async () => {
+  const video = mp4ComAudio();
+  definirDownload(async () => streamDe(video));
+  const { transcricoes, receber } = await adapterConectado();
+  const msg = videoWa();
+  await receber([msg]);
+  assert.equal(transcricoes.length, 1);
+  assert.equal(transcricoes[0].mimetype, "video/mp4");
+  assert.equal(transcricoes[0].duracao_segundos, 3);
+  assert.deepEqual(transcricoes[0].buffer, video);
+});
+
+test("documento, imagem, mídia pendente ou mensagem não registrada não entram na fila de transcrição", async () => {
+  definirDownload(async () => streamDe(arquivos.pdf()));
+  const doc = await adapterConectado();
+  await doc.receber([documentoWa()]);
+  assert.equal(doc.transcricoes.length, 0);
+
+  definirDownload(async () => {
+    throw new Error("falha de rede do WhatsApp");
+  });
+  const pendente = await adapterConectado();
+  await pendente.receber([audioPttWa()]);
+  assert.equal(pendente.registradas.length, 1);
+  assert.equal(pendente.transcricoes.length, 0, "sem o binário não há o que transcrever");
+
+  definirDownload(async () => streamDe(arquivos.oggOpus(3)));
+  const semRegistro = await adapterConectado({
+    registrar: async () => {
+      throw new Error("back fora do ar");
+    },
+  });
+  await semRegistro.receber([audioPttWa()]);
+  assert.equal(semRegistro.transcricoes.length, 0);
+});
+
+test("a transcrição não bloqueia a fila de entrada: a mensagem seguinte é registrada com a transcrição ainda em andamento", async () => {
+  definirDownload(async () => streamDe(arquivos.oggOpus(3)));
+  const { ordem, receber } = await adapterConectado({ enfileirarTranscricao: () => new Promise(() => {}) });
+  const audio = audioPttWa();
+  const seguinte = mensagemWa({ conversation: "ouviu?" });
+  await receber([audio, seguinte]);
+  assert.deepEqual(ordem, [`registrar:${audio.key.id}`, `midia:${audio.key.id}`, `transcricao:${audio.key.id}`, `registrar:${seguinte.key.id}`]);
+});
+
+test("uma transcrição que rejeita (defesa) só loga e a fila de entrada segue", async () => {
+  definirDownload(async () => streamDe(arquivos.oggOpus(3)));
+  const { registradas, receber } = await adapterConectado({ enfileirarTranscricao: () => Promise.reject(new Error("bug")) });
+  await receber([audioPttWa(), mensagemWa({ conversation: "oi" })]);
+  await drenar();
+  assert.equal(registradas.length, 2);
+});
+
+test("uma falha da MiniMax (429/timeout) envia status PENDENTE, e a mensagem continua registrada", async () => {
+  const VARS = ["CRM_BACK_URL", "CRM_BACK_SERVICE_TOKEN", "MINIMAX_API_KEY"];
+  const envOriginal = Object.fromEntries(VARS.map((nome) => [nome, process.env[nome]]));
+  const fetchOriginal = globalThis.fetch;
+  process.env.CRM_BACK_URL = "http://back.local:3500";
+  process.env.CRM_BACK_SERVICE_TOKEN = "token-wa-para-back";
+  process.env.MINIMAX_API_KEY = "chave-minimax-de-teste";
+  /** @type {any[]} */
+  const transcricoesNoBack = [];
+  let chamadasMinimax = 0;
+  globalThis.fetch = /** @type {typeof fetch} */ (
+    async (url, init) => {
+      if (String(url).includes("minimax")) {
+        chamadasMinimax += 1;
+        if (chamadasMinimax === 1) return new Response("conn limit (1041)", { status: 429 });
+        throw Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" });
+      }
+      transcricoesNoBack.push({ url: String(url), corpo: JSON.parse(String(init?.body)) });
+      return Response.json({ msg: "ok" });
+    }
+  );
+  try {
+    definirDownload(async () => streamDe(arquivos.oggOpus(5)));
+    const fila = criarFilaTranscricao({ esperar: async () => {} });
+    /** @type {Promise<unknown>[]} */
+    const emAndamento = [];
+    const { registradas, midiasEnviadas, receber } = await adapterConectado({
+      enfileirarTranscricao: (tarefa) => {
+        const p = fila.enfileirarTranscricao(tarefa);
+        emAndamento.push(p);
+        return p;
+      },
+    });
+    const msg = audioPttWa(5);
+    await receber([msg]);
+    const [resultado] = await Promise.all(emAndamento);
+
+    assert.deepEqual(resultado, { status: "PENDENTE", texto: null });
+    assert.equal(chamadasMinimax, 2, "uma chamada + uma nova tentativa");
+    assert.equal(registradas.length, 1, "a mensagem foi registrada e continua registrada");
+    assert.equal(registradas[0].mensagem.mensagem_wa_id, msg.key.id);
+    assert.equal(registradas[0].mensagem.tipo, "AUDIO");
+    assert.equal(midiasEnviadas.length, 1, "a mídia também foi ao back");
+    assert.deepEqual(transcricoesNoBack, [
+      {
+        url: "http://back.local:3500/interno/transcricao",
+        corpo: { hash_empresa: "hash-empresa-teste", cod_equipe: 21, mensagem_wa_id: msg.key.id, status: "PENDENTE", texto: null },
+      },
+    ]);
+  } finally {
+    globalThis.fetch = fetchOriginal;
+    for (const nome of VARS) {
+      if (envOriginal[nome] === undefined) delete process.env[nome];
+      else process.env[nome] = envOriginal[nome];
+    }
+  }
 });

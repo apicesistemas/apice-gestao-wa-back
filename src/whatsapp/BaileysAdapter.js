@@ -24,6 +24,11 @@
 // (`POST /interno/midia`, multipart). Falha no download ou na validação não perde a mensagem: ela
 // é registrada com `midia_pendente: true` e o motivo.
 //
+// Transcrição (Task 5.2): um AUDIO ou VIDEO registrado com a mídia aceita vai para a fila de
+// transcrição (filaTranscricao: concorrência 1 para o processo todo, uma nova tentativa, resultado
+// em `POST /interno/transcricao`). A fila de entrada NÃO espera a transcrição, e nenhuma falha
+// dela desfaz ou impede o registro da mensagem.
+//
 // A pasta `sessoes-baileys/` é credencial da sessão pareada: este código só cria (via Baileys),
 // confere a existência do `creds.json` e apaga no logout. Nunca lista nem loga o conteúdo.
 const fs = require("node:fs");
@@ -39,6 +44,7 @@ const { criarResolvedorLid } = require("./resolverLid");
 const midiaEntrada = require("./midiaEntrada");
 const mensagemInternoClient = require("../services/mensagemInternoClient");
 const midiaInternoClient = require("../services/midiaInternoClient");
+const filaTranscricao = require("../audio/filaTranscricao");
 
 /** Diretório base das sessões: `./sessoes-baileys/<cod_equipe>` na raiz do projeto. */
 const DIRETORIO_SESSOES = path.join(__dirname, "..", "..", "sessoes-baileys");
@@ -48,6 +54,8 @@ const MS_RECONEXAO = 5000;
 const MS_CACHE_VERSAO = 6 * 60 * 60 * 1000;
 /** `cod_equipe` é PK numérica: só dígitos, o que também impede caminho fora do diretório base. */
 const PADRAO_COD_EQUIPE = /^[1-9]\d{0,9}$/;
+/** Tipos de mensagem cuja mídia é transcrita (o vídeo, pela trilha de áudio). */
+const TIPOS_TRANSCRITOS = new Set(["AUDIO", "VIDEO"]);
 
 const loggerBaileys = pino({ level: "silent" });
 
@@ -159,6 +167,7 @@ function existeSessaoEmDisco(codEquipe, diretorioSessoes = DIRETORIO_SESSOES) {
 /** @typedef {import("../services/mensagemInternoClient").EstadoMidia} EstadoMidia */
 /** @typedef {import("../services/midiaInternoClient").MetadadosEnvioMidia} MetadadosEnvioMidia */
 /** @typedef {import("./midiaEntrada").LimitesMidia} LimitesMidia */
+/** @typedef {import("../audio/filaTranscricao").TarefaTranscricao} TarefaTranscricao */
 
 /**
  * @typedef {{
@@ -171,6 +180,7 @@ function existeSessaoEmDisco(codEquipe, diretorioSessoes = DIRETORIO_SESSOES) {
  *   registrarMensagem?: (mensagem: MensagemRecebida, contexto: ContextoInstancia, estadoMidia: EstadoMidia) => Promise<unknown>,
  *   enviarMidia?: (mensagem_wa_id: string, buffer: Buffer, metadados: MetadadosEnvioMidia) => Promise<unknown>,
  *   obterLimitesMidia?: () => LimitesMidia,
+ *   enfileirarTranscricao?: (tarefa: TarefaTranscricao) => Promise<unknown>,
  * }} OpcoesAdapter
  */
 
@@ -202,6 +212,7 @@ function criarAdapter({
   registrarMensagem = mensagemInternoClient.registrarMensagem,
   enviarMidia = midiaInternoClient.enviarMidia,
   obterLimitesMidia = midiaEntrada.obterLimitesMidia,
+  enfileirarTranscricao = filaTranscricao.enfileirarTranscricao,
 }) {
   const cod = normalizarCodEquipe(codEquipe);
   const pastaSessao = diretorioSessao(cod, diretorioSessoes);
@@ -399,6 +410,21 @@ function criarAdapter({
       });
     } catch (erro) {
       console.error(`[ENTRADA] Falha ao enviar a mídia da mensagem ${id} da equipe ${cod}:`, resumoFalha(erro));
+    }
+
+    // Sem `await`: a transcrição roda na fila própria e não segura a entrada da equipe.
+    if (TIPOS_TRANSCRITOS.has(normalizada.tipo)) {
+      try {
+        enfileirarTranscricao({
+          mensagem_wa_id: id,
+          buffer: midia.buffer,
+          mimetype: midia.mimetype,
+          duracao_segundos: midia.duracao_segundos,
+          contexto: { hash_empresa: hashEmpresa, cod_equipe: cod },
+        }).catch((erro) => console.error(`[ENTRADA] Falha na transcrição da mensagem ${id} da equipe ${cod}:`, nomeDoErro(erro)));
+      } catch (erro) {
+        console.error(`[ENTRADA] Falha ao enfileirar a transcrição da mensagem ${id} da equipe ${cod}:`, nomeDoErro(erro));
+      }
     }
   }
 
