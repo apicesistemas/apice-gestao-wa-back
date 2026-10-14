@@ -3,6 +3,19 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.4.0] - 2026-10-14
+
+### Adicionado
+
+- `src/whatsapp/filtroEntrada.js`: `normalizarMensagem(waMessage, { eu })` transforma cada mensagem recebida numa `MensagemRecebida`, sem baixar nem consultar nada. Cobre texto, imagem, vídeo, áudio (com indicação de nota de voz), documento, figurinha, localização, contato (vCard), reação, citação, menções, edição e exclusão, inclusive em mensagens temporárias e de visualização única. Mensagens de grupo identificam o grupo e o participante que enviou. Mensagens enviadas pelo aparelho da equipe ficam com origem `APARELHO`. Um contato só com LID é registrado pelo LID. A mídia vai só com os metadados (tipo, tamanho declarado, nome do arquivo, duração). A `key` e o conteúdo bruto (em JSON) são guardados para citar e reagir depois. Status, transmissão, canais e a conversa do número com ele mesmo são ignorados.
+- `src/whatsapp/registroAparelho.js`: separa o eco das mensagens enviadas pelo CRM (cache `enviadas` em memória, com prazo e teto) das mensagens digitadas no celular ou no WhatsApp Web, que são registradas.
+- `src/whatsapp/resolverLid.js`: pares LID ↔ telefone por equipe, só em memória, aprendidos de `senderPn`/`senderLid`, `participantPn`/`participantLid`, `chats.phoneNumberShare` e dos contatos. A consulta `onWhatsApp` tem cache e prazo. Mensagens do aparelho nunca servem de fonte, porque nelas o `senderPn` é o número da equipe.
+- `src/services/mensagemInternoClient.js`: `registrarMensagem(mensagem, { hash_empresa, cod_equipe })` envia a mensagem ao back em `POST /interno/mensagem-recebida`.
+
+### Alterado
+
+- `src/whatsapp/BaileysAdapter.js`: `messages.upsert` (`notify` e `append`) passa por normalização, descarte do eco, complemento de LID ↔ telefone e registro no back, numa fila serial por equipe. Uma falha no back só gera log (sem telefone nem conteúdo), não derruba o processo e não altera a ordem das mensagens seguintes. Novo `marcarEnviadaPeloCrm(id)` para o pipeline de saída. O logout pelo aparelho também limpa os caches de entrada.
+
 ## [0.3.0] - 2026-10-14
 
 ### Adicionado

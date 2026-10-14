@@ -13,6 +13,11 @@
 // - QR antigo que não some depois de conectar: o QR é limpo no `open` e no `close`;
 // - `creds.update` tardio recriando a sessão apagada no logout: os listeners saem antes do `rm`.
 //
+// Entrada (Task 3.2): `messages.upsert` → normalizarMensagem (filtroEntrada) → descarta o eco dos
+// envios do CRM (registroAparelho) → completa LID ↔ telefone (resolverLid) → registrarMensagem
+// (`POST /interno/mensagem-recebida`). As mensagens passam por uma fila serial por equipe: a ordem
+// de chegada é a ordem de registro, e uma falha no back só loga e segue para a próxima.
+//
 // A pasta `sessoes-baileys/` é credencial da sessão pareada: este código só cria (via Baileys),
 // confere a existência do `creds.json` e apaga no logout. Nunca lista nem loga o conteúdo.
 const fs = require("node:fs");
@@ -22,6 +27,10 @@ const path = require("node:path");
 const NodeCache = require("node-cache");
 const pino = require("pino");
 const QRCode = require("qrcode");
+const { normalizarMensagem } = require("./filtroEntrada");
+const { criarRegistroAparelho } = require("./registroAparelho");
+const { criarResolvedorLid } = require("./resolverLid");
+const mensagemInternoClient = require("../services/mensagemInternoClient");
 
 /** Diretório base das sessões: `./sessoes-baileys/<cod_equipe>` na raiz do projeto. */
 const DIRETORIO_SESSOES = path.join(__dirname, "..", "..", "sessoes-baileys");
@@ -33,6 +42,16 @@ const MS_CACHE_VERSAO = 6 * 60 * 60 * 1000;
 const PADRAO_COD_EQUIPE = /^[1-9]\d{0,9}$/;
 
 const loggerBaileys = pino({ level: "silent" });
+
+/** Eventos que este adapter escuta no socket (todos saem no `fecharSocket`). */
+const EVENTOS_SOCKET = /** @type {const} */ ([
+  "creds.update",
+  "connection.update",
+  "messages.upsert",
+  "chats.phoneNumberShare",
+  "contacts.upsert",
+  "contacts.update",
+]);
 
 /** @typedef {"DESCONECTADO" | "QR_PENDENTE" | "CONECTADO" | "ERRO"} StatusConexao */
 /** @typedef {{ status_conexao: StatusConexao, ultimo_erro_conexao: string | null }} EstadoConexao */
@@ -83,6 +102,20 @@ function nomeDoErro(erro) {
 }
 
 /**
+ * Resumo de uma falha de registro para o log: nome/código, tipo e status HTTP, sem a mensagem do
+ * erro (que pode trazer conteúdo) nem telefone.
+ * @param {unknown} erro
+ * @returns {string}
+ */
+function resumoFalha(erro) {
+  const { tipo, status } = /** @type {{ tipo?: unknown, status?: unknown }} */ (erro && typeof erro === "object" ? erro : {});
+  const partes = [nomeDoErro(erro)];
+  if (typeof tipo === "string") partes.push(tipo);
+  if (typeof status === "number") partes.push(`HTTP ${status}`);
+  return partes.join(" ");
+}
+
+/**
  * Valida e normaliza o `cod_equipe` (número ou texto) para a chave usada no Map e na pasta.
  * @param {string | number} codEquipe
  * @returns {string}
@@ -113,6 +146,9 @@ function existeSessaoEmDisco(codEquipe, diretorioSessoes = DIRETORIO_SESSOES) {
   return fs.existsSync(path.join(diretorioSessao(codEquipe, diretorioSessoes), "creds.json"));
 }
 
+/** @typedef {import("./filtroEntrada").MensagemRecebida} MensagemRecebida */
+/** @typedef {import("../services/mensagemInternoClient").ContextoInstancia} ContextoInstancia */
+
 /**
  * @typedef {{
  *   codEquipe: string | number,
@@ -121,6 +157,7 @@ function existeSessaoEmDisco(codEquipe, diretorioSessoes = DIRETORIO_SESSOES) {
  *   msReconexao?: number,
  *   onStatusChange?: (estado: EstadoConexao) => void,
  *   onSessaoRemovida?: () => void,
+ *   registrarMensagem?: (mensagem: MensagemRecebida, contexto: ContextoInstancia) => Promise<unknown>,
  * }} OpcoesAdapter
  */
 
@@ -133,6 +170,7 @@ function existeSessaoEmDisco(codEquipe, diretorioSessoes = DIRETORIO_SESSOES) {
  *   obterStatusConexao: () => EstadoConexao,
  *   obterQr: () => string | null,
  *   obterQrPng: () => Promise<Buffer | null>,
+ *   marcarEnviadaPeloCrm: (mensagemWaId: string) => void,
  * }} BaileysAdapter
  */
 
@@ -148,6 +186,7 @@ function criarAdapter({
   msReconexao = MS_RECONEXAO,
   onStatusChange,
   onSessaoRemovida,
+  registrarMensagem = mensagemInternoClient.registrarMensagem,
 }) {
   const cod = normalizarCodEquipe(codEquipe);
   const pastaSessao = diretorioSessao(cod, diretorioSessoes);
@@ -167,6 +206,12 @@ function criarAdapter({
   // quando o WhatsApp mais pede reenvio) e nunca compartilhados entre equipes.
   const msgRetryCounterCache = new NodeCache({ stdTTL: 60 * 60, checkperiod: 600, useClones: false });
   const userDevicesCache = new NodeCache({ stdTTL: 300, useClones: false });
+  // Entrada: eco dos envios do CRM e pares LID ↔ telefone, por equipe e só em memória.
+  const registroAparelho = criarRegistroAparelho();
+  const resolvedorLid = criarResolvedorLid();
+  /** Fila serial da entrada: cada lote espera o anterior terminar (a ordem nunca se perde). */
+  /** @type {Promise<void>} */
+  let filaEntrada = Promise.resolve();
 
   /** @param {EstadoConexao} novo */
   function atualizarStatus(novo) {
@@ -190,7 +235,7 @@ function criarAdapter({
    */
   function fecharSocket(alvo) {
     if (!alvo) return;
-    for (const evento of /** @type {const} */ (["creds.update", "connection.update"])) {
+    for (const evento of EVENTOS_SOCKET) {
       try {
         alvo.ev.removeAllListeners(evento);
       } catch (erro) {
@@ -250,6 +295,8 @@ function criarAdapter({
         // Credencial revogada pelo aparelho: apaga a sessão para a próxima conexão gerar QR novo.
         msgRetryCounterCache.flushAll();
         userDevicesCache.flushAll();
+        registroAparelho.limpar();
+        resolvedorLid.limpar();
         try {
           await fsp.rm(pastaSessao, { recursive: true, force: true });
         } catch (erroRm) {
@@ -276,6 +323,57 @@ function criarAdapter({
       });
       agendarReconexao();
     }
+  }
+
+  /**
+   * Normaliza, filtra e registra uma mensagem recebida. Uma falha no back só loga.
+   * @param {SocketBaileys} s socket que recebeu (identidade da equipe e `onWhatsApp`)
+   * @param {any} waMessage
+   */
+  async function processarMensagem(s, waMessage) {
+    resolvedorLid.aprenderDaMensagem(waMessage);
+    const normalizada = normalizarMensagem(waMessage, { eu: { jid: s.user?.id, lid: s.user?.lid } });
+    if (!normalizada || !registroAparelho.deveRegistrar(normalizada)) return;
+
+    let remetente = resolvedorLid.completarIdentidade(normalizada.remetente);
+    let contato = normalizada.contato && resolvedorLid.completarIdentidade(normalizada.contato);
+    // Contato privado só com telefone: o LID vem do `onWhatsApp` (uma consulta por telefone, com cache e prazo).
+    if (contato?.telefone && !contato.lid && typeof s.onWhatsApp === "function") {
+      const lid = await resolvedorLid.consultarLidDoTelefone(contato.telefone, (jid) => s.onWhatsApp(jid));
+      if (lid) {
+        contato = { ...contato, lid };
+        if (normalizada.origem === "CLIENTE") remetente = { ...remetente, lid };
+      }
+    }
+
+    try {
+      await registrarMensagem({ ...normalizada, remetente, contato }, { hash_empresa: hashEmpresa, cod_equipe: cod });
+    } catch (erro) {
+      console.error(`[ENTRADA] Falha ao registrar a mensagem ${normalizada.mensagem_wa_id} da equipe ${cod}:`, resumoFalha(erro));
+    }
+  }
+
+  /**
+   * Põe um lote do `messages.upsert` na fila serial. `notify` (tempo real) e `append` (recuperadas
+   * na reconexão e eco dos envios) são processados. A fila nunca fica rejeitada.
+   * @param {SocketBaileys} s
+   * @param {unknown} messages
+   * @param {unknown} type
+   * @returns {Promise<void>}
+   */
+  function enfileirarEntrada(s, messages, type) {
+    if ((type !== "notify" && type !== "append") || !Array.isArray(messages) || messages.length === 0) return filaEntrada;
+    const lote = [...messages];
+    filaEntrada = filaEntrada.then(async () => {
+      for (const waMessage of lote) {
+        try {
+          await processarMensagem(s, waMessage);
+        } catch (erro) {
+          console.error(`[ENTRADA] Falha ao processar uma mensagem recebida da equipe ${cod}:`, nomeDoErro(erro));
+        }
+      }
+    });
+    return filaEntrada;
   }
 
   /** @returns {Promise<EstadoConexao>} */
@@ -318,6 +416,11 @@ function criarAdapter({
         console.error(`[BAILEYS] Falha ao tratar connection.update da equipe ${cod}:`, nomeDoErro(erro))
       )
     );
+    // Mensagem já decifrada pelo Baileys não é reenviada: entra na fila mesmo durante a troca de socket.
+    s.ev.on("messages.upsert", (evento) => enfileirarEntrada(s, evento?.messages, evento?.type));
+    s.ev.on("chats.phoneNumberShare", (par) => resolvedorLid.aprenderContatos([par]));
+    s.ev.on("contacts.upsert", (contatos) => resolvedorLid.aprenderContatos(contatos));
+    s.ev.on("contacts.update", (contatos) => resolvedorLid.aprenderContatos(contatos));
 
     return { ...estado };
   }
@@ -364,6 +467,8 @@ function criarAdapter({
       if (!qr) return null;
       return QRCode.toBuffer(qr, { type: "png" });
     },
+    // Para o pipeline de saída: marcar o id ANTES do `sendMessage`, senão o eco vira "aparelho".
+    marcarEnviadaPeloCrm: (mensagemWaId) => registroAparelho.marcarEnviada(mensagemWaId),
   };
 }
 
