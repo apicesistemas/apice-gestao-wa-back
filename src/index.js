@@ -4,17 +4,35 @@ process.env.TZ = "America/Sao_Paulo";
 
 const http = require("node:http");
 const express = require("express");
-const { registrarHealth } = require("./http/health");
+const { registrarControllers } = require("./http");
+const { ativarLogEmArquivo, limparLogsAntigos } = require("./utils/logArquivo");
+
+const PORTA_PADRAO = 3501;
+const INTERVALO_LIMPEZA_LOGS_MS = 24 * 60 * 60 * 1000;
+// Teto do desligamento gracioso (SIGINT/SIGTERM): se fechar o HTTP (e, a partir da Task 2.2, as
+// instâncias Baileys) travar, o processo sai assim mesmo, antes do kill_timeout do PM2 (12 s).
+const MS_TETO_ENCERRAMENTO = 10 * 1000;
+
+const VARS_OBRIGATORIAS = ["CRM_BACK_URL", "CRM_BACK_SERVICE_TOKEN", "WA_BACK_ADMIN_TOKEN"];
 
 /**
- * Cria a aplicação Express com as rotas de infraestrutura.
+ * Lista as variáveis de ambiente obrigatórias ausentes (vazias contam como ausentes).
+ * @param {Record<string, string | undefined>} [env]
+ * @returns {string[]}
+ */
+function validarVariaveisDeAmbiente(env = process.env) {
+  return VARS_OBRIGATORIAS.filter((nome) => !env[nome]);
+}
+
+/**
+ * Cria a aplicação Express com os controllers registrados.
  * @returns {import("express").Express}
  */
 function criarApp() {
   const server = express();
   server.disable("x-powered-by");
   server.use(express.json());
-  registrarHealth(server);
+  registrarControllers(server);
   return server;
 }
 
@@ -31,14 +49,60 @@ function iniciarServidor(porta) {
   });
 }
 
-if (require.main === module) {
-  const porta = Number(process.env.SERVER_PORT) || 3501;
-  iniciarServidor(porta)
-    .then(() => console.log(`[BOOT] apice-gestao-wa-back ouvindo na porta ${porta}`))
-    .catch((erro) => {
-      console.error("[BOOT] Falha ao subir o servidor:", erro.message);
-      process.exit(1);
+/**
+ * Monta o encerramento gracioso: fecha o HTTP e sai com 0; se passar do teto, sai com 1.
+ * Idempotente: SIGINT seguido de SIGTERM (terminal + supervisor) não encerra duas vezes.
+ * @param {Pick<import("node:http").Server, "close">} httpServer
+ * @param {{ sair?: (codigo: number) => void, tetoMs?: number }} [opcoes]
+ * @returns {(sinal: string) => void}
+ */
+function criarEncerrador(httpServer, { sair = (codigo) => process.exit(codigo), tetoMs = MS_TETO_ENCERRAMENTO } = {}) {
+  let encerrando = false;
+  return (sinal) => {
+    if (encerrando) return;
+    encerrando = true;
+    console.log(`[BOOT] Sinal ${sinal} recebido, encerrando graciosamente...`);
+
+    const timeoutForcado = setTimeout(() => {
+      console.error("[BOOT] Tempo esgotado no encerramento gracioso, forçando a saída.");
+      sair(1);
+    }, tetoMs);
+    timeoutForcado.unref();
+
+    httpServer.close(() => {
+      clearTimeout(timeoutForcado);
+      sair(0);
     });
+  };
 }
 
-module.exports = { criarApp, iniciarServidor };
+async function iniciar() {
+  ativarLogEmArquivo();
+
+  const faltando = validarVariaveisDeAmbiente();
+  if (faltando.length > 0) {
+    console.error(`[BOOT] Variáveis de ambiente obrigatórias ausentes: ${faltando.join(", ")}`);
+    process.exit(1);
+  }
+
+  limparLogsAntigos();
+  setInterval(() => limparLogsAntigos(), INTERVALO_LIMPEZA_LOGS_MS).unref();
+
+  const porta = Number(process.env.SERVER_PORT) || PORTA_PADRAO;
+  const httpServer = await iniciarServidor(porta);
+  console.log(`[BOOT] apice-gestao-wa-back ouvindo na porta ${porta}`);
+
+  const encerrar = criarEncerrador(httpServer);
+  process.on("SIGINT", () => encerrar("SIGINT"));
+  process.on("SIGTERM", () => encerrar("SIGTERM"));
+}
+
+// Validação de env e boot só na execução real; importar este módulo (testes) não sobe nada.
+if (require.main === module) {
+  iniciar().catch((erro) => {
+    console.error("[BOOT] Falha ao subir o servidor:", erro instanceof Error ? erro.message : erro);
+    process.exit(1);
+  });
+}
+
+module.exports = { criarApp, iniciarServidor, validarVariaveisDeAmbiente, criarEncerrador };

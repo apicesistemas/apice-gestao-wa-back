@@ -16,7 +16,7 @@ cp .env.example .env   # URL e token do back, chave da MiniMax
 yarn start:dev         # nodemon, observa src/
 ```
 
-Saúde do processo: `GET http://127.0.0.1:3501/health` → `200 {"status":"ok"}`.
+Saúde do processo: `GET http://127.0.0.1:3501/ping` → `200 ok` e `GET /health` → `200 {"status":"ok"}`. As demais rotas exigem o header `X-Internal-Token`.
 
 ## Scripts
 
