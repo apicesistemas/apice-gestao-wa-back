@@ -1,0 +1,94 @@
+# Exclusão de contexto — apice-gestao-wa-back (Node.js + Express 5 + Baileys + MiniMax).
+# Regra: em caso de dúvida, exclui. Nunca excluir código-fonte, teste ou documentação
+# (src/, tests/, scripts/, CLAUDE.md, README.md, changelog.md).
+
+# Dependências
+
+node_modules/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/install-state.gz
+.pnp.*
+.pnpm-store/
+yarn.lock
+package-lock.json
+pnpm-lock.yaml
+
+# Build e arquivos gerados
+
+dist/
+build/
+out/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+
+# Segredos e variáveis de ambiente
+
+# O .env carrega a chave da MiniMax, o token de serviço back ↔ wa-back e a URL do back.
+# O .env.example continua visível de propósito: é a documentação das variáveis exigidas.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+credentials.json
+secrets.json
+service-account*.json
+.npmrc
+id_rsa*
+id_ed25519*
+
+# Sessão do WhatsApp gravada pelo Baileys (useMultiFileAuthState), uma por equipe: são as
+# credenciais da sessão pareada — quem tem esses arquivos está logado no número.
+# Nunca entram em contexto.
+sessoes-baileys/
+auth_info*/
+
+# Banco de dados local
+
+# Este subprojeto não tem banco próprio: toda escrita vai para o back via /interno/*.
+# Os padrões abaixo são precaução para dump/backup.
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+dump*.sql
+backup*.sql
+*.sql.gz
+mysql-data/
+db-data/
+
+# Uploads e mídia
+
+# A mídia baixada do WhatsApp (fotos, áudios, vídeos, PDFs de cliente) trafega em memória e
+# vai cifrada para o back — nunca é gravada em disco. Os padrões abaixo são precaução (LGPD).
+uploads/
+midia/
+midias/
+public/uploads/
+storage/
+tmp/
+*.pdf
+!tests/**/*.pdf
+
+# Cache e logs
+
+# .cache/ também cobre o cache de reenvio de mensagens do Baileys, se for persistido.
+logs/
+LOGS/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.cache/
+.npm/
+.eslintcache
+.pm2/
+graphify-out/cache/
+.DS_Store
+Thumbs.db

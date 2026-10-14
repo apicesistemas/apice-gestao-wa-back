@@ -1,0 +1,5 @@
+{
+  "watch": ["src"],
+  "ignore": ["LOGS/*", "sessoes-baileys/*"],
+  "exec": "node --env-file-if-exists=.env ./src/index.js"
+}

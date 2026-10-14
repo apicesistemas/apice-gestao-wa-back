@@ -1,0 +1,76 @@
+# Dependências
+
+node_modules/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/install-state.gz
+.pnp.*
+yarn.lock
+
+# Build e arquivos gerados
+
+dist/
+build/
+out/
+coverage/
+*.tsbuildinfo
+
+# Segredos e variáveis de ambiente
+
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+credentials.json
+secrets.json
+service-account*.json
+.npmrc
+
+# Sessão do WhatsApp gravada pelo Baileys (useMultiFileAuthState) — credencial da sessão
+# pareada de cada equipe: quem tem esses arquivos está logado no número. Nunca commitar.
+sessoes-baileys/
+auth_info*/
+
+# Banco de dados local
+
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+dump*.sql
+backup*.sql
+*.sql.gz
+mysql-data/
+db-data/
+
+# Uploads e mídia
+
+uploads/
+midia/
+public/uploads/
+storage/
+tmp/
+*.pdf
+!tests/**/*.pdf
+
+# Config local do Claude Code
+
+.claude/settings.local.json
+
+# Cache e logs
+
+LOGS/
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.cache/
+.npm/
+.eslintcache
+.pm2/
+graphify-out/cache/
