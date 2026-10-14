@@ -19,6 +19,12 @@ const fs = require("node:fs");
 const sockets = [];
 /** @type {string[]} */
 const pastasAuthState = [];
+/** @type {any[][]} argumentos de cada chamada ao downloadMediaMessage falso */
+const downloads = [];
+/** @type {(...args: any[]) => Promise<any>} */
+let tratadorDownload = async () => {
+  throw new Error("downloadMediaMessage falso sem tratador definido.");
+};
 
 const DisconnectReason = {
   connectionClosed: 428,
@@ -60,6 +66,8 @@ function makeWASocket(config) {
     end() {
       socket.chamadasEnd += 1;
     },
+    /** @param {any} mensagem */
+    updateMediaMessage: async (mensagem) => mensagem,
   });
 }
 
@@ -80,7 +88,23 @@ const exportsFalsos = {
   isJidBroadcast: () => false,
   isJidNewsletter: () => false,
   fetchLatestWaWebVersion: async () => ({ version: [2, 3000, 0], isLatest: true }),
+  /**
+   * Como o real (`downloadMediaMessage(msg, "stream", {}, { logger, reuploadRequest })`), sem rede.
+   * @param {any[]} args
+   */
+  downloadMediaMessage: (...args) => {
+    downloads.push(args);
+    return tratadorDownload(...args);
+  },
 };
+
+/**
+ * Define o que o downloadMediaMessage falso devolve (um stream em memória) ou rejeita.
+ * @param {(...args: any[]) => Promise<any>} tratador
+ */
+function definirDownload(tratador) {
+  tratadorDownload = tratador;
+}
 
 function instalarBaileysFalso() {
   const caminho = require.resolve("@whiskeysockets/baileys");
@@ -91,6 +115,7 @@ function instalarBaileysFalso() {
 function limparHistorico() {
   sockets.length = 0;
   pastasAuthState.length = 0;
+  downloads.length = 0;
 }
 
 /** Último socket criado (falha o teste se nenhum foi criado). */
@@ -105,4 +130,14 @@ async function drenar() {
   for (let i = 0; i < 5; i += 1) await new Promise((resolve) => setImmediate(resolve));
 }
 
-module.exports = { instalarBaileysFalso, limparHistorico, ultimoSocket, drenar, sockets, pastasAuthState, DisconnectReason };
+module.exports = {
+  instalarBaileysFalso,
+  limparHistorico,
+  ultimoSocket,
+  drenar,
+  definirDownload,
+  sockets,
+  pastasAuthState,
+  downloads,
+  DisconnectReason,
+};

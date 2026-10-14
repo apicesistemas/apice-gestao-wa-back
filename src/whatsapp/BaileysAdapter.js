@@ -18,6 +18,12 @@
 // (`POST /interno/mensagem-recebida`). As mensagens passam por uma fila serial por equipe: a ordem
 // de chegada é a ordem de registro, e uma falha no back só loga e segue para a próxima.
 //
+// Mídia (Task 4.2), logo no recebimento (a URL expira): obterMidiaValidada (download em stream com
+// reuploadRequest, teto e prazo, validação por magic bytes, tudo em memória) → registrarMensagem
+// com `midia_pendente` → só se a mídia foi aceita e a mensagem registrada, enviarMidia
+// (`POST /interno/midia`, multipart). Falha no download ou na validação não perde a mensagem: ela
+// é registrada com `midia_pendente: true` e o motivo.
+//
 // A pasta `sessoes-baileys/` é credencial da sessão pareada: este código só cria (via Baileys),
 // confere a existência do `creds.json` e apaga no logout. Nunca lista nem loga o conteúdo.
 const fs = require("node:fs");
@@ -30,7 +36,9 @@ const QRCode = require("qrcode");
 const { normalizarMensagem } = require("./filtroEntrada");
 const { criarRegistroAparelho } = require("./registroAparelho");
 const { criarResolvedorLid } = require("./resolverLid");
+const midiaEntrada = require("./midiaEntrada");
 const mensagemInternoClient = require("../services/mensagemInternoClient");
+const midiaInternoClient = require("../services/midiaInternoClient");
 
 /** Diretório base das sessões: `./sessoes-baileys/<cod_equipe>` na raiz do projeto. */
 const DIRETORIO_SESSOES = path.join(__dirname, "..", "..", "sessoes-baileys");
@@ -148,6 +156,9 @@ function existeSessaoEmDisco(codEquipe, diretorioSessoes = DIRETORIO_SESSOES) {
 
 /** @typedef {import("./filtroEntrada").MensagemRecebida} MensagemRecebida */
 /** @typedef {import("../services/mensagemInternoClient").ContextoInstancia} ContextoInstancia */
+/** @typedef {import("../services/mensagemInternoClient").EstadoMidia} EstadoMidia */
+/** @typedef {import("../services/midiaInternoClient").MetadadosEnvioMidia} MetadadosEnvioMidia */
+/** @typedef {import("./midiaEntrada").LimitesMidia} LimitesMidia */
 
 /**
  * @typedef {{
@@ -157,7 +168,9 @@ function existeSessaoEmDisco(codEquipe, diretorioSessoes = DIRETORIO_SESSOES) {
  *   msReconexao?: number,
  *   onStatusChange?: (estado: EstadoConexao) => void,
  *   onSessaoRemovida?: () => void,
- *   registrarMensagem?: (mensagem: MensagemRecebida, contexto: ContextoInstancia) => Promise<unknown>,
+ *   registrarMensagem?: (mensagem: MensagemRecebida, contexto: ContextoInstancia, estadoMidia: EstadoMidia) => Promise<unknown>,
+ *   enviarMidia?: (mensagem_wa_id: string, buffer: Buffer, metadados: MetadadosEnvioMidia) => Promise<unknown>,
+ *   obterLimitesMidia?: () => LimitesMidia,
  * }} OpcoesAdapter
  */
 
@@ -187,6 +200,8 @@ function criarAdapter({
   onStatusChange,
   onSessaoRemovida,
   registrarMensagem = mensagemInternoClient.registrarMensagem,
+  enviarMidia = midiaInternoClient.enviarMidia,
+  obterLimitesMidia = midiaEntrada.obterLimitesMidia,
 }) {
   const cod = normalizarCodEquipe(codEquipe);
   const pastaSessao = diretorioSessao(cod, diretorioSessoes);
@@ -346,10 +361,44 @@ function criarAdapter({
       }
     }
 
+    const id = normalizada.mensagem_wa_id;
+    // Download no recebimento (a URL da mídia expira). Nunca rejeita: falha vira pendência.
+    /** @type {EstadoMidia} */
+    let estadoMidia = mensagemInternoClient.SEM_PENDENCIA;
+    /** @type {import("./midiaEntrada").ResultadoMidia | null} */
+    let midia = null;
+    if (normalizada.midia) {
+      try {
+        midia = await midiaEntrada.obterMidiaValidada(s, waMessage, normalizada.midia, obterLimitesMidia());
+      } catch {
+        midia = { ok: false, motivo: "DOWNLOAD_FALHOU" }; // defesa: nada aqui pode perder a mensagem
+      }
+      if (!midia.ok) {
+        estadoMidia = { midia_pendente: true, midia_motivo_pendencia: midia.motivo };
+        console.log(`[ENTRADA] Mídia da mensagem ${id} da equipe ${cod} pendente: ${midia.motivo}`);
+      }
+    }
+
     try {
-      await registrarMensagem({ ...normalizada, remetente, contato }, { hash_empresa: hashEmpresa, cod_equipe: cod });
+      await registrarMensagem({ ...normalizada, remetente, contato }, { hash_empresa: hashEmpresa, cod_equipe: cod }, estadoMidia);
     } catch (erro) {
-      console.error(`[ENTRADA] Falha ao registrar a mensagem ${normalizada.mensagem_wa_id} da equipe ${cod}:`, resumoFalha(erro));
+      // Sem a mensagem no back não há a que associar a mídia: o binário é descartado.
+      console.error(`[ENTRADA] Falha ao registrar a mensagem ${id} da equipe ${cod}:`, resumoFalha(erro));
+      return;
+    }
+
+    if (!midia?.ok) return;
+    try {
+      await enviarMidia(id, midia.buffer, {
+        hash_empresa: hashEmpresa,
+        cod_equipe: cod,
+        mimetype: midia.mimetype,
+        tamanho_bytes: midia.tamanho_bytes,
+        nome_arquivo: midia.nome_arquivo,
+        duracao_segundos: midia.duracao_segundos,
+      });
+    } catch (erro) {
+      console.error(`[ENTRADA] Falha ao enviar a mídia da mensagem ${id} da equipe ${cod}:`, resumoFalha(erro));
     }
   }
 

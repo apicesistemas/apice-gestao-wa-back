@@ -3,6 +3,21 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.5.0] - 2026-10-14
+
+### Adicionado
+
+- `src/whatsapp/tipoMidia.js`: `detectarTipoPorConteudo(buffer)` identifica o tipo pelo conteúdo (magic bytes), nunca pela extensão. Reconhece JPEG, PNG, WebP (inclusive figurinha), GIF, PDF, OGG/Opus, MP3, AAC, AMR, MP4/M4A, 3GP, QuickTime, DOCX e XLSX (pelo diretório central do ZIP, então um ZIP comum não passa) e DOC e XLS (OLE). `validarMidia(buffer, mimetypeDeclarado, tetoBytes)` recusa buffer vazio, arquivo acima do teto, tipo não reconhecido e conteúdo que não bate com o tipo declarado. Sem tipo declarado, ou com `application/octet-stream`, vale o tipo detectado. `duracaoOggOpusSegundos` lê a duração real do áudio.
+- `src/whatsapp/midiaEntrada.js`: `baixarMidia(sock, waMessage, { tetoBytes, prazoMs })` baixa a mídia em stream e só em memória, com `reuploadRequest` para mídia expirada. Ao passar do teto, o stream é destruído e o resto não é baixado. O prazo cobre a obtenção e a leitura do stream. `obterMidiaValidada` junta download e validação e devolve o buffer com o tipo detectado, o tamanho real e a duração, ou o motivo da pendência. Um tamanho declarado acima do teto é recusado antes de qualquer download. Teto e prazo vêm de `MIDIA_TETO_BYTES` (padrão 16 MB) e `MIDIA_PRAZO_MS` (padrão 60 s).
+- `src/services/midiaInternoClient.js`: `enviarMidia(mensagem_wa_id, buffer, metadados)` envia o binário ao back em `POST /interno/midia` (multipart/form-data, com os campos de texto antes do arquivo `midia`).
+- `src/services/internoHttpClient.js`: `chamarRotaInternaMultipart(rota, formulario)`, com o mesmo token, prazo e tratamento de erros das chamadas JSON.
+- `.env.example`: `MIDIA_TETO_BYTES` e `MIDIA_PRAZO_MS`.
+
+### Alterado
+
+- `src/whatsapp/BaileysAdapter.js`: uma mensagem com mídia tem o arquivo baixado e validado no recebimento. Depois a mensagem é registrada e, se a mídia foi aceita, o binário vai ao back. Se o download ou a validação falhar, a mensagem é registrada mesmo assim, com `midia_pendente: true` e o motivo. Uma falha ao enviar a mídia só gera log e a fila continua.
+- `src/services/mensagemInternoClient.js`: `POST /interno/mensagem-recebida` passa a levar `midia_pendente` (padrão `false`) e `midia_motivo_pendencia` (padrão `null`).
+
 ## [0.4.0] - 2026-10-14
 
 ### Adicionado

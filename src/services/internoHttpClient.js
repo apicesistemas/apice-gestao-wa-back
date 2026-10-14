@@ -1,7 +1,8 @@
 // @ts-check
 // Cliente HTTP das rotas internas (`/interno/*`) do apice-gestao-back, base do comandax_crm_wa_back.
-// Toda escrita do wa-back passa por aqui: POST JSON com o token de serviço no header
-// `X-Internal-Token` e o `hash_empresa` no body. Usa o `fetch` nativo do Node 22.
+// Toda escrita do wa-back passa por aqui: POST JSON (ou multipart, para o binário da mídia) com o
+// token de serviço no header `X-Internal-Token` e o `hash_empresa` no body. Usa o `fetch` nativo
+// do Node 22 (com `FormData`/`Blob` globais no multipart, sem gravar nada em disco).
 //
 // Qualquer falha (configuração, rede, timeout, HTTP não-2xx) vira um `ErroRotaInterna` rejeitado:
 // quem chama decide o que fazer (registrar, tentar de novo), e o processo nunca cai por isso.
@@ -72,9 +73,43 @@ function ehTimeout(erro) {
  * @throws {ErroRotaInterna}
  */
 async function chamarRotaInterna(rota, corpo) {
-  if (!corpo || typeof corpo.hash_empresa !== "string" || corpo.hash_empresa.trim() === "") {
+  exigirHashEmpresa(rota, corpo?.hash_empresa);
+  return enviarPost(rota, { "Content-Type": "application/json" }, JSON.stringify(corpo));
+}
+
+/**
+ * Faz um POST autenticado `multipart/form-data` numa rota interna do back (binário de mídia,
+ * recebido lá com multer). O `fetch` gera o boundary a partir do `FormData`, então nenhum
+ * Content-Type é fixado. Mesmo token, prazo e tratamento de erros do `chamarRotaInterna`.
+ * @param {string} rota
+ * @param {FormData} formulario precisa trazer o campo `hash_empresa`
+ * @returns {Promise<any>}
+ * @throws {ErroRotaInterna}
+ */
+async function chamarRotaInternaMultipart(rota, formulario) {
+  const hash = formulario instanceof FormData ? formulario.get("hash_empresa") : null;
+  exigirHashEmpresa(rota, hash);
+  return enviarPost(rota, {}, formulario);
+}
+
+/**
+ * @param {string} rota
+ * @param {unknown} hashEmpresa
+ */
+function exigirHashEmpresa(rota, hashEmpresa) {
+  if (typeof hashEmpresa !== "string" || hashEmpresa.trim() === "") {
     throw new ErroRotaInterna(`Chamada a "${rota}" sem hash_empresa no corpo.`, { rota, tipo: "requisicao_invalida" });
   }
+}
+
+/**
+ * POST com o token de serviço e o prazo; converte toda falha em `ErroRotaInterna`.
+ * @param {string} rota
+ * @param {Record<string, string>} headers
+ * @param {string | FormData} body
+ * @returns {Promise<any>}
+ */
+async function enviarPost(rota, headers, body) {
   const url = montarUrl(rota);
 
   /** @type {Response} */
@@ -82,11 +117,8 @@ async function chamarRotaInterna(rota, corpo) {
   try {
     resposta = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Internal-Token": obterTokenServico(),
-      },
-      body: JSON.stringify(corpo),
+      headers: { ...headers, "X-Internal-Token": obterTokenServico() },
+      body,
       signal: AbortSignal.timeout(obterTimeoutMs()),
     });
   } catch (erro) {
@@ -126,4 +158,4 @@ async function chamarRotaInterna(rota, corpo) {
   }
 }
 
-module.exports = { chamarRotaInterna, montarUrl, obterTokenServico, ErroRotaInterna };
+module.exports = { chamarRotaInterna, chamarRotaInternaMultipart, montarUrl, obterTokenServico, ErroRotaInterna };

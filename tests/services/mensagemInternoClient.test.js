@@ -41,7 +41,33 @@ test("registrarMensagem envia a MensagemRecebida ao back em /interno/mensagem-re
   assert.equal(chamadas.length, 1);
   assert.equal(chamadas[0].url, "http://back.local:3500/interno/mensagem-recebida");
   assert.equal(new Headers(chamadas[0].init.headers).get("X-Internal-Token"), "token-wa-para-back");
-  assert.deepEqual(JSON.parse(String(chamadas[0].init.body)), { hash_empresa: "hash-a", cod_equipe: 7, ...JSON.parse(JSON.stringify(mensagem)) });
+  assert.deepEqual(JSON.parse(String(chamadas[0].init.body)), {
+    hash_empresa: "hash-a",
+    cod_equipe: 7,
+    midia_pendente: false,
+    midia_motivo_pendencia: null,
+    ...JSON.parse(JSON.stringify(mensagem)),
+  });
+});
+
+test("registrarMensagem envia midia_pendente e o motivo quando o download ou a validação da mídia falharam", async () => {
+  /** @type {RequestInit[]} */
+  const corpos = [];
+  globalThis.fetch = /** @type {typeof fetch} */ (
+    async (_url, init) => {
+      corpos.push(init || {});
+      return Response.json({ msg: "Mensagem registrada." });
+    }
+  );
+  const mensagem = normalizarMensagem(mensagemWa({ imageMessage: { mimetype: "image/jpeg", url: "https://mmg.whatsapp.net/x" } }));
+  assert.ok(mensagem);
+
+  await registrarMensagem(mensagem, { hash_empresa: "hash-a", cod_equipe: 7 }, { midia_pendente: true, midia_motivo_pendencia: "DOWNLOAD_FALHOU" });
+
+  const corpo = JSON.parse(String(corpos[0].body));
+  assert.equal(corpo.midia_pendente, true);
+  assert.equal(corpo.midia_motivo_pendencia, "DOWNLOAD_FALHOU");
+  assert.equal(corpo.hash_empresa, "hash-a");
 });
 
 test("registrarMensagem sem hash_empresa rejeita sem chamar o back", async () => {
