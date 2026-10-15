@@ -8,6 +8,7 @@ const { registrarControllers } = require("./http");
 const { ativarLogEmArquivo, limparLogsAntigos } = require("./utils/logArquivo");
 const instanciaManager = require("./whatsapp/instanciaManager");
 const { criarInstanciaHealth } = require("./whatsapp/instanciaHealth");
+const desligamentoDoProcesso = require("./utils/desligamento").padrao;
 
 /** Heartbeat das conexões por equipe (a cada 60 s), ligado depois da reconexão do boot. */
 const heartbeat = criarInstanciaHealth();
@@ -55,11 +56,21 @@ function iniciarServidor(porta) {
 }
 
 /**
- * Monta o encerramento gracioso: encerra as instâncias Baileys (sockets fechados com a sessão
- * intacta em disco), fecha o HTTP e sai com 0; se passar do teto, sai com 1.
+ * Monta o encerramento gracioso (Task 14.3), tudo dentro do teto:
+ * 1. marca o processo como encerrando, já no sinal: enviar, reagir e conectar passam a responder
+ *    503 (nenhum pedido é aceito e descartado em silêncio);
+ * 2. espera os envios que já estavam em andamento responderem;
+ * 3. encerra as instâncias Baileys SEM logout, cada uma esperando o `saveCreds` em andamento
+ *    (sessão intacta em disco: o boot seguinte reconecta sem QR);
+ * 4. fecha o HTTP e sai com 0. Se passar do teto, sai com 1.
  * Idempotente: SIGINT seguido de SIGTERM (terminal + supervisor) não encerra duas vezes.
  * @param {Pick<import("node:http").Server, "close">} httpServer
- * @param {{ sair?: (codigo: number) => void, tetoMs?: number, encerrarInstancias?: () => Promise<void> }} [opcoes]
+ * @param {{
+ *   sair?: (codigo: number) => void,
+ *   tetoMs?: number,
+ *   encerrarInstancias?: () => Promise<void>,
+ *   desligamento?: Pick<import("./utils/desligamento").Desligamento, "marcarEncerrando" | "aguardarEmAndamento">,
+ * }} [opcoes]
  * @returns {(sinal: string) => void}
  */
 function criarEncerrador(
@@ -71,12 +82,14 @@ function criarEncerrador(
       heartbeat.parar(); // nenhuma reconexão do heartbeat começa durante o encerramento
       return instanciaManager.encerrarTodas();
     },
+    desligamento = desligamentoDoProcesso,
   } = {}
 ) {
   let encerrando = false;
   return (sinal) => {
     if (encerrando) return;
     encerrando = true;
+    desligamento.marcarEncerrando(); // síncrono: a partir daqui os envios novos recebem 503
     console.log(`[BOOT] Sinal ${sinal} recebido, encerrando graciosamente...`);
 
     const timeoutForcado = setTimeout(() => {
@@ -86,6 +99,7 @@ function criarEncerrador(
     timeoutForcado.unref();
 
     Promise.resolve()
+      .then(() => desligamento.aguardarEmAndamento())
       .then(encerrarInstancias)
       .catch((erro) => {
         console.error("[BOOT] Falha ao encerrar as instâncias do WhatsApp:", erro instanceof Error ? erro.message : erro);

@@ -241,3 +241,65 @@ test("chat_jid inválido, de status ou de broadcast e menções inválidas são 
   await assert.rejects(enviar("7", { hash_empresa: "hash-a", chat_jid: JID_CLIENTE, conteudo: { texto: "   " } }), (erro) => erro instanceof ErroEnvio);
   assert.equal(envios.length, 0);
 });
+
+// Task 14.3: prazo do sendMessage e cache de reenvio (getMessage).
+
+/**
+ * Equipe falsa com um sendMessage controlado pelo teste e um adapter que guarda o `guardarEnviada`.
+ * @param {(jid: string, conteudo: any, opcoes: any) => Promise<any>} sendMessage
+ */
+function equipeComSend(sendMessage) {
+  /** @type {{ id: string, message: any, jid: string }[]} */
+  const guardadas = [];
+  const socket = { user: { id: EU.jid, lid: EU.lid }, sendMessage };
+  const adapter = {
+    codEquipe: "7",
+    hashEmpresa: "hash-a",
+    socketConectado: () => socket,
+    marcarEnviadaPeloCrm: () => {},
+    /** @param {string} id @param {any} message @param {string} jid */
+    guardarEnviada: (id, message, jid) => void guardadas.push({ id, message, jid }),
+  };
+  const manager = { obter: () => /** @type {any} */ (adapter), listarRegistradas: () => [] };
+  return { manager, guardadas };
+}
+
+test("o envio confirmado guarda o message devolvido pelo sendMessage no cache de reenvio, com o destino", async () => {
+  const message = { extendedTextMessage: { text: "Resposta" } };
+  const { manager, guardadas } = equipeComSend(async (jid, _c, opcoes) => ({ key: { remoteJid: jid, fromMe: true, id: opcoes.messageId }, message }));
+  const resultado = await criarEnvio({ manager }).enviar("7", { hash_empresa: "hash-a", chat_jid: JID_CLIENTE, conteudo: { texto: "Resposta" } });
+  assert.deepEqual(guardadas, [{ id: resultado.mensagem_wa_id, message, jid: JID_CLIENTE }]);
+});
+
+test("sendMessage que passa do prazo vira ENVIO_NAO_CONFIRMADO (\"Envio não confirmado.\"), sem esperar para sempre", async () => {
+  const { manager } = equipeComSend(() => new Promise(() => {}));
+  const inicio = Date.now();
+  await assert.rejects(
+    criarEnvio({ manager, prazoMs: 30 }).enviar("7", { hash_empresa: "hash-a", chat_jid: JID_CLIENTE, conteudo: { texto: "Oi" } }),
+    (erro) => erro instanceof ErroEnvio && erro.codigo === "ENVIO_NAO_CONFIRMADO" && erro.message === "Envio não confirmado."
+  );
+  assert.ok(Date.now() - inicio < 1000);
+});
+
+test("um sendMessage que termina depois do prazo ainda entra no cache de reenvio (a mensagem saiu)", async () => {
+  /** @type {(valor: any) => void} */
+  let concluir = () => {};
+  const { manager, guardadas } = equipeComSend((jid, _c, opcoes) => new Promise((resolve) => (concluir = () => resolve({ key: { remoteJid: jid, fromMe: true, id: opcoes.messageId }, message: { conversation: "Oi" } }))));
+  await assert.rejects(
+    criarEnvio({ manager, prazoMs: 20 }).enviar("7", { hash_empresa: "hash-a", chat_jid: JID_CLIENTE, conteudo: { texto: "Oi" } }),
+    (erro) => erro instanceof ErroEnvio && erro.codigo === "ENVIO_NAO_CONFIRMADO"
+  );
+  concluir(undefined);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(guardadas.length, 1);
+  assert.deepEqual(guardadas[0].message, { conversation: "Oi" });
+});
+
+test("obterPrazoEnvioMs lê ENVIO_PRAZO_MS e cai no padrão (abaixo do prazo do back) quando vazio ou inválido", () => {
+  const { obterPrazoEnvioMs, PRAZO_ENVIO_PADRAO_MS } = require("../../src/whatsapp/envio");
+  assert.equal(obterPrazoEnvioMs({}), PRAZO_ENVIO_PADRAO_MS);
+  assert.equal(obterPrazoEnvioMs({ ENVIO_PRAZO_MS: "x" }), PRAZO_ENVIO_PADRAO_MS);
+  assert.equal(obterPrazoEnvioMs({ ENVIO_PRAZO_MS: "0" }), PRAZO_ENVIO_PADRAO_MS);
+  assert.equal(obterPrazoEnvioMs({ ENVIO_PRAZO_MS: "45000" }), 45000);
+  assert.ok(PRAZO_ENVIO_PADRAO_MS < 120_000, "o back desiste do envio em 120 s");
+});

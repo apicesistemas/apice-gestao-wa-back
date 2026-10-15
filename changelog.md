@@ -3,6 +3,22 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.9.0] - 2026-10-14
+
+### Adicionado
+
+- `src/whatsapp/recuperacao.js`: decide o que entra quando o Baileys entrega na reconexão as mensagens que chegaram com a equipe fora do ar (fila offline, `messages.upsert` com `type: "append"`). Esses lotes passam pelo mesmo pipeline do `notify`: normalização, eco/aparelho, LID, mídia, registro e transcrição. A deduplicação local é feita por `(cod_equipe, mensagem_wa_id)`, em memória, com TTL de 6 h e teto de 5000. A mensagem só é marcada depois que o back a registrou, então uma falha no back deixa a reentrega tentar de novo, e uma mensagem repetida não baixa nem transcreve a mídia outra vez. O `append` só entra a partir da última atividade conhecida da instância, com folga de 10 min. Sem atividade conhecida, entra o que estiver dentro de `RECUPERACAO_JANELA_MS` (padrão 72 h). O `notify` nunca é cortado. A última atividade de cada equipe fica em `.cache/atividade-wa.json`, só com o instante, sem dado de mensagem. Ela é gravada a cada 60 s no máximo e sempre na queda e no desligamento, então sobrevive ao reinício.
+- `src/whatsapp/cacheEnviadas.js`: guarda em memória (TTL de 1 h, teto de 500) o `message` de cada envio do CRM para o `getMessage` do Baileys, que atende o pedido de reenvio quando o aparelho mostra "Aguardando mensagem". O pedido só é atendido para o destino do envio: o chat ou, na conversa privada, o outro JID do mesmo contato (LID ↔ telefone). Sem a mensagem no cache, a resposta é `undefined`, nunca `{ conversation: "" }`.
+- `src/utils/desligamento.js`: estado de desligamento do processo. Depois do sinal, `POST /equipe/:cod_equipe/enviar`, `/reagir` e `/conectar` respondem 503 `{ msg: "Serviço de WhatsApp reiniciando. Tente novamente em instantes." }` com `Retry-After: 10`, então nenhum pedido é aceito e descartado em silêncio. As requisições que já tinham entrado são acompanhadas até responderem.
+- `.env.example`: `ENVIO_PRAZO_MS` e `RECUPERACAO_JANELA_MS`.
+
+### Alterado
+
+- `src/index.js`: o desligamento gracioso (SIGTERM/SIGINT) marca o processo como encerrando já no sinal, espera os envios em andamento responderem, encerra as instâncias e fecha o HTTP, tudo dentro do teto de 10 s.
+- `src/whatsapp/BaileysAdapter.js`: as gravações de credenciais (`saveCreds`) passam a ser feitas em série e acompanhadas. O `pararSocket` fecha o socket sem logout, grava a última atividade, espera a gravação de credenciais em andamento e depois a fila de entrada, porque uma mensagem que o Baileys já confirmou ao WhatsApp não volta se não for registrada. A sessão fica intacta para reconectar sem QR. O socket passa a ter `shouldSyncHistoryMessage: () => false`, então o histórico do pareamento nunca é baixado e não inunda o back, e `getMessage` usa o cache de reenvio. Novo `guardarEnviada(id, message, chatJid)`.
+- `src/whatsapp/envio.js`: o `sendMessage` tem prazo (`ENVIO_PRAZO_MS`, padrão 90 s, abaixo dos 120 s do back). Quando o prazo passa, o envio responde 504 `{ msg: "Envio não confirmado." }`, porque a mensagem pode ter saído. O `message` enviado vai para o cache de reenvio, mesmo quando o `sendMessage` termina depois do prazo. A reação tem prazo de 10 s, abaixo dos 15 s do back.
+- `src/whatsapp/instanciaManager.js`: um armazém de atividade em arquivo (`atividade-wa.json`, ao lado do registro de pareadas) é compartilhado pelos adapters.
+
 ## [0.8.0] - 2026-10-14
 
 ### Adicionado

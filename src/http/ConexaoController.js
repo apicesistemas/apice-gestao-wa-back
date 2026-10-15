@@ -4,6 +4,7 @@
 const instanciaManager = require("../whatsapp/instanciaManager");
 const { normalizarCodEquipe } = require("../whatsapp/BaileysAdapter");
 const exigirTokenServico = require("./exigirTokenServico");
+const desligamentoDoProcesso = require("../utils/desligamento").padrao;
 
 /** @typedef {Pick<typeof instanciaManager, "conectar" | "obter">} ManagerConexao */
 
@@ -22,11 +23,17 @@ function codEquipeValido(valor) {
 /**
  * Monta o controller sobre um manager (o do processo, ou o dos testes).
  * @param {ManagerConexao} [manager]
+ * @param {{ desligamento?: Pick<import("../utils/desligamento").Desligamento, "recusarDuranteEncerramento"> }} [opcoes]
+ *   estado de desligamento (padrão: o do processo): durante o desligamento, conectar responde 503
+ *   (um socket aberto no meio do encerramento ficaria sem fechar)
  * @returns {(server: import("express").Express) => void}
  */
-function criarConexaoController(manager = instanciaManager) {
+function criarConexaoController(manager = instanciaManager, { desligamento = desligamentoDoProcesso } = {}) {
+  /** @type {import("express").RequestHandler} */
+  const recusarDuranteEncerramento = (req, res, next) => desligamento.recusarDuranteEncerramento(req, res, next);
+
   return function ConexaoController(server) {
-    server.post("/equipe/:cod_equipe/conectar", exigirTokenServico, async (req, res) => {
+    server.post("/equipe/:cod_equipe/conectar", exigirTokenServico, recusarDuranteEncerramento, async (req, res) => {
       const cod = codEquipeValido(req.params.cod_equipe);
       if (!cod) {
         res.status(400).json({ msg: "Código da equipe inválido." });

@@ -41,6 +41,14 @@
 // "aparelho") e os recibos dele ficam retidos por alguns segundos (o back só grava a mensagem enviada
 // depois da resposta do envio).
 //
+// Recuperação e desligamento (Task 14.3): os lotes `append` (fila offline entregue na reconexão)
+// passam pelo MESMO pipeline do `notify`, com a deduplicação local e a janela de tempo do
+// recuperacao.js (o histórico do pareamento não é baixado: `shouldSyncHistoryMessage: () => false`).
+// O `getMessage` atende o pedido de reenvio com o cache em memória das mensagens enviadas
+// (cacheEnviadas.js; sem a mensagem, `undefined`). As gravações de credenciais (`saveCreds`) são em
+// série e rastreadas: o `pararSocket` do desligamento fecha o socket (nenhum `creds.update` novo),
+// espera a gravação em andamento terminar e nunca faz logout (a sessão reconecta sem QR).
+//
 // A pasta `sessoes-baileys/` é credencial da sessão pareada: este código só cria (via Baileys),
 // confere a existência do `creds.json` e apaga no logout. Nunca lista nem loga o conteúdo.
 const fs = require("node:fs");
@@ -50,7 +58,7 @@ const path = require("node:path");
 const NodeCache = require("node-cache");
 const pino = require("pino");
 const QRCode = require("qrcode");
-const { normalizarMensagem } = require("./filtroEntrada");
+const { normalizarMensagem, normalizarJid, lidDe, telefoneDe } = require("./filtroEntrada");
 const { criarRegistroAparelho } = require("./registroAparelho");
 const { criarResolvedorLid } = require("./resolverLid");
 const midiaEntrada = require("./midiaEntrada");
@@ -62,6 +70,8 @@ const { criarPresenca } = require("./presenca");
 const { criarCacheNomeGrupo } = require("./nomeGrupo");
 const mensagemStatusInternoClient = require("../services/mensagemStatusInternoClient");
 const presencaInternoClient = require("../services/presencaInternoClient");
+const { criarRecuperacao } = require("./recuperacao");
+const { criarCacheEnviadas } = require("./cacheEnviadas");
 
 /** Diretório base das sessões: `./sessoes-baileys/<cod_equipe>` na raiz do projeto. */
 const DIRETORIO_SESSOES = path.join(__dirname, "..", "..", "sessoes-baileys");
@@ -207,6 +217,8 @@ function existeSessaoEmDisco(codEquipe, diretorioSessoes = DIRETORIO_SESSOES) {
  *   enfileirarTranscricao?: (tarefa: TarefaTranscricao) => Promise<unknown>,
  *   registrarStatusMensagem?: (mensagem_wa_id: string, status: StatusMensagem, contexto: ContextoInstancia) => Promise<unknown>,
  *   registrarPresenca?: (dados: DadosPresenca, contexto: ContextoInstancia) => Promise<unknown>,
+ *   armazemAtividade?: import("./recuperacao").ArmazemAtividade,
+ *   janelaRecuperacaoMs?: number,
  * }} OpcoesAdapter
  */
 
@@ -220,6 +232,7 @@ function existeSessaoEmDisco(codEquipe, diretorioSessoes = DIRETORIO_SESSOES) {
  *   obterQr: () => string | null,
  *   obterQrPng: () => Promise<Buffer | null>,
  *   marcarEnviadaPeloCrm: (mensagemWaId: string) => void,
+ *   guardarEnviada: (mensagemWaId: string, message: any, chatJid: string) => void,
  *   socketConectado: () => SocketBaileys | null,
  * }} BaileysAdapter
  */
@@ -242,6 +255,8 @@ function criarAdapter({
   enfileirarTranscricao = filaTranscricao.enfileirarTranscricao,
   registrarStatusMensagem = mensagemStatusInternoClient.registrarStatusMensagem,
   registrarPresenca = presencaInternoClient.registrarPresenca,
+  armazemAtividade,
+  janelaRecuperacaoMs,
 }) {
   const cod = normalizarCodEquipe(codEquipe);
   const pastaSessao = diretorioSessao(cod, diretorioSessoes);
@@ -271,6 +286,13 @@ function criarAdapter({
   const recibos = criarRecibos({ contexto, registrarStatusMensagem, liberar: (itens) => enfileirarRecibos(itens) });
   const presenca = criarPresenca({ contexto, registrarPresenca });
   const nomesGrupo = criarCacheNomeGrupo();
+  // Recuperação (dedup + janela do `append`) e cache de reenvio: por equipe, só em memória (a
+  // atividade vai ao armazém, que no processo grava só o instante em `.cache/`).
+  const recuperacao = criarRecuperacao({ codEquipe: cod, armazem: armazemAtividade, janelaMs: janelaRecuperacaoMs });
+  const cacheEnviadas = criarCacheEnviadas();
+  /** Gravações de credenciais em série; o desligamento espera a última terminar. */
+  /** @type {Promise<void>} */
+  let filaCredenciais = Promise.resolve();
   /** Fila serial da entrada: cada lote espera o anterior terminar (a ordem nunca se perde). */
   /** @type {Promise<void>} */
   let filaEntrada = Promise.resolve();
@@ -339,6 +361,7 @@ function criarAdapter({
 
     if (connection === "open") {
       qrAtual = null;
+      recuperacao.iniciarSessao(); // corte do `append` pela atividade anterior, antes da nova
       presenca.limparInscricoes(); // sessão nova no WhatsApp: as inscrições de presença não valem mais
       atualizarStatus({ status_conexao: "CONECTADO", ultimo_erro_conexao: null });
     }
@@ -348,6 +371,7 @@ function criarAdapter({
       const erro = /** @type {{ output?: { statusCode?: number } } | undefined} */ (lastDisconnect?.error);
       const codigo = erro?.output?.statusCode;
       const aguardavaQr = estado.status_conexao === "QR_PENDENTE";
+      if (estado.status_conexao === "CONECTADO") recuperacao.registrarAtividade({ forcar: true }); // instante da queda
       socket = null;
       qrAtual = null;
       // O socket caiu: tira os listeners (uma segunda emissão da mesma queda não faz nada, e um
@@ -363,6 +387,8 @@ function criarAdapter({
         recibos.limpar();
         presenca.limpar();
         nomesGrupo.limpar();
+        cacheEnviadas.limpar();
+        recuperacao.limpar();
         try {
           await fsp.rm(pastaSessao, { recursive: true, force: true });
         } catch (erroRm) {
@@ -395,11 +421,18 @@ function criarAdapter({
    * Normaliza, filtra e registra uma mensagem recebida. Uma falha no back só loga.
    * @param {SocketBaileys} s socket que recebeu (identidade da equipe e `onWhatsApp`)
    * @param {any} waMessage
+   * @param {unknown} tipoLote `notify` (tempo real) ou `append` (fila offline da reconexão, eco)
    */
-  async function processarMensagem(s, waMessage) {
+  async function processarMensagem(s, waMessage, tipoLote) {
     resolvedorLid.aprenderDaMensagem(waMessage);
     const normalizada = normalizarMensagem(waMessage, { eu: { jid: s.user?.id, lid: s.user?.lid } });
     if (!normalizada || !registroAparelho.deveRegistrar(normalizada)) return;
+    // Já registrada (reentrega na reconexão ou repetida no lote): nada de baixar a mídia de novo.
+    if (recuperacao.jaProcessada(normalizada.mensagem_wa_id)) return;
+    if (!recuperacao.dentroDaJanela(normalizada.timestamp_wa, tipoLote)) {
+      console.log(`[RECUPERACAO] Mensagem ${normalizada.mensagem_wa_id} da equipe ${cod} fora da janela de recuperação, ignorada.`);
+      return;
+    }
     // Sem `await`: a inscrição de presença e o nome do grupo correm junto com o resto (LID, mídia).
     void presenca.inscrever(s, normalizada.chat_jid);
     const nomeChat = normalizada.tipo_chat === "GRUPO" ? nomesGrupo.obterNome(s, normalizada.chat_jid) : Promise.resolve(null);
@@ -443,8 +476,10 @@ function criarAdapter({
     } catch (erro) {
       // Sem a mensagem no back não há a que associar a mídia: o binário é descartado.
       console.error(`[ENTRADA] Falha ao registrar a mensagem ${id} da equipe ${cod}:`, resumoFalha(erro));
-      return;
+      return; // sem marcar: uma reentrega tenta de novo
     }
+    recuperacao.marcarProcessada(id);
+    recuperacao.registrarAtividade();
 
     if (!midia?.ok) return;
     try {
@@ -490,7 +525,7 @@ function criarAdapter({
     filaEntrada = filaEntrada.then(async () => {
       for (const waMessage of lote) {
         try {
-          await processarMensagem(s, waMessage);
+          await processarMensagem(s, waMessage, type);
         } catch (erro) {
           console.error(`[ENTRADA] Falha ao processar uma mensagem recebida da equipe ${cod}:`, nomeDoErro(erro));
         }
@@ -535,7 +570,11 @@ function criarAdapter({
       connectTimeoutMs: 30_000,
       keepAliveIntervalMs: 30_000,
       syncFullHistory: false,
+      // Explícito: o histórico do pareamento nunca é baixado (não inunda o back com conversa antiga).
+      shouldSyncHistoryMessage: () => false,
       markOnlineOnConnect: false,
+      // Pedido de reenvio ("Aguardando mensagem"): só o que está no cache; sem ele, `undefined`.
+      getMessage: (key) => cacheEnviadas.obter(key),
       msgRetryCounterCache,
       userDevicesCache,
       retryRequestDelayMs: 350,
@@ -545,8 +584,11 @@ function criarAdapter({
     socket = s;
 
     s.ev.on("creds.update", () => {
-      // Uma gravação que falha (ex.: pasta apagada) não pode virar rejeição sem tratamento.
-      saveCreds().catch((erro) => console.error(`[BAILEYS] Falha ao gravar credenciais da equipe ${cod}:`, nomeDoErro(erro)));
+      // Em série e rastreada (o desligamento espera). Uma gravação que falha (ex.: pasta apagada)
+      // não pode virar rejeição sem tratamento nem travar as próximas.
+      filaCredenciais = filaCredenciais
+        .then(() => saveCreds())
+        .catch((erro) => console.error(`[BAILEYS] Falha ao gravar credenciais da equipe ${cod}:`, nomeDoErro(erro)));
     });
     s.ev.on("connection.update", (update) =>
       tratarConexao(s, update).catch((erro) =>
@@ -582,7 +624,11 @@ function criarAdapter({
 
   /**
    * Encerra o socket sem apagar a sessão (desligamento gracioso): cancela a reconexão, espera uma
-   * abertura em andamento terminar (senão sobraria um socket aberto) e reporta DESCONECTADO.
+   * abertura em andamento terminar (senão sobraria um socket aberto), fecha o socket SEM logout (os
+   * listeners saem antes, então nenhum `creds.update` novo começa), grava a última atividade, espera
+   * a gravação de credenciais em andamento e, depois, a fila de entrada (o Baileys já confirmou ao
+   * WhatsApp as mensagens que entregou: sem registrar no back, elas não voltariam) e reporta
+   * DESCONECTADO. O teto do encerramento fica com o index.js.
    * @returns {Promise<void>}
    */
   async function pararSocket() {
@@ -590,10 +636,33 @@ function criarAdapter({
     if (iniciando) await iniciando.catch(() => {});
     cancelarReconexao();
     const alvo = socket;
+    const estavaConectado = estado.status_conexao === "CONECTADO";
     socket = null;
     qrAtual = null;
     fecharSocket(alvo);
+    if (estavaConectado) recuperacao.registrarAtividade({ forcar: true });
+    await filaCredenciais;
+    await filaEntrada; // nunca rejeita
     atualizarStatus({ status_conexao: "DESCONECTADO", ultimo_erro_conexao: null });
+  }
+
+  /**
+   * Destinos que podem pedir o reenvio de uma mensagem enviada: o chat e, na conversa privada, o
+   * outro JID do mesmo contato (LID <-> telefone), quando o par é conhecido.
+   * @param {string} chatJid
+   * @returns {string[]}
+   */
+  function destinosDoChat(chatJid) {
+    const jid = normalizarJid(chatJid);
+    if (!jid) return [];
+    const lid = lidDe(jid);
+    if (lid) {
+      const telefone = resolvedorLid.telefoneDoLid(lid);
+      return telefone ? [jid, `${telefone}@s.whatsapp.net`] : [jid];
+    }
+    const telefone = telefoneDe(jid);
+    const lidDoContato = telefone ? resolvedorLid.lidDoTelefone(telefone) : null;
+    return lidDoContato ? [jid, lidDoContato] : [jid];
   }
 
   return {
@@ -613,6 +682,10 @@ function criarAdapter({
     marcarEnviadaPeloCrm(mensagemWaId) {
       registroAparelho.marcarEnviada(mensagemWaId);
       recibos.adiarRecibos(mensagemWaId);
+    },
+    // Para o pipeline de saída, depois do `sendMessage`: o `message` enviado atende o `getMessage`.
+    guardarEnviada(mensagemWaId, message, chatJid) {
+      cacheEnviadas.guardar(mensagemWaId, message, destinosDoChat(chatJid));
     },
     // Só com a equipe CONECTADA: durante QR, queda ou reconexão não há para onde enviar.
     socketConectado: () => (socket && estado.status_conexao === "CONECTADO" ? socket : null),

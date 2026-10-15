@@ -15,7 +15,8 @@ const LID_PARTICIPANTE = "100000000000002@lid";
 const TELEFONE_EQUIPE = "5511900000099";
 const EU = { jid: `${TELEFONE_EQUIPE}:7@s.whatsapp.net`, lid: "100000000000099:7@lid" };
 
-const TIMESTAMP = 1760400000;
+// Recente (1 min atrás): a recuperação descarta `append` antigo demais (fora da janela).
+const TIMESTAMP = Math.floor(Date.now() / 1000) - 60;
 
 let sequencia = 0;
 /** Id de mensagem fictício e único no processo de teste. */

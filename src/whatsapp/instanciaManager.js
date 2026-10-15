@@ -7,10 +7,14 @@
 // `cod_equipe → { hash_empresa }` de quem já conectou. No boot, `reconectarTodas()` reabre só essas
 // equipes, e só se o `creds.json` ainda existir. Sem isso, o processo não saberia o hash_empresa
 // para reportar o status nem quais equipes reabrir, e não lista a pasta das sessões.
+//
+// Atividade das equipes (`.cache/atividade-wa.json`, ao lado do registro): o último instante em que
+// cada instância esteve ativa, para a recuperação das mensagens entregues na reconexão (Task 14.3).
 const fs = require("node:fs");
 const path = require("node:path");
 const BaileysAdapter = require("./BaileysAdapter");
 const conexaoInternoClient = require("../services/conexaoInternoClient");
+const { criarArmazemAtividade } = require("./recuperacao");
 
 const CAMINHO_REGISTRO = path.join(__dirname, "..", "..", ".cache", "equipes-wa.json");
 
@@ -46,6 +50,7 @@ function descreverErro(erro) {
  * @param {{
  *   diretorioSessoes?: string,
  *   caminhoRegistro?: string,
+ *   caminhoAtividade?: string,
  *   msReconexao?: number,
  *   reportarStatus?: (codEquipe: string, status: StatusParaReportar) => Promise<unknown>,
  *   criarAdapter?: (opcoes: OpcoesAdapter) => BaileysAdapter,
@@ -54,12 +59,15 @@ function descreverErro(erro) {
 function criarInstanciaManager({
   diretorioSessoes = BaileysAdapter.DIRETORIO_SESSOES,
   caminhoRegistro = CAMINHO_REGISTRO,
+  caminhoAtividade = path.join(path.dirname(caminhoRegistro), "atividade-wa.json"),
   msReconexao,
   reportarStatus = conexaoInternoClient.reportarStatus,
   criarAdapter = BaileysAdapter.criarAdapter,
 } = {}) {
   /** @type {Map<string, BaileysAdapter>} */
   const instancias = new Map();
+  /** Última atividade de cada equipe, compartilhada pelos adapters (lida do arquivo só no primeiro uso). */
+  const armazemAtividade = criarArmazemAtividade({ caminho: caminhoAtividade });
 
   /** @returns {RegistroEquipes} */
   function lerRegistro() {
@@ -130,6 +138,7 @@ function criarInstanciaManager({
       hashEmpresa,
       diretorioSessoes,
       msReconexao,
+      armazemAtividade,
       onStatusChange: (estado) => {
         if (estado.status_conexao === "CONECTADO") registrarPareada(cod, hashEmpresa);
         Promise.resolve()
@@ -219,7 +228,9 @@ function criarInstanciaManager({
   }
 
   /**
-   * Desligamento gracioso: encerra todos os sockets (a sessão fica em disco) e esvazia o Map.
+   * Desligamento gracioso: encerra todos os sockets SEM logout (a sessão fica em disco e o registro
+   * de pareadas fica intacto, para o boot seguinte reconectar sem QR), esperando as gravações de
+   * credenciais em andamento de cada equipe, e esvazia o Map.
    * @returns {Promise<void>}
    */
   async function encerrarTodas() {

@@ -15,6 +15,11 @@
 //   pasta temporária para gerar a miniatura) e áudio sempre com `seconds` (senão ele grava para medir);
 // - o Baileys não emite SERVER_ACK para os envios do próprio socket: o sucesso do `sendMessage` já é
 //   o status ENVIADA;
+// - o `sendMessage` tem prazo (ENVIO_PRAZO_MS, padrão 90 s, abaixo dos 120 s do back): passado o
+//   prazo, o envio responde ENVIO_NAO_CONFIRMADO ("Envio não confirmado.", HTTP 504), porque a
+//   mensagem PODE ter saído. Se ele terminar depois, o resultado só alimenta o cache de reenvio;
+// - o `message` devolvido pelo `sendMessage` vai ao cache de reenvio do adapter (`guardarEnviada`),
+//   que atende o `getMessage` do Baileys ("Aguardando mensagem" no aparelho do cliente);
 // - uma mensagem por chamada (nada de envio em massa). Erros saem como `ErroEnvio` com mensagem
 //   genérica em pt-BR (o erro do Baileys pode trazer JID ou telefone e só vai ao log pelo nome).
 const { normalizarJid, lidDe, telefoneDe, mensagemWaIdValido } = require("./filtroEntrada");
@@ -29,6 +34,8 @@ const MAX_NOME_ARQUIVO = 200;
 /** Menções de uma mensagem (um grupo do WhatsApp tem no máximo 1024 participantes). */
 const MAX_MENCOES = 1024;
 const MIME_NOTA_DE_VOZ = "audio/ogg; codecs=opus";
+/** Prazo técnico padrão do `sendMessage` (o back desiste em 120 s; a mídia inclui o upload). */
+const PRAZO_ENVIO_PADRAO_MS = 90_000;
 
 /** Extensão do nome do documento enviado, pelo mimetype validado. */
 const EXTENSAO_DOCUMENTO = {
@@ -39,7 +46,7 @@ const EXTENSAO_DOCUMENTO = {
   [MIME_XLS]: "xls",
 };
 
-/** @typedef {"CONTEUDO_INVALIDO" | "EQUIPE_NAO_ENCONTRADA" | "EQUIPE_DESCONECTADA" | "FALHA_ENVIO"} CodigoErroEnvio */
+/** @typedef {"CONTEUDO_INVALIDO" | "EQUIPE_NAO_ENCONTRADA" | "EQUIPE_DESCONECTADA" | "FALHA_ENVIO" | "ENVIO_NAO_CONFIRMADO"} CodigoErroEnvio */
 
 class ErroEnvio extends Error {
   /**
@@ -55,6 +62,16 @@ class ErroEnvio extends Error {
 
 /** @param {string} mensagem */
 const invalido = (mensagem) => new ErroEnvio("CONTEUDO_INVALIDO", mensagem);
+
+/**
+ * Prazo do `sendMessage` (`ENVIO_PRAZO_MS`); vazio ou inválido cai no padrão.
+ * @param {Record<string, string | undefined>} [env]
+ * @returns {number}
+ */
+function obterPrazoEnvioMs(env = process.env) {
+  const valor = Number(env.ENVIO_PRAZO_MS);
+  return Number.isSafeInteger(valor) && valor > 0 ? valor : PRAZO_ENVIO_PADRAO_MS;
+}
 
 /**
  * @typedef {{
@@ -79,6 +96,7 @@ const invalido = (mensagem) => new ErroEnvio("CONTEUDO_INVALIDO", mensagem);
  *   hashEmpresa: string,
  *   socketConectado: () => SocketEnvio | null,
  *   marcarEnviadaPeloCrm: (mensagemWaId: string) => void,
+ *   guardarEnviada?: (mensagemWaId: string, message: any, chatJid: string) => void,
  * }} AdapterEnvio
  */
 /**
@@ -295,27 +313,64 @@ function segundos(valor) {
 }
 
 /**
- * Gera o id, marca no adapter (cache de eco e recibos) e só então chama o `sendMessage`.
+ * Guarda o `message` enviado no cache de reenvio do adapter (nunca derruba o envio).
+ * @param {AdapterEnvio} adapter
+ * @param {string} id
+ * @param {any} enviada retorno do `sendMessage`
+ * @param {string} jid
+ */
+function guardarParaReenvio(adapter, id, enviada, jid) {
+  try {
+    const keyId = enviada?.key?.id;
+    if (enviada?.message) adapter.guardarEnviada?.(mensagemWaIdValido(keyId) ? keyId : id, enviada.message, jid);
+  } catch (erro) {
+    console.error(`[ENVIO] Falha ao guardar a mensagem ${id} para reenvio:`, erro instanceof Error ? erro.name : "erro");
+  }
+}
+
+/** Marcador interno do prazo esgotado (nunca sai deste módulo). */
+const PRAZO_ESGOTADO = Symbol("prazoEsgotado");
+
+/**
+ * Gera o id, marca no adapter (cache de eco e recibos) e só então chama o `sendMessage`, com prazo.
  * @param {AdapterEnvio} adapter
  * @param {SocketEnvio} socket
  * @param {string} jid
  * @param {Record<string, any>} conteudo
  * @param {Record<string, any>} [opcoes] opções do `sendMessage` (ex.: `quoted`)
+ * @param {{ prazoMs?: number }} [controle] prazo do `sendMessage` (padrão: ENVIO_PRAZO_MS)
  * @returns {Promise<ResultadoEnvio>}
  */
-async function enviarPeloSocket(adapter, socket, jid, conteudo, opcoes = {}) {
+async function enviarPeloSocket(adapter, socket, jid, conteudo, opcoes = {}, { prazoMs = obterPrazoEnvioMs() } = {}) {
   // Carga tardia, como no BaileysAdapter: os testes trocam o pacote via `require.cache`.
   const { generateMessageIDV2 } = require("@whiskeysockets/baileys");
   const id = generateMessageIDV2(socket.user?.id);
   adapter.marcarEnviadaPeloCrm(id);
+  let esgotou = false;
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let timer;
   let enviada;
   try {
-    enviada = await socket.sendMessage(jid, conteudo, { ...opcoes, messageId: id });
+    const envio = Promise.resolve().then(() => socket.sendMessage(jid, conteudo, { ...opcoes, messageId: id }));
+    // Terminou depois do prazo: a mensagem saiu, então ainda serve ao pedido de reenvio.
+    envio.then((tardia) => esgotou && guardarParaReenvio(adapter, id, tardia, jid)).catch(() => {});
+    const prazo = new Promise((_resolve, rejeitar) => {
+      timer = setTimeout(() => rejeitar(PRAZO_ESGOTADO), prazoMs); // limpo no finally
+    });
+    enviada = await Promise.race([envio, prazo]);
   } catch (erro) {
+    if (erro === PRAZO_ESGOTADO) {
+      esgotou = true;
+      console.error(`[ENVIO] Prazo de ${prazoMs} ms esgotado no sendMessage da mensagem ${id}.`);
+      throw new ErroEnvio("ENVIO_NAO_CONFIRMADO", "Envio não confirmado.");
+    }
     const nome = erro instanceof Error ? erro.name : "erro";
     console.error(`[ENVIO] Falha no sendMessage da mensagem ${id}:`, nome);
     throw new ErroEnvio("FALHA_ENVIO", "Falha ao enviar a mensagem pelo WhatsApp.");
+  } finally {
+    clearTimeout(timer);
   }
+  guardarParaReenvio(adapter, id, enviada, jid);
   const key = enviada?.key && typeof enviada.key === "object" ? enviada.key : null;
   /** @type {ChaveWa} */
   const chave = {
@@ -333,9 +388,10 @@ async function enviarPeloSocket(adapter, socket, jid, conteudo, opcoes = {}) {
 }
 
 /**
- * @param {{ manager?: ManagerEnvio }} [opcoes] manager das instâncias (padrão: o do processo)
+ * @param {{ manager?: ManagerEnvio, prazoMs?: number }} [opcoes] manager das instâncias (padrão: o
+ *   do processo) e prazo do `sendMessage` (padrão: ENVIO_PRAZO_MS, lido a cada envio)
  */
-function criarEnvio({ manager } = {}) {
+function criarEnvio({ manager, prazoMs } = {}) {
   /** @returns {ManagerEnvio} */
   const obterManager = () => manager ?? /** @type {ManagerEnvio} */ (/** @type {unknown} */ (require("./instanciaManager")));
 
@@ -357,7 +413,7 @@ function criarEnvio({ manager } = {}) {
     const conteudoBaileys = montarConteudo(conteudo, { mencoes: validarMencoes(mencoes) });
     const quoted = montarCitacao(citacao, jid);
     const { adapter, socket } = obterSocketDaEquipe(obterManager(), codEquipe, hash_empresa);
-    return enviarPeloSocket(adapter, socket, jid, conteudoBaileys, quoted ? { quoted } : {});
+    return enviarPeloSocket(adapter, socket, jid, conteudoBaileys, quoted ? { quoted } : {}, { prazoMs: prazoMs ?? obterPrazoEnvioMs() });
   }
 
   return { enviar };
@@ -375,6 +431,8 @@ module.exports = {
   validarMencoes,
   obterSocketDaEquipe,
   enviarPeloSocket,
+  obterPrazoEnvioMs,
+  PRAZO_ENVIO_PADRAO_MS,
   ErroEnvio,
   EXTENSAO_DOCUMENTO,
 };

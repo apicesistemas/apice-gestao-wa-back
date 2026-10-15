@@ -14,7 +14,10 @@
 //
 // Respostas: 200 `{ mensagem_wa_id, key, timestamp_wa, status: "ENVIADA" }` (reagir: `{ status }`);
 // 400 campo inválido, fora da allowlist ou tipo divergente; 401 sem token; 404 equipe de outra
-// empresa; 409 equipe desconectada ou sem instância (nunca 200); 502 falha no `sendMessage`.
+// empresa; 409 equipe desconectada ou sem instância (nunca 200); 502 falha no `sendMessage`;
+// 503 durante o desligamento gracioso (o pedido é recusado, nunca aceito e descartado: o back pode
+// tentar de novo depois do Retry-After); 504 "Envio não confirmado." quando o `sendMessage` passa do
+// prazo (a mensagem pode ter saído).
 const express = require("express");
 const exigirTokenServico = require("./exigirTokenServico");
 const { criarEnvio, ErroEnvio, EXTENSAO_DOCUMENTO } = require("../whatsapp/envio");
@@ -22,6 +25,7 @@ const { criarReacao } = require("../whatsapp/reacao");
 const { normalizarCodEquipe } = require("../whatsapp/BaileysAdapter");
 const { validarMidia } = require("../whatsapp/tipoMidia");
 const { obterLimitesMidia } = require("../whatsapp/midiaEntrada");
+const desligamentoDoProcesso = require("../utils/desligamento").padrao;
 
 /** Folga do corpo multipart além do teto do arquivo (campos de texto, citação e boundaries). */
 const MARGEM_CORPO_BYTES = 1024 * 1024;
@@ -65,6 +69,7 @@ const STATUS_DO_ERRO = {
   EQUIPE_NAO_ENCONTRADA: 404,
   EQUIPE_DESCONECTADA: 409,
   FALHA_ENVIO: 502,
+  ENVIO_NAO_CONFIRMADO: 504,
 };
 
 class ErroRequisicao extends Error {}
@@ -201,16 +206,23 @@ function responderErro(res, erro, cod) {
 /**
  * Monta o controller sobre um manager (o do processo, ou o dos testes).
  * @param {import("../whatsapp/envio").ManagerEnvio} [manager]
+ * @param {{
+ *   desligamento?: Pick<import("../utils/desligamento").Desligamento, "recusarDuranteEncerramento">,
+ *   prazoEnvioMs?: number,
+ * }} [opcoes] estado de desligamento (padrão: o do processo) e prazo do `sendMessage` (padrão: ENVIO_PRAZO_MS)
  * @returns {(server: import("express").Express) => void}
  */
-function criarEnvioController(manager) {
-  const { enviar } = criarEnvio({ manager });
+function criarEnvioController(manager, { desligamento = desligamentoDoProcesso, prazoEnvioMs } = {}) {
+  const { enviar } = criarEnvio({ manager, prazoMs: prazoEnvioMs });
   const { reagir } = criarReacao({ manager });
+  /** 503 durante o desligamento; fora dele, a requisição é rastreada até responder. @type {import("express").RequestHandler} */
+  const recusarDuranteEncerramento = (req, res, next) => desligamento.recusarDuranteEncerramento(req, res, next);
 
   return function EnvioController(server) {
     server.post(
       "/equipe/:cod_equipe/enviar",
       exigirTokenServico,
+      recusarDuranteEncerramento,
       (req, res, next) => {
         if (!codEquipeValido(req.params.cod_equipe)) {
           res.status(400).json({ msg: "Código da equipe inválido." });
@@ -238,7 +250,7 @@ function criarEnvioController(manager) {
       }
     );
 
-    server.post("/equipe/:cod_equipe/reagir", exigirTokenServico, async (req, res) => {
+    server.post("/equipe/:cod_equipe/reagir", exigirTokenServico, recusarDuranteEncerramento, async (req, res) => {
       const cod = codEquipeValido(req.params.cod_equipe);
       if (!cod) {
         res.status(400).json({ msg: "Código da equipe inválido." });

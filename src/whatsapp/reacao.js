@@ -21,6 +21,9 @@ function validarEmoji(emoji) {
   return emoji;
 }
 
+/** Prazo técnico do `sendMessage` da reação (o back desiste em 15 s): passou, 504 "Envio não confirmado.". */
+const PRAZO_REACAO_MS = 10_000;
+
 /**
  * @param {{ manager?: ManagerEnvio }} [opcoes] manager das instâncias (padrão: o do processo)
  */
@@ -43,7 +46,7 @@ function criarReacao({ manager } = {}) {
     const alvo = validarKey(key, jid);
     const text = validarEmoji(emoji);
     const { adapter, socket } = obterSocketDaEquipe(obterManager(), codEquipe, hashEmpresa);
-    await enviarPeloSocket(adapter, socket, jid, { react: { text, key: alvo } });
+    await enviarPeloSocket(adapter, socket, jid, { react: { text, key: alvo } }, {}, { prazoMs: PRAZO_REACAO_MS });
     return { status: "ENVIADA" };
   }
 
@@ -52,4 +55,4 @@ function criarReacao({ manager } = {}) {
 
 const padrao = criarReacao();
 
-module.exports = { reagir: padrao.reagir, criarReacao, validarEmoji };
+module.exports = { reagir: padrao.reagir, criarReacao, validarEmoji, PRAZO_REACAO_MS };

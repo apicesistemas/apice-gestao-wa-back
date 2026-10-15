@@ -11,6 +11,7 @@ const fs = require("node:fs");
  *   listeners: Record<string, (dado: any) => any>,
  *   removidos: string[],
  *   chamadasEnd: number,
+ *   chamadasLogout: number,
  *   emitir: (evento: string, dado: any) => Promise<void>,
  * }} SocketFalso
  */
@@ -44,6 +45,7 @@ function makeWASocket(config) {
     listeners: {},
     removidos: [],
     chamadasEnd: 0,
+    chamadasLogout: 0,
     async emitir(evento, dado) {
       const handler = socket.listeners[evento];
       if (handler) await handler(dado);
@@ -66,17 +68,40 @@ function makeWASocket(config) {
     end() {
       socket.chamadasEnd += 1;
     },
+    // O desligamento gracioso nunca pode chamar o logout (apagaria o pareamento no aparelho).
+    async logout() {
+      socket.chamadasLogout += 1;
+    },
     /** @param {any} mensagem */
     updateMediaMessage: async (mensagem) => mensagem,
   });
 }
+
+/** @type {() => Promise<void>} gravação das credenciais (os testes trocam para controlar o tempo) */
+let tratadorSaveCreds = async () => {};
+/** Quantas vezes o saveCreds falso foi chamado. */
+const contagem = { saveCreds: 0 };
 
 /** Como o real, cria a pasta da sessão; as credenciais ficam só em memória. */
 /** @param {string} pasta */
 async function useMultiFileAuthState(pasta) {
   pastasAuthState.push(pasta);
   fs.mkdirSync(pasta, { recursive: true });
-  return { state: { creds: {}, keys: {} }, saveCreds: async () => {} };
+  return {
+    state: { creds: {}, keys: {} },
+    saveCreds: () => {
+      contagem.saveCreds += 1;
+      return tratadorSaveCreds();
+    },
+  };
+}
+
+/**
+ * Define o que o saveCreds falso faz (ex.: uma promessa que o teste resolve quando quiser).
+ * @param {() => Promise<void>} tratador
+ */
+function definirSaveCreds(tratador) {
+  tratadorSaveCreds = tratador;
 }
 
 /** Ids gerados pelo generateMessageIDV2 falso (sequenciais, como os do Baileys: `3EB0` + hex). */
@@ -128,6 +153,8 @@ function limparHistorico() {
   pastasAuthState.length = 0;
   downloads.length = 0;
   idsGerados.length = 0;
+  contagem.saveCreds = 0;
+  tratadorSaveCreds = async () => {};
 }
 
 /** Último socket criado (falha o teste se nenhum foi criado). */
@@ -148,6 +175,8 @@ module.exports = {
   ultimoSocket,
   drenar,
   definirDownload,
+  definirSaveCreds,
+  contagem,
   sockets,
   pastasAuthState,
   downloads,
