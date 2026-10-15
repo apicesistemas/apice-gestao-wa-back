@@ -3,6 +3,13 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.11.1] - 2026-10-15
+
+### Alterado
+
+- `package.json`: `engines.node` passa de `>=22` para `>=22.9`, porque o `start` e o `nodemon.json` usam `node --env-file-if-exists`, que só existe a partir do Node 22.9.0. O README passa a dizer "Node.js 22.9+".
+- README: a seção de deploy documenta `DEPLOY_PORTA`, `DEPLOY_TENTATIVAS_PING` e `DEPLOY_INTERVALO_PING` (padrão e para que serve). Sem mudança de comportamento.
+
 ## [0.11.0] - 2026-10-14
 
 ### Adicionado

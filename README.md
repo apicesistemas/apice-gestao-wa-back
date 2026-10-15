@@ -6,7 +6,7 @@ Faz parte do [apice-gestao-monorepo](https://github.com/apicesistemas/apice-gest
 
 ## Stack
 
-Node.js 22+ (JavaScript CommonJS com JSDoc `// @ts-check`) · Baileys `6.7.24` (versão fixa) · Express 5 · MiniMax M3 (transcrição) · testes com `node:test`.
+Node.js 22.9+ (JavaScript CommonJS com JSDoc `// @ts-check`) · Baileys `6.7.24` (versão fixa) · Express 5 · MiniMax M3 (transcrição) · testes com `node:test`.
 
 ## Como rodar
 
@@ -43,6 +43,16 @@ bash deploy.sh
 O script faz `git pull --ff-only`, `yarn install` e `yarn test`. Se os testes falham, ele para antes do PM2 e o processo em execução continua como estava. Com a suíte verde, roda `pm2 reload ecosystem.config.cjs --update-env` (ou `pm2 start` na primeira vez), espera o `GET /ping` responder 200 e grava a lista do PM2 (`pm2 save`).
 
 O reload não derruba as sessões do WhatsApp. Com instância única em fork, o PM2 manda SIGINT ao processo, e o wa-back recusa envios novos com 503, espera os em andamento e encerra o Baileys sem logout, tudo em até 10 s, antes do `kill_timeout` de 12 s. O processo novo reconecta sem QR e recupera as mensagens que chegaram no intervalo.
+
+Variáveis de ambiente do `deploy.sh` (opcionais, de shell, não vêm do `.env`):
+
+| Variável | Padrão | Para que serve |
+| -------- | ------ | -------------- |
+| `DEPLOY_PORTA` | `3501` | Porta do `GET /ping` conferido depois do reload |
+| `DEPLOY_TENTATIVAS_PING` | `20` | Quantas vezes o script tenta o `/ping` antes de falhar |
+| `DEPLOY_INTERVALO_PING` | `3` | Espera, em segundos, entre as tentativas |
+
+Exemplo: `DEPLOY_TENTATIVAS_PING=30 bash deploy.sh`.
 
 Detalhes e parâmetros em [CLAUDE.md](CLAUDE.md#deploy).
 
