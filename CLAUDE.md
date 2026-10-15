@@ -57,7 +57,7 @@ yarn test             # node scripts/run-tests.js → node --test tests/**/*.tes
 - Nomenclatura de arquivos: adapters e classes em PascalCase (`BaileysAdapter.js`), demais em `camelCase.js` (`instanciaManager.js`, `transcricaoService.js`, `filtroEntrada.js`), controllers `NomeController.js`. Testes em `tests/<mesma pasta>/<arquivo>.test.js`.
 - Nomenclatura de variáveis e funções: camelCase em português, sem acento. Textos em pt-BR com acentuação correta.
 - Estrutura de endpoints: controllers como tabela de rotas (`NomeController(server)`, sem `express.Router()`), aceitando só chamadas do back com token de serviço. Toda escrita vai para o back via `/interno/*`, com `hash_empresa` no body.
-- Estrutura de componentes: base do comandax (`instanciaManager` + adapter Baileys, adaptados para uma instância por equipe) com a robustez do financeiro: normalização pura de entrada (`filtroEntrada`), download de mídia em stream com teto e prazo, validação por *magic bytes*, envio sem disco, LID completo e registro de mensagens do aparelho.
+- Estrutura de componentes: base do comandax (`instanciaManager` + adapter Baileys, adaptados para uma instância por equipe) com a robustez do financeiro: normalização pura de entrada (`filtroEntrada`), download de mídia em stream com teto e prazo, validação por *magic bytes*, envio sem disco (exceto o temporário cifrado do upload do Baileys, ver "Exceções aceitas"), LID completo e registro de mensagens do aparelho.
 - Tipagem: JSDoc + `// @ts-check` nos arquivos, sem etapa de build.
 
 ## TDD
@@ -78,11 +78,18 @@ yarn test             # node scripts/run-tests.js → node --test tests/**/*.tes
 ## Nunca fazer
 
 - Nunca enviar ao WhatsApp transcrição, explicação da resolução ou nota interna. O adaptador de envio recebe só o conteúdo destinado ao cliente.
-- Nunca ler, listar ou versionar `sessoes-baileys/`, nem gravar mídia em disco.
+- Nunca ler, listar ou versionar `sessoes-baileys/`, nem gravar mídia em disco (a única exceção é o temporário cifrado do upload do Baileys, ver "Exceções aceitas").
 - Nunca rodar mais de uma instância do processo nem encerrar sem desligamento gracioso, o que corromperia a sessão.
 - Nunca identificar o contato só pelo telefone. Guardar também o LID.
 - Nunca aceitar chamadas fora da rede interna ou sem o token de serviço, nem fazer envio em massa (risco de banimento do número).
 - Nunca usar range de versão (`^`) no Baileys. A versão é fixa.
+
+## Exceções aceitas
+
+- **Temporário cifrado no upload de mídia (14b).** Exceção aceita pelo responsável do projeto em 2026-10-14: o Baileys grava temporário cifrado durante o upload de mídia, e a recepção e o restante do pipeline continuam sem disco. No 6.7.24, o `encryptedStream` (`lib/Utils/messages-media.js`, chamado por `prepareWAMessageMedia` em `lib/Utils/messages.js`) grava `<tipo><id>-enc` em `os.tmpdir()`. O arquivo tem AES-256-CBC + HMAC, e a chave fica só em memória. Ele é enviado por `createReadStream` e apagado no `finally`, tanto no sucesso quanto na falha. A cópia em claro (`-original`) não é gerada porque o envio manda `jpegThumbnail: null` e `seconds`.
+  - O que pode sobrar em disco: o arquivo de uma queda no meio do upload, o de um `unlink` que falhou (o Baileys só registra no log) e o órfão de uma corrida do Baileys. O `encryptedStream` não espera o arquivo abrir, então, se o upload falha na hora, o `unlink` dá ENOENT e o arquivo é criado logo depois.
+  - Mitigação (`src/whatsapp/tmpMidia.js`): o `os.tmpdir()` do processo aponta para `.cache/tmp-midia` (TMPDIR/TMP/TEMP, no boot). A pasta é limpa no boot, no desligamento (também quando o teto força a saída) e 1 s depois que o último upload em andamento termina (rastreador de uploads em `envio.js`). O upload de mídia recebe `mediaUploadTimeoutMs` igual ao prazo do envio, porque sem ele o axios do Baileys espera para sempre.
+  - Não vale para mais nada: nenhum outro código grava mídia em disco, e a pasta não pode ser usada para outra coisa (ela é esvaziada sem aviso).
 
 ## Decisões em aberto
 

@@ -9,6 +9,7 @@ const { ativarLogEmArquivo, limparLogsAntigos } = require("./utils/logArquivo");
 const instanciaManager = require("./whatsapp/instanciaManager");
 const { criarInstanciaHealth } = require("./whatsapp/instanciaHealth");
 const desligamentoDoProcesso = require("./utils/desligamento").padrao;
+const tmpMidia = require("./whatsapp/tmpMidia");
 
 /** Heartbeat das conexões por equipe (a cada 60 s), ligado depois da reconexão do boot. */
 const heartbeat = criarInstanciaHealth();
@@ -62,13 +63,15 @@ function iniciarServidor(porta) {
  * 2. espera os envios que já estavam em andamento responderem;
  * 3. encerra as instâncias Baileys SEM logout, cada uma esperando o `saveCreds` em andamento
  *    (sessão intacta em disco: o boot seguinte reconecta sem QR);
- * 4. fecha o HTTP e sai com 0. Se passar do teto, sai com 1.
+ * 4. apaga os temporários cifrados de upload de mídia do Baileys (exceção 14b, `tmpMidia`);
+ * 5. fecha o HTTP e sai com 0. Se passar do teto, apaga os temporários e sai com 1.
  * Idempotente: SIGINT seguido de SIGTERM (terminal + supervisor) não encerra duas vezes.
  * @param {Pick<import("node:http").Server, "close">} httpServer
  * @param {{
  *   sair?: (codigo: number) => void,
  *   tetoMs?: number,
  *   encerrarInstancias?: () => Promise<void>,
+ *   limparTemporarios?: () => unknown,
  *   desligamento?: Pick<import("./utils/desligamento").Desligamento, "marcarEncerrando" | "aguardarEmAndamento">,
  * }} [opcoes]
  * @returns {(sinal: string) => void}
@@ -82,10 +85,19 @@ function criarEncerrador(
       heartbeat.parar(); // nenhuma reconexão do heartbeat começa durante o encerramento
       return instanciaManager.encerrarTodas();
     },
+    limparTemporarios = () => tmpMidia.limparPastaConfigurada(),
     desligamento = desligamentoDoProcesso,
   } = {}
 ) {
   let encerrando = false;
+  // Nunca derruba o encerramento: uma falha só vai ao log.
+  const limparSemFalhar = () => {
+    try {
+      limparTemporarios();
+    } catch (erro) {
+      console.error("[BOOT] Falha ao apagar os temporários de mídia:", erro instanceof Error ? erro.name : "erro");
+    }
+  };
   return (sinal) => {
     if (encerrando) return;
     encerrando = true;
@@ -94,6 +106,7 @@ function criarEncerrador(
 
     const timeoutForcado = setTimeout(() => {
       console.error("[BOOT] Tempo esgotado no encerramento gracioso, forçando a saída.");
+      limparSemFalhar();
       sair(1);
     }, tetoMs);
     timeoutForcado.unref();
@@ -105,6 +118,7 @@ function criarEncerrador(
         console.error("[BOOT] Falha ao encerrar as instâncias do WhatsApp:", erro instanceof Error ? erro.message : erro);
       })
       .then(() => {
+        limparSemFalhar();
         httpServer.close(() => {
           clearTimeout(timeoutForcado);
           sair(0);
@@ -124,6 +138,11 @@ async function iniciar() {
 
   limparLogsAntigos();
   setInterval(() => limparLogsAntigos(), INTERVALO_LIMPEZA_LOGS_MS).unref();
+
+  // Exceção 14b: o temporário cifrado do upload de mídia do Baileys vai para uma pasta dedicada,
+  // apontada antes de qualquer instância subir. O que sobrou de uma queda é apagado aqui.
+  const { removidos } = tmpMidia.configurarPastaTemporaria();
+  if (removidos > 0) console.log(`[BOOT] Temporários de mídia de uma execução anterior apagados: ${removidos}`);
 
   const porta = Number(process.env.SERVER_PORT) || PORTA_PADRAO;
   const httpServer = await iniciarServidor(porta);

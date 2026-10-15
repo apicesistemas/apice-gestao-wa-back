@@ -13,6 +13,12 @@
 //   remoteJid em que o contato fala com a equipe. Nada de resolver por telefone aqui;
 // - nada em disco: imagem e vídeo com `jpegThumbnail: null` (senão o Baileys grava o original na
 //   pasta temporária para gerar a miniatura) e áudio sempre com `seconds` (senão ele grava para medir);
+// - Exceção aceita pelo responsável do projeto em 2026-10-14: o Baileys grava temporário cifrado
+//   durante o upload de mídia; a recepção e o restante do pipeline continuam sem disco. O arquivo
+//   (`<tipo><id>-enc`, do `encryptedStream`) cai na pasta dedicada de `tmpMidia` e o Baileys o apaga
+//   ao fim do upload. O upload tem prazo (`mediaUploadTimeoutMs` = prazo do envio; sem ele o axios
+//   do Baileys espera para sempre) e passa pelo rastreador de uploads, que varre a pasta quando o
+//   último termina (cobre o órfão da corrida do Baileys). Boot e desligamento também limpam a pasta;
 // - o Baileys não emite SERVER_ACK para os envios do próprio socket: o sucesso do `sendMessage` já é
 //   o status ENVIADA;
 // - o `sendMessage` tem prazo (ENVIO_PRAZO_MS, padrão 90 s, abaixo dos 120 s do back): passado o
@@ -25,6 +31,7 @@
 const { normalizarJid, lidDe, telefoneDe, mensagemWaIdValido } = require("./filtroEntrada");
 const { duracaoOggOpusSegundos, normalizarMimetype, MIME_DOCX, MIME_XLSX, MIME_DOC, MIME_XLS } = require("./tipoMidia");
 const { normalizarCodEquipe } = require("./BaileysAdapter");
+const tmpMidia = require("./tmpMidia");
 
 const PADRAO_GRUPO = /^[\d-]{1,40}@g\.us$/;
 /** Limites técnicos do WhatsApp (não são regra de negócio). */
@@ -34,6 +41,8 @@ const MAX_NOME_ARQUIVO = 200;
 /** Menções de uma mensagem (um grupo do WhatsApp tem no máximo 1024 participantes). */
 const MAX_MENCOES = 1024;
 const MIME_NOTA_DE_VOZ = "audio/ogg; codecs=opus";
+/** Chaves de mídia do conteúdo Baileys (as que passam pelo upload). */
+const CHAVES_MIDIA = ["image", "video", "audio", "document"];
 /** Prazo técnico padrão do `sendMessage` (o back desiste em 120 s; a mídia inclui o upload). */
 const PRAZO_ENVIO_PADRAO_MS = 90_000;
 
@@ -328,6 +337,8 @@ function guardarParaReenvio(adapter, id, enviada, jid) {
   }
 }
 
+/** @typedef {{ iniciar: () => () => void }} RastreadorUploads */
+
 /** Marcador interno do prazo esgotado (nunca sai deste módulo). */
 const PRAZO_ESGOTADO = Symbol("prazoEsgotado");
 
@@ -338,10 +349,18 @@ const PRAZO_ESGOTADO = Symbol("prazoEsgotado");
  * @param {string} jid
  * @param {Record<string, any>} conteudo
  * @param {Record<string, any>} [opcoes] opções do `sendMessage` (ex.: `quoted`)
- * @param {{ prazoMs?: number }} [controle] prazo do `sendMessage` (padrão: ENVIO_PRAZO_MS)
+ * @param {{ prazoMs?: number, rastreadorUploads?: RastreadorUploads }} [controle] prazo do `sendMessage`
+ *   (padrão: ENVIO_PRAZO_MS) e rastreador dos uploads de mídia (padrão: o do processo)
  * @returns {Promise<ResultadoEnvio>}
  */
-async function enviarPeloSocket(adapter, socket, jid, conteudo, opcoes = {}, { prazoMs = obterPrazoEnvioMs() } = {}) {
+async function enviarPeloSocket(
+  adapter,
+  socket,
+  jid,
+  conteudo,
+  opcoes = {},
+  { prazoMs = obterPrazoEnvioMs(), rastreadorUploads = tmpMidia.rastreadorUploads } = {}
+) {
   // Carga tardia, como no BaileysAdapter: os testes trocam o pacote via `require.cache`.
   const { generateMessageIDV2 } = require("@whiskeysockets/baileys");
   const id = generateMessageIDV2(socket.user?.id);
@@ -351,7 +370,13 @@ async function enviarPeloSocket(adapter, socket, jid, conteudo, opcoes = {}, { p
   let timer;
   let enviada;
   try {
-    const envio = Promise.resolve().then(() => socket.sendMessage(jid, conteudo, { ...opcoes, messageId: id }));
+    // Mídia: o upload tem o prazo do envio e fica no rastreador até o `sendMessage` terminar de fato
+    // (mesmo depois do 504), porque só então o Baileys terminou de mexer no temporário.
+    const ehMidia = CHAVES_MIDIA.some((chave) => chave in conteudo);
+    const opcoesEnvio = ehMidia ? { ...opcoes, messageId: id, mediaUploadTimeoutMs: prazoMs } : { ...opcoes, messageId: id };
+    const concluirUpload = ehMidia ? rastreadorUploads.iniciar() : null;
+    const envio = Promise.resolve().then(() => socket.sendMessage(jid, conteudo, opcoesEnvio));
+    if (concluirUpload) envio.then(concluirUpload, concluirUpload);
     // Terminou depois do prazo: a mensagem saiu, então ainda serve ao pedido de reenvio.
     envio.then((tardia) => esgotou && guardarParaReenvio(adapter, id, tardia, jid)).catch(() => {});
     const prazo = new Promise((_resolve, rejeitar) => {
@@ -388,10 +413,11 @@ async function enviarPeloSocket(adapter, socket, jid, conteudo, opcoes = {}, { p
 }
 
 /**
- * @param {{ manager?: ManagerEnvio, prazoMs?: number }} [opcoes] manager das instâncias (padrão: o
- *   do processo) e prazo do `sendMessage` (padrão: ENVIO_PRAZO_MS, lido a cada envio)
+ * @param {{ manager?: ManagerEnvio, prazoMs?: number, rastreadorUploads?: RastreadorUploads }} [opcoes]
+ *   manager das instâncias (padrão: o do processo), prazo do `sendMessage` (padrão: ENVIO_PRAZO_MS,
+ *   lido a cada envio) e rastreador dos uploads de mídia (padrão: o do processo)
  */
-function criarEnvio({ manager, prazoMs } = {}) {
+function criarEnvio({ manager, prazoMs, rastreadorUploads } = {}) {
   /** @returns {ManagerEnvio} */
   const obterManager = () => manager ?? /** @type {ManagerEnvio} */ (/** @type {unknown} */ (require("./instanciaManager")));
 
@@ -413,7 +439,10 @@ function criarEnvio({ manager, prazoMs } = {}) {
     const conteudoBaileys = montarConteudo(conteudo, { mencoes: validarMencoes(mencoes) });
     const quoted = montarCitacao(citacao, jid);
     const { adapter, socket } = obterSocketDaEquipe(obterManager(), codEquipe, hash_empresa);
-    return enviarPeloSocket(adapter, socket, jid, conteudoBaileys, quoted ? { quoted } : {}, { prazoMs: prazoMs ?? obterPrazoEnvioMs() });
+    return enviarPeloSocket(adapter, socket, jid, conteudoBaileys, quoted ? { quoted } : {}, {
+      prazoMs: prazoMs ?? obterPrazoEnvioMs(),
+      rastreadorUploads: rastreadorUploads ?? tmpMidia.rastreadorUploads,
+    });
   }
 
   return { enviar };

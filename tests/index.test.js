@@ -237,3 +237,62 @@ test("um saveCreds que nunca termina não segura o processo além do teto (sai c
   await new Promise((resolve) => setTimeout(resolve, 80));
   assert.deepEqual(saidas, [1]);
 });
+
+// Exceção 14b: o temporário cifrado do upload de mídia do Baileys (pasta dedicada) é apagado no
+// desligamento, depois de as instâncias fecharem, e também quando o teto força a saída.
+
+test("o encerrador limpa a pasta temporária de mídia depois das instâncias e antes de fechar o HTTP", async () => {
+  /** @type {string[]} */
+  const ordem = [];
+  const httpServer = /** @type {any} */ ({
+    /** @param {() => void} cb */
+    close(cb) {
+      ordem.push("http");
+      setImmediate(cb);
+    },
+  });
+  const encerrar = criarEncerrador(httpServer, {
+    sair: (codigo) => ordem.push(`sair:${codigo}`),
+    tetoMs: 1000,
+    encerrarInstancias: async () => void ordem.push("instancias"),
+    limparTemporarios: () => void ordem.push("temporarios"),
+    desligamento: criarDesligamento(),
+  });
+  encerrar("SIGTERM");
+  encerrar("SIGINT");
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.deepEqual(ordem, ["instancias", "temporarios", "http", "sair:0"]);
+});
+
+test("se o teto força a saída, a pasta temporária de mídia é limpa antes de sair com 1", async () => {
+  /** @type {string[]} */
+  const ordem = [];
+  const httpServer = /** @type {any} */ ({ close() {} }); // nunca chama o callback
+  criarEncerrador(httpServer, {
+    sair: (codigo) => ordem.push(`sair:${codigo}`),
+    tetoMs: 20,
+    encerrarInstancias: () => new Promise(() => {}), // instância travada
+    limparTemporarios: () => void ordem.push("temporarios"),
+    desligamento: criarDesligamento(),
+  })("SIGTERM");
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  assert.deepEqual(ordem, ["temporarios", "sair:1"]);
+});
+
+test("uma falha ao limpar a pasta temporária de mídia não impede o encerramento", async () => {
+  /** @type {number[]} */
+  const saidas = [];
+  const { httpServer, registro } = httpFalso();
+  criarEncerrador(httpServer, {
+    sair: (codigo) => saidas.push(codigo),
+    tetoMs: 1000,
+    encerrarInstancias: async () => {},
+    limparTemporarios: () => {
+      throw new Error("EBUSY");
+    },
+    desligamento: criarDesligamento(),
+  })("SIGTERM");
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(registro.fechou, true);
+  assert.deepEqual(saidas, [0]);
+});

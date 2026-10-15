@@ -3,6 +3,18 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.10.0] - 2026-10-14
+
+### Adicionado
+
+- `src/whatsapp/tmpMidia.js`: pasta temporária dedicada (`.cache/tmp-midia`) para o upload de mídia do Baileys. Trata da exceção 14b, aceita pelo responsável do projeto em 2026-10-14: o Baileys grava um temporário cifrado durante o upload de mídia, e a recepção e o restante do pipeline continuam sem disco. No boot, o `os.tmpdir()` do processo passa a apontar para essa pasta (TMPDIR/TMP/TEMP), e o que sobrou de uma execução anterior é apagado. O módulo também traz um rastreador dos uploads em andamento: 1 s depois que o último termina, a pasta é varrida. Isso cobre o órfão de uma corrida do Baileys 6.7.24, em que o `encryptedStream` não espera o arquivo abrir e, quando o upload falha na hora, o `unlink` dá ENOENT e o arquivo é criado logo depois. A limpeza só aceita a pasta dedicada e nunca toca no temporário do sistema.
+
+### Alterado
+
+- `src/whatsapp/envio.js`: o envio de imagem, vídeo, áudio e documento passa `mediaUploadTimeoutMs` (o mesmo prazo do envio, `ENVIO_PRAZO_MS`) ao `sendMessage`. Sem ele, o axios do Baileys não tem prazo, e um upload travado deixava o temporário em disco para sempre. O envio de mídia também entra no rastreador de uploads e só sai quando o `sendMessage` termina de fato, mesmo que isso aconteça depois do 504. O comentário do módulo registra a exceção.
+- `src/index.js`: o boot configura a pasta temporária dedicada antes de reconectar as instâncias. O desligamento gracioso apaga os temporários de mídia depois de encerrar as instâncias e antes de fechar o HTTP, e também quando o teto força a saída. Uma falha nessa limpeza só vai para o log.
+- `CLAUDE.md`: nova seção "Exceções aceitas", que explica o temporário cifrado do upload de mídia, o que pode sobrar em disco e a mitigação.
+
 ## [0.9.0] - 2026-10-14
 
 ### Adicionado

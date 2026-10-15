@@ -303,3 +303,79 @@ test("obterPrazoEnvioMs lê ENVIO_PRAZO_MS e cai no padrão (abaixo do prazo do 
   assert.equal(obterPrazoEnvioMs({ ENVIO_PRAZO_MS: "45000" }), 45000);
   assert.ok(PRAZO_ENVIO_PADRAO_MS < 120_000, "o back desiste do envio em 120 s");
 });
+
+// Exceção 14b: o upload de mídia tem prazo (o mesmo do sendMessage). Sem ele, o axios do Baileys
+// não tem timeout, um upload travado nunca termina e o temporário cifrado fica em disco.
+
+test("o envio de mídia passa mediaUploadTimeoutMs (o prazo do envio) ao sendMessage; o de texto não", async () => {
+  /** @type {any[]} */
+  const opcoesVistas = [];
+  const { manager } = equipeComSend(async (jid, _c, opcoes) => {
+    opcoesVistas.push(opcoes);
+    return { key: { remoteJid: jid, fromMe: true, id: opcoes.messageId }, message: {} };
+  });
+  const { enviar } = criarEnvio({ manager, prazoMs: 4321 });
+  const base = { hash_empresa: "hash-a", chat_jid: JID_CLIENTE };
+  for (const midia of [
+    { buffer: arquivos.jpeg(), mimetype: "image/jpeg" },
+    { buffer: arquivos.mp4(), mimetype: "video/mp4" },
+    { buffer: arquivos.oggOpus(2), mimetype: "audio/ogg", ptt: true },
+    { buffer: arquivos.pdf(), mimetype: "application/pdf", nome: "a.pdf" },
+  ]) {
+    await enviar("7", { ...base, conteudo: { midia } });
+  }
+  await enviar("7", { ...base, conteudo: { texto: "Oi" } });
+  assert.deepEqual(
+    opcoesVistas.map((o) => o.mediaUploadTimeoutMs),
+    [4321, 4321, 4321, 4321, undefined]
+  );
+});
+
+test("o envio de mídia avisa o rastreador de uploads antes do sendMessage e conclui quando ele termina, mesmo depois do prazo", async () => {
+  /** @type {string[]} */
+  const ordem = [];
+  const rastreadorUploads = {
+    iniciar: () => {
+      ordem.push("iniciar");
+      return () => void ordem.push("concluir");
+    },
+  };
+  /** @type {(valor: any) => void} */
+  let concluirEnvio = () => {};
+  const { manager } = equipeComSend((jid, conteudo, opcoes) => {
+    ordem.push("sendMessage");
+    if ("text" in conteudo) return Promise.resolve({ key: { remoteJid: jid, fromMe: true, id: opcoes.messageId }, message: {} });
+    return new Promise((resolve) => (concluirEnvio = () => resolve({ key: { remoteJid: jid, fromMe: true, id: opcoes.messageId }, message: {} })));
+  });
+  const { enviar } = criarEnvio({ manager, prazoMs: 20, rastreadorUploads });
+  await assert.rejects(
+    enviar("7", { hash_empresa: "hash-a", chat_jid: JID_CLIENTE, conteudo: { midia: { buffer: arquivos.pdf(), mimetype: "application/pdf" } } }),
+    (erro) => erro instanceof ErroEnvio && erro.codigo === "ENVIO_NAO_CONFIRMADO"
+  );
+  assert.deepEqual(ordem, ["iniciar", "sendMessage"], "o upload ainda está em andamento depois do 504");
+  concluirEnvio(undefined);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(ordem, ["iniciar", "sendMessage", "concluir"]);
+
+  ordem.length = 0;
+  await enviar("7", { hash_empresa: "hash-a", chat_jid: JID_CLIENTE, conteudo: { texto: "Oi" } });
+  assert.deepEqual(ordem, ["sendMessage"], "texto não passa pelo rastreador");
+});
+
+test("uma falha no sendMessage de mídia também conclui o upload no rastreador", async () => {
+  let concluidos = 0;
+  const rastreadorUploads = { iniciar: () => () => void (concluidos += 1) };
+  const { manager } = equipeComSend(async () => {
+    throw new Error("Media upload failed on all hosts");
+  });
+  await assert.rejects(
+    criarEnvio({ manager, rastreadorUploads }).enviar("7", {
+      hash_empresa: "hash-a",
+      chat_jid: JID_CLIENTE,
+      conteudo: { midia: { buffer: arquivos.jpeg(), mimetype: "image/jpeg" } },
+    }),
+    (erro) => erro instanceof ErroEnvio && erro.codigo === "FALHA_ENVIO"
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(concluidos, 1);
+});
