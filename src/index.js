@@ -17,7 +17,8 @@ const heartbeat = criarInstanciaHealth();
 const PORTA_PADRAO = 3501;
 const INTERVALO_LIMPEZA_LOGS_MS = 24 * 60 * 60 * 1000;
 // Teto do desligamento gracioso (SIGINT/SIGTERM): se encerrar as instâncias Baileys ou fechar o HTTP
-// travar, o processo sai assim mesmo, antes do kill_timeout do PM2 (12 s).
+// travar, o processo sai assim mesmo, antes do kill_timeout do PM2 (12 s, em ecosystem.config.cjs;
+// tests/ecosystem.config.test.js garante que o kill_timeout fica acima deste teto).
 const MS_TETO_ENCERRAMENTO = 10 * 1000;
 
 const VARS_OBRIGATORIAS = ["CRM_BACK_URL", "CRM_BACK_SERVICE_TOKEN", "WA_BACK_ADMIN_TOKEN"];
@@ -168,4 +169,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { criarApp, iniciarServidor, validarVariaveisDeAmbiente, criarEncerrador };
+module.exports = { criarApp, iniciarServidor, validarVariaveisDeAmbiente, criarEncerrador, MS_TETO_ENCERRAMENTO };

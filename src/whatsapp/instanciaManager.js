@@ -25,6 +25,7 @@ const STATUS_SAUDAVEL = new Set(["CONECTADO", "QR_PENDENTE"]);
 /** @typedef {import("./BaileysAdapter").OpcoesAdapter} OpcoesAdapter */
 /** @typedef {import("../services/conexaoInternoClient").StatusParaReportar} StatusParaReportar */
 /** @typedef {Record<string, { hash_empresa: string }>} RegistroEquipes */
+/** @typedef {{ cod_equipe: number, status: string, desde?: string }} StatusEquipe */
 
 class ErroConexaoEquipe extends Error {
   /**
@@ -66,6 +67,12 @@ function criarInstanciaManager({
 } = {}) {
   /** @type {Map<string, BaileysAdapter>} */
   const instancias = new Map();
+  /**
+   * Desde quando cada equipe está no status atual (ISO), para o `GET /ping`. Só o status e o
+   * instante: nada do número, do tenant nem do erro.
+   * @type {Map<string, { status: string, desde: string }>}
+   */
+  const desdeStatus = new Map();
   /** Última atividade de cada equipe, compartilhada pelos adapters (lida do arquivo só no primeiro uso). */
   const armazemAtividade = criarArmazemAtividade({ caminho: caminhoAtividade });
 
@@ -140,6 +147,9 @@ function criarInstanciaManager({
       msReconexao,
       armazemAtividade,
       onStatusChange: (estado) => {
+        if (desdeStatus.get(cod)?.status !== estado.status_conexao) {
+          desdeStatus.set(cod, { status: estado.status_conexao, desde: new Date().toISOString() });
+        }
         if (estado.status_conexao === "CONECTADO") registrarPareada(cod, hashEmpresa);
         Promise.resolve()
           .then(() => reportarStatus(cod, { hash_empresa: hashEmpresa, ...estado }))
@@ -243,7 +253,27 @@ function criarInstanciaManager({
     );
   }
 
-  return { conectar, obter, reconectarTodas, encerrarTodas, listarRegistradas, temSessaoSalva };
+  /**
+   * Status de cada equipe para o monitoramento (`GET /ping`): as instâncias deste processo e as
+   * equipes pareadas sem instância (DESCONECTADO), em ordem de código. Leva só o código, o status e
+   * desde quando: nunca JID, telefone, LID, nome do número, QR, erro nem hash_empresa.
+   * @returns {StatusEquipe[]}
+   */
+  function listarStatus() {
+    /** @type {Map<string, StatusEquipe>} */
+    const porEquipe = new Map();
+    for (const [cod, instancia] of instancias) {
+      const status = instancia.obterStatusConexao().status_conexao;
+      const marca = desdeStatus.get(cod);
+      porEquipe.set(cod, { cod_equipe: Number(cod), status, ...(marca?.status === status ? { desde: marca.desde } : {}) });
+    }
+    for (const { cod_equipe: cod } of listarRegistradas()) {
+      if (!porEquipe.has(cod)) porEquipe.set(cod, { cod_equipe: Number(cod), status: "DESCONECTADO" });
+    }
+    return [...porEquipe.values()].sort((a, b) => a.cod_equipe - b.cod_equipe);
+  }
+
+  return { conectar, obter, reconectarTodas, encerrarTodas, listarRegistradas, temSessaoSalva, listarStatus };
 }
 
 /** Instância do processo (o PM2 roda `instances: 1`). Os testes criam a sua com `criarInstanciaManager`. */

@@ -19,10 +19,14 @@ after(async () => {
   await new Promise((resolve) => servidor.close(() => resolve(undefined)));
 });
 
-test("GET /ping responde 200 'ok' sem exigir token", async () => {
+test("GET /ping responde 200 em JSON sem exigir token (detalhe em HealthController.ping.test.js)", async () => {
   const resposta = await fetch(`${baseUrl}/ping`);
   assert.equal(resposta.status, 200);
-  assert.equal(await resposta.text(), "ok");
+  const corpo = /** @type {any} */ (await resposta.json());
+  assert.equal(corpo.status, "ok");
+  assert.equal(corpo.encerrando, false);
+  assert.equal(typeof corpo.versao, "string");
+  assert.ok(Array.isArray(corpo.equipes));
 });
 
 test("GET /health continua respondendo { status: 'ok' }", async () => {

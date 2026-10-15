@@ -1,0 +1,2 @@
+# Scripts de shell rodam no Linux do servidor: sempre LF, mesmo com core.autocrlf no Windows.
+*.sh text eol=lf

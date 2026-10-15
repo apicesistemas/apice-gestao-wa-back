@@ -31,8 +31,9 @@ apice-gestao-wa-back/
 ├── scripts/              # run-tests.js
 ├── sessoes-baileys/      # credenciais da sessão pareada (ignorado, nunca ler)
 ├── LOGS/                 # log em arquivo (ignorado)
-├── ecosystem.config.cjs  # PM2 instances: 1
-├── deploy.sh
+├── ecosystem.config.cjs  # PM2 instances: 1, fork, porta 3501, kill_timeout 12 s
+├── deploy.sh             # pull → install → test → pm2 reload → /ping
+├── .gitattributes        # *.sh sempre LF
 ├── changelog.md
 ├── .env.example
 ├── CLAUDE.md             # este arquivo
@@ -51,6 +52,18 @@ yarn test             # node scripts/run-tests.js → node --test tests/**/*.tes
 ```
 
 **Frontend:** ver `apice-gestao-front/CLAUDE.md`.
+
+## Deploy
+
+No servidor `192.168.1.167`, na pasta do submódulo: `bash deploy.sh`.
+
+- **Ordem:** `git pull --ff-only` → `yarn install` (`--frozen-lockfile` quando o `yarn.lock` é versionado) → `yarn test` → `pm2 reload ecosystem.config.cjs --update-env` (`pm2 start` se o app ainda não existe no PM2) → `GET http://127.0.0.1:3501/ping` com tentativas → `pm2 save`. Qualquer falha antes do PM2 aborta com código ≠ 0 e o processo em execução não é tocado. Teste vermelho nunca chega ao reload.
+- **Sessão sobrevive ao reload:** `instances: 1` + `exec_mode: "fork"` são obrigatórios (sessão do Baileys em disco, dois processos corrompem o pareamento), então o reload é stop gracioso + start. O PM2 manda SIGINT, o encerrador do `src/index.js` fecha tudo sem logout dentro do teto `MS_TETO_ENCERRAMENTO` (10 s), e o `kill_timeout` (12 s) fica acima dele. O `tests/ecosystem.config.test.js` garante isso. O boot seguinte reconecta sem QR e recupera as mensagens do intervalo.
+- **Porta:** `SERVER_PORT: "3501"` no `env` do ecosystem. O `--env-file=.env` não sobrescreve variável que já existe, então sob o PM2 a porta é sempre 3501. Ela fica só na rede interna.
+- **`GET /ping` (sem token):** `{ status, versao, encerrando, equipes: [{ cod_equipe, status, desde? }] }`, 200 no ar e 503 durante o desligamento. Fica aberto para o PM2, o deploy e o monitor, por isso nunca pode levar JID, telefone, LID, nome do número, QR, texto de erro nem hash_empresa.
+- **Parâmetros do script (ambiente):** `DEPLOY_PORTA` (3501), `DEPLOY_TENTATIVAS_PING` (20) e `DEPLOY_INTERVALO_PING` (3 s).
+- **O script nunca** lê o `.env`, imprime segredo, apaga `sessoes-baileys/`, chama `pm2 delete`/`kill` ou faz `git reset`. O corpo fica numa função, então o `git pull` pode reescrever o próprio `deploy.sh` no meio da execução.
+- **Testes:** o `tests/deploy.test.js` roda o script com stubs de `git`, `yarn`, `pm2`, `curl` e `sleep`. No Windows precisa do bash do Git (`BASH_TESTE` aponta outro) e, sem bash, os casos são pulados com aviso.
 
 ## Padrões de código
 

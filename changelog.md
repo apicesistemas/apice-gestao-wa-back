@@ -3,6 +3,22 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.11.0] - 2026-10-14
+
+### Adicionado
+
+- `deploy.sh` (Task 15.3): deploy no servidor interno com `bash deploy.sh`, na pasta do submódulo. A ordem é `git pull --ff-only`, `yarn install` (com `--frozen-lockfile` quando o `yarn.lock` é versionado) e `yarn test`. Se os testes falham, o deploy aborta com código 1 antes de chamar o PM2, e o processo em execução fica como estava. Com a suíte verde, roda `pm2 reload ecosystem.config.cjs --update-env` (ou `pm2 start` na primeira vez) e confere o `GET http://127.0.0.1:3501/ping` com tentativas. Só depois disso grava a lista do PM2 (`pm2 save`). O corpo fica numa função, então o `git pull` pode reescrever o próprio script sem quebrar a execução. O script não lê o `.env`, não imprime segredo e não apaga `sessoes-baileys/`.
+- `tests/deploy.test.js`: roda o `deploy.sh` de verdade com bash, numa pasta temporária, com stubs de `git`, `yarn`, `pm2`, `curl` e `sleep`. No Windows usa o bash do Git e, sem bash, pula com aviso.
+- `tests/ecosystem.config.test.js`: confere o app único em fork, a porta 3501 igual à do `.env.example` e o `kill_timeout` acima do teto do desligamento gracioso.
+- `instanciaManager.listarStatus()`: status de cada equipe (as instâncias do processo e as pareadas sem instância, como DESCONECTADO), só com código, status e desde quando.
+- `.gitattributes`: `*.sh` sempre com LF, mesmo com `core.autocrlf` no Windows.
+
+### Alterado
+
+- `GET /ping` passa de `200 ok` (texto) para JSON `{ status, versao, encerrando, equipes: [{ cod_equipe, status, desde? }] }`. A rota continua sem token, para o PM2, o `deploy.sh` e o monitor consultarem na rede interna, e por isso não leva JID, telefone, LID, nome do número, QR, texto de erro nem hash_empresa. Durante o desligamento gracioso responde 503 com `status: "encerrando"`, `encerrando: true` e `Retry-After: 10`. Uma falha ao ler o status das equipes não derruba o ping, que responde com as equipes vazias. O `GET /health` não mudou.
+- `ecosystem.config.cjs` final: `cwd` na pasta do projeto, `watch: false`, `autorestart` com `max_restarts: 10`, `min_uptime: 10000` e `restart_delay: 5000`, `listen_timeout: 10000` e `SERVER_PORT: "3501"` no `env`. O `--env-file` não sobrescreve variável que já existe, então sob o PM2 a porta é sempre 3501. Continuam `instances: 1`, `exec_mode: "fork"` e `kill_timeout: 12000`.
+- `src/index.js` exporta `MS_TETO_ENCERRAMENTO` (10 s), usado pelo teste do ecosystem.
+
 ## [0.10.0] - 2026-10-14
 
 ### Adicionado
