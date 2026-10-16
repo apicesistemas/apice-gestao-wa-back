@@ -44,6 +44,8 @@ O script faz `git pull --ff-only`, `yarn install` e `yarn test`. Se os testes fa
 
 O reload não derruba as sessões do WhatsApp. Com instância única em fork, o PM2 manda SIGINT ao processo, e o wa-back recusa envios novos com 503, espera os em andamento e encerra o Baileys sem logout, tudo em até 10 s, antes do `kill_timeout` de 12 s. O processo novo reconecta sem QR e recupera as mensagens que chegaram no intervalo.
 
+> **Migração do nome do app no PM2.** O app agora se chama `Ápice Gestão - WA Back` (antes `apice-gestao-wa-back`). Quem já tem o processo antigo rodando no servidor precisa rodar `pm2 delete apice-gestao-wa-back` **uma única vez** antes do próximo deploy. Sem isso, o deploy sobe o app novo e os dois processos abririam a mesma sessão do Baileys, corrompendo o pareamento. O `deploy.sh` continua sem chamar `pm2 delete`. Depois, os comandos usam o nome entre aspas: `pm2 logs "Ápice Gestão - WA Back" --lines 100`.
+
 Variáveis de ambiente do `deploy.sh` (opcionais, de shell, não vêm do `.env`):
 
 | Variável | Padrão | Para que serve |

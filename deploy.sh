@@ -18,7 +18,10 @@
 # DEPLOY_PORTA (3501), DEPLOY_TENTATIVAS_PING (20), DEPLOY_INTERVALO_PING (3 s).
 set -Eeuo pipefail
 
-APP="apice-gestao-wa-back"
+# Nome do app no PM2 (com acento e espaços): TODO uso de "$APP" precisa estar entre aspas. Sem elas,
+# o `pm2 describe` não acharia o app, o script cairia no `pm2 start` e subiria uma segunda instância
+# na mesma sessão do Baileys. Deve ser igual ao `name` do ecosystem.config.cjs (conferido em teste).
+APP="Ápice Gestão - WA Back"
 
 # Tudo dentro de uma função: o bash lê o corpo inteiro antes de executar, então o git pull pode
 # reescrever este arquivo no meio do deploy sem o bash ler lixo.
@@ -71,7 +74,7 @@ main() {
     sleep "$intervalo"
   done
 
-  echo "[DEPLOY] O /ping não respondeu depois de ${tentativas} tentativas. Veja: pm2 logs $APP --lines 100" >&2
+  echo "[DEPLOY] O /ping não respondeu depois de ${tentativas} tentativas. Veja: pm2 logs \"$APP\" --lines 100" >&2
   exit 1
 }
 

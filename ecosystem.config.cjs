@@ -3,7 +3,7 @@
 module.exports = {
   apps: [
     {
-      name: "apice-gestao-wa-back",
+      name: "Ápice Gestão - WA Back", // igual ao APP do deploy.sh
       cwd: __dirname, // .env, sessoes-baileys/, .cache/ e LOGS/ são relativos à pasta do projeto
       script: "./src/index.js",
       node_args: "--env-file=.env",

@@ -43,7 +43,14 @@ esac
 exit 0`,
   yarn: `if [ "\${1:-}" = "test" ]; then exit "\${STUB_YARN_TEST_SAIDA:-0}"; fi
 exit 0`,
-  pm2: `if [ "\${1:-}" = "describe" ]; then exit "\${STUB_PM2_DESCRIBE_SAIDA:-0}"; fi
+  // `describe` só acha o app se o nome chegar INTEIRO como um único argumento (nome com espaço e
+  // acento); sem aspas no script, o PM2 real receberia pedaços e não acharia o app.
+  // STUB_PM2_DESCRIBE_SAIDA força o código (ex.: 1 = app inexistente).
+  pm2: `if [ "\${1:-}" = "describe" ]; then
+  if [ -n "\${STUB_PM2_DESCRIBE_SAIDA:-}" ]; then exit "\${STUB_PM2_DESCRIBE_SAIDA}"; fi
+  if [ "$#" -eq 2 ] && [ "\${2:-}" = "Ápice Gestão - WA Back" ]; then exit 0; fi
+  exit 1
+fi
 exit 0`,
   curl: `exit "\${STUB_CURL_SAIDA:-0}"`,
   sleep: `exit 0`,
@@ -169,7 +176,30 @@ test("deploy.sh sai ≠ 0 e não salva o PM2 se o /ping não responder depois do
   assert.ok(chamadas.some((c) => c.startsWith("pm2 reload")));
   assert.equal(chamadas.filter((c) => c.startsWith("curl")).length, 3, "número de tentativas do ping");
   assert.ok(!chamadas.includes("pm2 save"));
-  assert.match(saida, /pm2 logs apice-gestao-wa-back/);
+  assert.ok(saida.includes('pm2 logs "Ápice Gestão - WA Back" --lines 100'), saida);
+});
+
+test("deploy.sh detecta o app pelo nome com espaço e acento: cai no pm2 reload, nunca no pm2 start", (t) => {
+  if (!exigirBash(t)) return;
+  const { codigo, saida, chamadas } = rodarDeploy();
+  assert.equal(codigo, 0, saida);
+  assert.ok(chamadas.includes("pm2 describe Ápice Gestão - WA Back"), chamadas.join(" | "));
+  assert.ok(chamadas.some((c) => c.startsWith("pm2 reload")), chamadas.join(" | "));
+  assert.ok(!chamadas.some((c) => c.startsWith("pm2 start")), "subiu uma segunda instância na mesma sessão do Baileys");
+});
+
+test("deploy.sh: o nome do app e todo uso de $APP no código ficam entre aspas", () => {
+  const conteudo = fs.readFileSync(SCRIPT, "utf8");
+  assert.match(conteudo, /^APP="Ápice Gestão - WA Back"$/m);
+  const codigo = conteudo
+    .split("\n")
+    .filter((linha) => !linha.trimStart().startsWith("#"))
+    .join("\n");
+  for (const uso of codigo.matchAll(/\$\{?APP\}?/g)) {
+    const antes = codigo.slice(0, uso.index);
+    const aspasAntes = (antes.split("\n").pop() ?? "").replace(/\\"/g, "").split('"').length - 1;
+    assert.equal(aspasAntes % 2, 1, `$APP fora de aspas: ${antes.split("\n").pop()}`);
+  }
 });
 
 test("deploy.sh usa --frozen-lockfile quando o yarn.lock é versionado", (t) => {

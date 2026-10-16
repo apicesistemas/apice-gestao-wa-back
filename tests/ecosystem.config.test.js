@@ -12,9 +12,9 @@ const { MS_TETO_ENCERRAMENTO } = require("../src/index");
 
 const [app, ...outros] = ecosystem.apps;
 
-test("o ecosystem tem um único app, apice-gestao-wa-back, em fork com instância única", () => {
+test("o ecosystem tem um único app, Ápice Gestão - WA Back, em fork com instância única", () => {
   assert.equal(outros.length, 0);
-  assert.equal(app.name, "apice-gestao-wa-back");
+  assert.equal(app.name, "Ápice Gestão - WA Back");
   assert.equal(app.script, "./src/index.js");
   assert.equal(app.instances, 1);
   assert.equal(app.exec_mode, "fork");

@@ -3,6 +3,14 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.12.1] - 2026-10-16
+
+### Alterado
+
+- Nome do app no PM2 passa de `apice-gestao-wa-back` para `Ápice Gestão - WA Back` (`ecosystem.config.cjs` e `APP` do `deploy.sh`). O `package.json` e a pasta não mudam. Todo uso de `"$APP"` no `deploy.sh` está entre aspas (a detecção `pm2 describe` e a mensagem `pm2 logs "Ápice Gestão - WA Back" --lines 100`), para o nome com espaço não cair no `pm2 start` e subir uma segunda instância na mesma sessão do Baileys.
+- Testes: o stub de `pm2 describe` só acha o app com o nome inteiro em um único argumento; casos novos garantem `pm2 reload` (nunca `pm2 start`) com o app existente e `$APP` sempre entre aspas.
+- **Operação (uma única vez):** no servidor, rodar `pm2 delete apice-gestao-wa-back` antes do próximo deploy. O `deploy.sh` não chama `pm2 delete`. Sem isso, o processo antigo e o novo abririam a mesma sessão do Baileys.
+
 ## [0.12.0] - 2026-10-16
 
 ### Adicionado
