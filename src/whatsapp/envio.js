@@ -123,8 +123,12 @@ function obterPrazoEnvioMs(env = process.env) {
  */
 function textoOpcional(valor, max) {
   if (valor === undefined || valor === null || valor === "") return null;
-  if (typeof valor !== "string" || valor.length > max) throw invalido("Texto inválido ou longo demais.");
-  return valor.trim() === "" ? null : valor;
+  if (typeof valor !== "string") throw invalido("Texto inválido ou longo demais.");
+  // O multipart/form-data entrega as quebras de linha como CRLF: para o WhatsApp é só "\n". Nada mais
+  // muda no texto (sem trim, sem colapsar linhas), e o limite vale sobre o texto já normalizado.
+  const normalizado = valor.replace(/\r\n?/g, "\n");
+  if (normalizado.length > max) throw invalido("Texto inválido ou longo demais.");
+  return normalizado.trim() === "" ? null : normalizado;
 }
 
 /**

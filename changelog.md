@@ -3,6 +3,12 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.12.2] - 2026-10-16
+
+### Corrigido
+
+- Envio (`envio.js`): o texto e a legenda chegavam ao Baileys com `\r\n`, porque o `multipart/form-data` normaliza as quebras de linha dos campos de texto para CRLF (confirmado com um multipart real no teste). Agora `\r\n` e `\r` isolado viram `\n` antes de montar a mensagem, o que corrige o "*Nome*\r\n<texto>" da identificação do atendente. Nada mais muda no conteúdo (sem trim, sem juntar linhas). Os limites de 65536 (texto) e 1024 (legenda) passam a valer sobre o texto já normalizado, então o CRLF não conta em dobro. Sem mudança de contrato.
+
 ## [0.12.1] - 2026-10-16
 
 ### Alterado

@@ -288,3 +288,41 @@ test("reagir: 200 { status: ENVIADA } com { react: { text, key } }; emoji vazio 
   await esperarErro(await postReagir("7", { chat_jid: JID_CLIENTE, key, emoji: "👍" }), 400);
   assert.equal(envios.length, 2);
 });
+
+// ---- Fase 18: quebras de linha. O multipart/form-data normaliza as quebras dos campos de texto para
+// CRLF (o FormData do Node faz isso de verdade neste teste); o que chega ao Baileys usa só "\n". ----
+
+test("multipart real: o texto '*Ana*\nlinha1\nlinha2' chega ao sendMessage com \n (sem \r)", async () => {
+  const resposta = await postEnviar("7", formulario({ ...BASE, tipo: "TEXTO", texto: "*Ana*\r\nlinha1\r\nlinha2" }));
+  assert.equal(resposta.status, 200);
+  assert.deepEqual(envios[0].conteudo, { text: "*Ana*\nlinha1\nlinha2" });
+});
+
+test("\r isolado também vira \n, e nada mais muda (linhas em branco e espaços ficam)", async () => {
+  await postEnviar("7", formulario({ ...BASE, tipo: "TEXTO", texto: "a\rb\r\n\r\n c  \n" }));
+  assert.equal(envios[0].conteudo.text, "a\nb\n\n c  \n");
+});
+
+test("a legenda de imagem com \r\n também é normalizada", async () => {
+  const resposta = await postEnviar(
+    "7",
+    formulario({ ...BASE, tipo: "IMAGEM", legenda: "*Ana*\r\nolha isto" }, { buffer: arquivos.jpeg(), mimetype: "image/jpeg", nome: "foto.jpg" })
+  );
+  assert.equal(resposta.status, 200);
+  assert.equal(envios[0].conteudo.caption, "*Ana*\nolha isto");
+});
+
+test("texto sem quebras fica idêntico", async () => {
+  await postEnviar("7", formulario({ ...BASE, tipo: "TEXTO", texto: "Olá, tudo certo?" }));
+  assert.equal(envios[0].conteudo.text, "Olá, tudo certo?");
+});
+
+test("o limite de tamanho vale depois da normalização (CRLF não conta em dobro)", async () => {
+  const texto = "x\r\n".repeat(30000); // 90.000 caracteres crus, 60.000 depois da normalização
+  const ok = await postEnviar("7", formulario({ ...BASE, tipo: "TEXTO", texto }));
+  assert.equal(ok.status, 200);
+  const longo = await postEnviar("7", formulario({ ...BASE, tipo: "TEXTO", texto: "y".repeat(65537) }));
+  assert.equal(longo.status, 400);
+  const legendaLonga = await postEnviar("7", formulario({ ...BASE, tipo: "IMAGEM", legenda: "z".repeat(1025) }, { buffer: arquivos.jpeg(), mimetype: "image/jpeg", nome: "foto.jpg" }));
+  assert.equal(legendaLonga.status, 400);
+});
