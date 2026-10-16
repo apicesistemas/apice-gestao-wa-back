@@ -3,6 +3,12 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.14.1] - 2026-10-16
+
+### Adicionado
+
+- Teste de contrato do envio: um `TEXTO` com campos da pesquisa de satisfação (`comentario`, `nota`, `token`, `titulo_ticket`) responde 400 sem tocar o Baileys, e o texto com o link da pesquisa segue aceito. Sem mudança de comportamento nem de contrato (a allowlist já recusava). Ordem de deploy: indiferente.
+
 ## [0.14.0] - 2026-10-16
 
 ### Adicionado

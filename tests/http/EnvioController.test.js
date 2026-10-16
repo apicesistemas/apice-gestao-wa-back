@@ -211,6 +211,19 @@ test("payload com campos internos (transcricao, nota_interna, explicacao) é rej
   assert.deepEqual(marcadas, []);
 });
 
+test("envio TEXTO com campos da pesquisa de satisfação (comentario, nota, token, titulo_ticket) responde 400 sem chamar o Baileys (teste de contrato)", async () => {
+  for (const campo of ["comentario", "nota", "token", "titulo_ticket"]) {
+    await esperarErro(await postEnviar("7", formulario({ ...BASE, tipo: "TEXTO", texto: "Avalie nosso atendimento.", [campo]: "valor" })), 400);
+  }
+  await esperarErro(await postEnviar("7", formulario({ ...BASE, tipo: "TEXTO", texto: "Avalie nosso atendimento.", comentario: "x", nota: "5", token: "t", titulo_ticket: "y" })), 400);
+  assert.equal(envios.length, 0);
+  assert.deepEqual(marcadas, []);
+  // O corpo da pesquisa (só o texto com o link) segue aceito.
+  const ok = await postEnviar("7", formulario({ ...BASE, tipo: "TEXTO", texto: "Avalie: https://exemplo.invalido/pesquisa/abc" }));
+  assert.equal(ok.status, 200);
+  assert.equal(envios.length, 1);
+});
+
 test("equipe desconectada responde 409, nunca 200, no enviar e no reagir", async () => {
   for (const status of ["DESCONECTADO", "ERRO", "QR_PENDENTE"]) {
     estado.status = status;
