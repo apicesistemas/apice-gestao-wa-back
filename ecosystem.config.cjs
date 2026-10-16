@@ -27,7 +27,7 @@ module.exports = {
         NODE_ENV: "production",
         TZ: "America/Sao_Paulo",
         // Igual ao .env.example. O --env-file não sobrescreve variável que já existe no ambiente,
-        // então sob o PM2 a porta é sempre esta (só rede interna, nunca exposta pelo nginx).
+        // então sob o PM2 a porta é sempre esta (só rede interna, nunca publicada pelo proxy (Apache)).
         SERVER_PORT: "3501",
       },
     },

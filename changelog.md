@@ -3,6 +3,12 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.14.2] - 2026-10-16
+
+### Alterado
+
+- Documentação: proxy reverso é o Apache (Cloudflare → Apache 192.168.1.165 → 192.168.1.167). Ajuste de comentários e README, sem mudança de comportamento. Ordem de deploy: indiferente.
+
 ## [0.14.1] - 2026-10-16
 
 ### Adicionado
