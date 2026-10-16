@@ -18,6 +18,9 @@ const { criarArmazemAtividade } = require("./recuperacao");
 
 const CAMINHO_REGISTRO = path.join(__dirname, "..", "..", ".cache", "equipes-wa.json");
 
+/** Prazo técnico do reporte aguardado do desconectar (soma com o logout e as credenciais: cabe no teto do encerramento). */
+const MS_PRAZO_REPORTE = 2500;
+
 /** Status em que a instância já está de pé ou esperando a leitura do QR: não reabrir o socket. */
 const STATUS_SAUDAVEL = new Set(["CONECTADO", "QR_PENDENTE"]);
 
@@ -53,6 +56,9 @@ function descreverErro(erro) {
  *   caminhoRegistro?: string,
  *   caminhoAtividade?: string,
  *   msReconexao?: number,
+ *   msPrazoLogout?: number,
+ *   msPrazoCredenciais?: number,
+ *   msPrazoReporte?: number,
  *   reportarStatus?: (codEquipe: string, status: StatusParaReportar) => Promise<unknown>,
  *   criarAdapter?: (opcoes: OpcoesAdapter) => BaileysAdapter,
  * }} [opcoes]
@@ -62,6 +68,9 @@ function criarInstanciaManager({
   caminhoRegistro = CAMINHO_REGISTRO,
   caminhoAtividade = path.join(path.dirname(caminhoRegistro), "atividade-wa.json"),
   msReconexao,
+  msPrazoLogout,
+  msPrazoCredenciais,
+  msPrazoReporte = MS_PRAZO_REPORTE,
   reportarStatus = conexaoInternoClient.reportarStatus,
   criarAdapter = BaileysAdapter.criarAdapter,
 } = {}) {
@@ -121,16 +130,65 @@ function criarInstanciaManager({
   }
 
   /**
+   * Trava por equipe: conectar, desconectar e a reconexão do heartbeat da mesma equipe nunca se
+   * intercalam. A fila de cada equipe nunca fica rejeitada.
+   * @type {Map<string, Promise<unknown>>}
+   */
+  const travas = new Map();
+  /** @type {Map<string, { hash: string, promessa: Promise<BaileysAdapter>, marcador: Promise<unknown> | undefined }>} */
+  const conectarPendente = new Map();
+
+  /**
+   * @template T
+   * @param {string} cod
+   * @param {() => Promise<T>} tarefa
+   * @returns {Promise<T>}
+   */
+  function comTrava(cod, tarefa) {
+    const anterior = travas.get(cod) ?? Promise.resolve();
+    const atual = anterior.then(tarefa, tarefa);
+    const marcador = atual.then(
+      () => {},
+      () => {}
+    );
+    travas.set(cod, marcador);
+    marcador.then(() => {
+      if (travas.get(cod) === marcador) travas.delete(cod);
+    });
+    return atual;
+  }
+
+  /**
    * Abre (ou devolve) a instância da equipe. Uma instância saudável é devolvida sem reabrir o
    * socket; uma em ERRO/DESCONECTADO reaproveita o mesmo adapter (o `iniciar()` é reentrante).
    * @param {string | number} codEquipe
    * @param {string} hashEmpresa tenant dono da equipe (vem do back no POST /conectar)
    * @returns {Promise<BaileysAdapter>}
    */
-  async function conectar(codEquipe, hashEmpresa) {
-    const cod = BaileysAdapter.normalizarCodEquipe(codEquipe);
-    if (typeof hashEmpresa !== "string" || hashEmpresa.trim() === "") throw new TypeError("hash_empresa obrigatório.");
+  function conectar(codEquipe, hashEmpresa) {
+    /** @type {string} */
+    let cod;
+    try {
+      cod = BaileysAdapter.normalizarCodEquipe(codEquipe);
+    } catch (erro) {
+      return Promise.reject(erro);
+    }
+    if (typeof hashEmpresa !== "string" || hashEmpresa.trim() === "") return Promise.reject(new TypeError("hash_empresa obrigatório."));
+    // Cliques simultâneos em "Conectar" (último item da fila é um conectar do mesmo hash, ainda
+    // pendente) compartilham a mesma tarefa: um único socket. Depois de um desconectar na fila, não.
+    const pendente = conectarPendente.get(cod);
+    if (pendente && pendente.hash === hashEmpresa && pendente.marcador === travas.get(cod)) return pendente.promessa;
+    const promessa = comTrava(cod, () => conectarSemTrava(cod, hashEmpresa));
+    conectarPendente.set(cod, { hash: hashEmpresa, promessa, marcador: travas.get(cod) });
+    return promessa;
+  }
 
+  /**
+   * @param {string} cod
+   * @param {string} hashEmpresa
+   * @returns {Promise<BaileysAdapter>}
+   */
+  async function conectarSemTrava(cod, hashEmpresa) {
     const existente = instancias.get(cod);
     if (existente) {
       if (existente.hashEmpresa !== hashEmpresa) {
@@ -145,6 +203,8 @@ function criarInstanciaManager({
       hashEmpresa,
       diretorioSessoes,
       msReconexao,
+      msPrazoLogout,
+      msPrazoCredenciais,
       armazemAtividade,
       onStatusChange: (estado) => {
         if (desdeStatus.get(cod)?.status !== estado.status_conexao) {
@@ -171,6 +231,126 @@ function criarInstanciaManager({
   }
 
   /**
+   * Reconexão do heartbeat: só abre o socket se, DENTRO da trava, a equipe ainda consta no registro
+   * de pareadas com o mesmo hash_empresa e o `creds.json` existe. Quem leu o registro antes de um
+   * desconectar chega aqui depois e não abre nada.
+   * @param {string | number} codEquipe
+   * @param {string} hashEmpresa
+   * @returns {Promise<BaileysAdapter | null>} a instância, ou null quando não havia o que reconectar
+   */
+  function reconectarSePareada(codEquipe, hashEmpresa) {
+    return reconectarDoRegistro(codEquipe, hashEmpresa, false);
+  }
+
+  /**
+   * @param {string | number} codEquipe
+   * @param {string} hashEmpresa
+   * @param {boolean} limparSemSessao tira do registro a equipe que consta mas não tem `creds.json` (boot)
+   * @returns {Promise<BaileysAdapter | null>}
+   */
+  function reconectarDoRegistro(codEquipe, hashEmpresa, limparSemSessao) {
+    /** @type {string} */
+    let cod;
+    try {
+      cod = BaileysAdapter.normalizarCodEquipe(codEquipe);
+    } catch (erro) {
+      return Promise.reject(erro);
+    }
+    return comTrava(cod, async () => {
+      if (lerRegistro()[cod]?.hash_empresa !== hashEmpresa) return null;
+      if (!BaileysAdapter.existeSessaoEmDisco(cod, diretorioSessoes)) {
+        if (limparSemSessao) removerPareada(cod);
+        return null;
+      }
+      return conectarSemTrava(cod, hashEmpresa);
+    });
+  }
+
+  /**
+   * A equipe tem um conectar/desconectar/reconexão em andamento? O heartbeat pula a equipe ocupada
+   * (o estado lido no meio de um desconectar seria reportado depois do DESCONECTADO final).
+   * @param {string | number} codEquipe
+   * @returns {boolean}
+   */
+  function equipeOcupada(codEquipe) {
+    try {
+      return travas.has(BaileysAdapter.normalizarCodEquipe(codEquipe));
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Logout voluntário da equipe. Confere o tenant (instância ou registro; outro hash ->
+   * ErroConexaoEquipe e nada é desconectado), faz o logout no WhatsApp quando há socket pareado,
+   * apaga a sessão, tira a equipe do registro de pareadas e reporta DESCONECTADO ao back (aguardado
+   * antes de liberar a trava; falha só vai ao log). Sem instância, sem registro e sem `creds.json`
+   * nada é tocado (idempotente). A instância fica no Map em DESCONECTADO e pode reconectar com QR novo.
+   * Um `creds.json` sem dono conhecido (sem instância e sem registro) é tratado como da equipe pedida:
+   * a pasta é apagada e responde NAO_CONFIRMADA (não há como saber a empresa de uma sessão órfã).
+   * Pior caso de tempo: prazo do logout + das credenciais + do reporte (cabe no teto do encerramento).
+   * @param {string | number} codEquipe
+   * @param {string} hashEmpresa
+   * @returns {Promise<{ havia_sessao: boolean, remocao_aparelho: import("./BaileysAdapter").RemocaoAparelho }>}
+   * @throws {ErroConexaoEquipe} equipe de outra empresa
+   */
+  function desconectar(codEquipe, hashEmpresa) {
+    /** @type {string} */
+    let cod;
+    try {
+      cod = BaileysAdapter.normalizarCodEquipe(codEquipe);
+    } catch (erro) {
+      return Promise.reject(erro);
+    }
+    if (typeof hashEmpresa !== "string" || hashEmpresa.trim() === "") return Promise.reject(new TypeError("hash_empresa obrigatório."));
+    return comTrava(cod, async () => {
+      const instancia = instancias.get(cod);
+      const doRegistro = lerRegistro()[cod];
+      const hashDono = instancia ? instancia.hashEmpresa : doRegistro?.hash_empresa;
+      if (hashDono !== undefined && hashDono !== hashEmpresa) {
+        throw new ErroConexaoEquipe("A equipe já está conectada por outra empresa.", "EQUIPE_OUTRA_EMPRESA");
+      }
+      const comCreds = BaileysAdapter.existeSessaoEmDisco(cod, diretorioSessoes);
+      const haviaSessao = Boolean(
+        doRegistro || comCreds || (instancia && (instancia.temSocket() || instancia.obterStatusConexao().status_conexao !== "DESCONECTADO"))
+      );
+      if (!haviaSessao) return { havia_sessao: false, remocao_aparelho: "SEM_PAREAMENTO" };
+
+      /** @type {import("./BaileysAdapter").RemocaoAparelho} */
+      let remocao = "NAO_CONFIRMADA";
+      if (instancia) {
+        ({ remocao_aparelho: remocao } = await instancia.desconectar());
+      } else {
+        try {
+          await BaileysAdapter.apagarSessaoEmDisco(cod, diretorioSessoes);
+        } catch (erro) {
+          console.error(`[INSTANCIAS] Falha ao apagar a sessão da equipe ${cod}:`, descreverErro(erro));
+        }
+      }
+      removerPareada(cod);
+      desdeStatus.set(cod, { status: "DESCONECTADO", desde: new Date().toISOString() });
+      // Depois do rm e do removerPareada. Aguardado, mas com prazo: um back lento não segura a trava.
+      /** @type {ReturnType<typeof setTimeout> | undefined} */
+      let timerReporte;
+      try {
+        await Promise.race([
+          reportarStatus(cod, { hash_empresa: hashEmpresa, status_conexao: "DESCONECTADO", ultimo_erro_conexao: null }),
+          new Promise((resolve) => {
+            timerReporte = setTimeout(() => {
+              console.error(`[INSTANCIAS] Reporte do status da equipe ${cod} não respondeu no prazo.`);
+              resolve(undefined);
+            }, msPrazoReporte);
+          }),
+        ]);
+      } catch (erro) {
+        console.error(`[INSTANCIAS] Falha ao reportar o status da equipe ${cod}:`, descreverErro(erro));
+      }
+      clearTimeout(timerReporte);
+      return { havia_sessao: true, remocao_aparelho: remocao };
+    });
+  }
+
+  /**
    * @param {string | number} codEquipe
    * @returns {BaileysAdapter | null}
    */
@@ -194,12 +374,9 @@ function criarInstanciaManager({
     for (const [cod, dados] of Object.entries(registro)) {
       try {
         if (typeof dados?.hash_empresa !== "string" || !dados.hash_empresa) continue;
-        if (!BaileysAdapter.existeSessaoEmDisco(cod, diretorioSessoes)) {
-          removerPareada(cod);
-          continue;
-        }
-        await conectar(cod, dados.hash_empresa);
-        reconectadas.push(cod);
+        // Dentro da trava da equipe: um desconectar em andamento não é seguido de um conectar.
+        const instancia = await reconectarDoRegistro(cod, dados.hash_empresa, true);
+        if (instancia) reconectadas.push(cod);
       } catch (erro) {
         console.error(`[INSTANCIAS] Falha ao reconectar a equipe ${cod} no boot:`, descreverErro(erro));
       }
@@ -273,10 +450,10 @@ function criarInstanciaManager({
     return [...porEquipe.values()].sort((a, b) => a.cod_equipe - b.cod_equipe);
   }
 
-  return { conectar, obter, reconectarTodas, encerrarTodas, listarRegistradas, temSessaoSalva, listarStatus };
+  return { conectar, desconectar, reconectarSePareada, equipeOcupada, obter, reconectarTodas, encerrarTodas, listarRegistradas, temSessaoSalva, listarStatus };
 }
 
 /** Instância do processo (o PM2 roda `instances: 1`). Os testes criam a sua com `criarInstanciaManager`. */
 const padrao = criarInstanciaManager();
 
-module.exports = { ...padrao, criarInstanciaManager, ErroConexaoEquipe, STATUS_SAUDAVEL };
+module.exports = { ...padrao, criarInstanciaManager, ErroConexaoEquipe, STATUS_SAUDAVEL, MS_PRAZO_REPORTE };

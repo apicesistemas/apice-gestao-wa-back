@@ -12,6 +12,17 @@ const { criarInstanciaManager } = require("../src/whatsapp/instanciaManager");
 const { criarDesligamento } = require("../src/utils/desligamento");
 const { EU } = require("./helpers/mensagensWa");
 
+/**
+ * Espera a condição ficar verdadeira (polling), com prazo generoso. Os testes do encerrador não
+ * dependem de um sleep fixo: sob CPU saturada 20 ms não bastam para as promessas encadearem.
+ * @param {() => boolean} condicao
+ * @param {number} [prazoMs]
+ */
+async function esperarAte(condicao, prazoMs = 5000) {
+  const limite = Date.now() + prazoMs;
+  while (!condicao() && Date.now() < limite) await new Promise((resolve) => setTimeout(resolve, 5));
+}
+
 const pastaTeste = fs.mkdtempSync(path.join(os.tmpdir(), "wa-back-index-"));
 after(() => fs.rmSync(pastaTeste, { recursive: true, force: true }));
 
@@ -51,7 +62,7 @@ test("o encerrador fecha o HTTP e sai com 0, uma única vez mesmo com dois sinai
   const encerrar = criarEncerrador(httpServer, { sair: (codigo) => saidas.push(codigo), tetoMs: 1000 });
   encerrar("SIGTERM");
   encerrar("SIGINT");
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await esperarAte(() => saidas.length > 0);
 
   assert.equal(fechamentos, 1);
   assert.deepEqual(saidas, [0]);
@@ -74,7 +85,7 @@ test("o encerrador encerra as instâncias do WhatsApp antes de fechar o HTTP", a
 
   const encerrar = criarEncerrador(httpServer, { sair: (codigo) => ordem.push(`sair:${codigo}`), tetoMs: 1000, encerrarInstancias });
   encerrar("SIGTERM");
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await esperarAte(() => ordem.includes("sair:0"));
 
   assert.deepEqual(ordem, ["instancias", "http", "sair:0"]);
 });
@@ -96,7 +107,7 @@ test("uma falha ao encerrar as instâncias não impede o fechamento do HTTP", as
 
   const encerrar = criarEncerrador(httpServer, { sair: (codigo) => saidas.push(codigo), tetoMs: 1000, encerrarInstancias });
   encerrar("SIGINT");
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await esperarAte(() => saidas.length > 0);
 
   assert.equal(fechou, true);
   assert.deepEqual(saidas, [0]);
@@ -109,7 +120,7 @@ test("se o encerramento travar, o teto força a saída com 1", async () => {
 
   const encerrar = criarEncerrador(httpServer, { sair: (codigo) => saidas.push(codigo), tetoMs: 20 });
   encerrar("SIGTERM");
-  await new Promise((resolve) => setTimeout(resolve, 60));
+  await esperarAte(() => saidas.length > 0);
 
   assert.deepEqual(saidas, [1]);
 });
@@ -163,7 +174,7 @@ test("o encerrador marca o processo como encerrando ANTES de tudo e espera os en
   assert.deepEqual(ordem, ["encerrando"], "as instâncias só fecham depois dos envios em andamento");
 
   terminarEnvio();
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await esperarAte(() => ordem.includes("sair:0"));
   assert.deepEqual(ordem, ["encerrando", "envios", "instancias", "sair:0"]);
 });
 
@@ -203,7 +214,7 @@ test("SIGTERM durante um saveCreds aguarda a gravação antes de encerrar (sem l
   assert.equal(registro.fechou, false);
 
   concluirGravacao();
-  await new Promise((resolve) => setTimeout(resolve, 30));
+  await esperarAte(() => saidas.length > 0);
   assert.deepEqual(saidas, [0]);
   assert.equal(registro.fechou, true);
   assert.equal(socket.chamadasLogout, 0, "desligamento nunca faz logout");
@@ -234,7 +245,7 @@ test("um saveCreds que nunca termina não segura o processo além do teto (sai c
     encerrarInstancias: () => manager.encerrarTodas(),
     desligamento: criarDesligamento(),
   })("SIGTERM");
-  await new Promise((resolve) => setTimeout(resolve, 80));
+  await esperarAte(() => saidas.length > 0);
   assert.deepEqual(saidas, [1]);
 });
 
@@ -260,7 +271,7 @@ test("o encerrador limpa a pasta temporária de mídia depois das instâncias e 
   });
   encerrar("SIGTERM");
   encerrar("SIGINT");
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await esperarAte(() => ordem.includes("sair:0"));
   assert.deepEqual(ordem, ["instancias", "temporarios", "http", "sair:0"]);
 });
 
@@ -275,7 +286,7 @@ test("se o teto força a saída, a pasta temporária de mídia é limpa antes de
     limparTemporarios: () => void ordem.push("temporarios"),
     desligamento: criarDesligamento(),
   })("SIGTERM");
-  await new Promise((resolve) => setTimeout(resolve, 60));
+  await esperarAte(() => ordem.includes("sair:1"));
   assert.deepEqual(ordem, ["temporarios", "sair:1"]);
 });
 
@@ -292,7 +303,7 @@ test("uma falha ao limpar a pasta temporária de mídia não impede o encerramen
     },
     desligamento: criarDesligamento(),
   })("SIGTERM");
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await esperarAte(() => saidas.length > 0);
   assert.equal(registro.fechou, true);
   assert.deepEqual(saidas, [0]);
 });

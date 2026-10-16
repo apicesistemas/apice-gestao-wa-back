@@ -235,6 +235,17 @@ test("um vídeo registrado com a mídia aceita entra na fila de transcrição co
   assert.deepEqual(transcricoes[0].buffer, video);
 });
 
+test("um GIF (videoMessage com gifPlayback) é registrado com midia.gif e a mídia segue, mas não entra na fila de transcrição", async () => {
+  const video = mp4ComAudio();
+  definirDownload(async () => streamDe(video));
+  const { ordem, registradas, transcricoes, receber } = await adapterConectado();
+  const msg = mensagemWa({ videoMessage: { mimetype: "video/mp4", seconds: 2, fileLength: long(400), url: "https://mmg.whatsapp.net/g", gifPlayback: true } });
+  await receber([msg]);
+  assert.deepEqual(ordem, [`registrar:${msg.key.id}`, `midia:${msg.key.id}`]);
+  assert.equal(registradas[0].mensagem.midia.gif, true);
+  assert.equal(transcricoes.length, 0);
+});
+
 test("documento, imagem, mídia pendente ou mensagem não registrada não entram na fila de transcrição", async () => {
   definirDownload(async () => streamDe(arquivos.pdf()));
   const doc = await adapterConectado();

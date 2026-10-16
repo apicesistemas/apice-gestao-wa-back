@@ -115,7 +115,8 @@ test("Baileys real: o upload de imagem grava só o temporário cifrado (-enc) na
   await prepareWAMessageMedia(conteudoBaileys({ midia: { buffer: jpeg, mimetype: "image/jpeg" } }), {
     mediaUploadTimeoutMs: 1234,
     upload: async (caminho, { timeoutMs }) => {
-      await new Promise((resolve) => setTimeout(resolve, 20)); // o Baileys não espera o flush do arquivo
+      // O Baileys não espera o flush do arquivo: espera o conteúdo cifrado inteiro (polling, sem sleep fixo).
+      for (let i = 0; i < 1000 && !(fs.existsSync(caminho) && fs.statSync(caminho).size >= jpeg.length); i += 1) await new Promise((resolve) => setTimeout(resolve, 5));
       visto.nomes = fs.readdirSync(pasta);
       visto.conteudo = fs.readFileSync(caminho);
       visto.timeoutMs = timeoutMs;
@@ -139,7 +140,7 @@ test("Baileys real: se o upload falha, o envio rejeita e o temporário cifrado t
   await assert.rejects(
     prepareWAMessageMedia(conteudoBaileys({ midia: { buffer: arquivos.pdf(), mimetype: "application/pdf", nome: "a.pdf" } }), {
       upload: async () => {
-        await new Promise((resolve) => setTimeout(resolve, 20)); // o arquivo já foi criado
+        for (let i = 0; i < 1000 && fs.readdirSync(pasta).length !== 1; i += 1) await new Promise((resolve) => setTimeout(resolve, 5)); // espera o arquivo ser criado
         viuArquivo = fs.readdirSync(pasta).length === 1;
         throw new Error("Media upload failed on all hosts");
       },

@@ -37,6 +37,28 @@ const DisconnectReason = {
   restartRequired: 515,
 };
 
+/** @typedef {"ok" | "loggedOut" | "falha" | "pendurado"} ModoLogout */
+/** @type {ModoLogout} */
+let modoLogout = "ok";
+/**
+ * Define o que o `logout()` falso faz: conclui (`ok`), emite o fechamento com loggedOut e conclui
+ * (`loggedOut`), rejeita (`falha`) ou nunca termina (`pendurado`). Volta a `ok` em `limparHistorico`.
+ * @param {ModoLogout} modo
+ */
+function definirLogout(modo) {
+  modoLogout = modo;
+}
+
+/** @type {Promise<void> | null} porta que segura o `useMultiFileAuthState` (abertura lenta) */
+let portaAuthState = null;
+/**
+ * Segura a abertura do socket até a promessa resolver (simula uma abertura em andamento).
+ * @param {Promise<void> | null} porta
+ */
+function definirPortaAuthState(porta) {
+  portaAuthState = porta;
+}
+
 /** @param {any} config */
 function makeWASocket(config) {
   /** @type {SocketFalso} */
@@ -71,6 +93,15 @@ function makeWASocket(config) {
     // O desligamento gracioso nunca pode chamar o logout (apagaria o pareamento no aparelho).
     async logout() {
       socket.chamadasLogout += 1;
+      if (modoLogout === "falha") throw new Error("logout falso falhou");
+      if (modoLogout === "pendurado") return new Promise(() => {});
+      if (modoLogout === "loggedOut") {
+        // Como o Baileys real: o logout termina emitindo o fechamento com loggedOut.
+        await socket.emitir("connection.update", {
+          connection: "close",
+          lastDisconnect: { error: { output: { statusCode: DisconnectReason.loggedOut } } },
+        });
+      }
     },
     /** @param {any} mensagem */
     updateMediaMessage: async (mensagem) => mensagem,
@@ -86,6 +117,7 @@ const contagem = { saveCreds: 0 };
 /** @param {string} pasta */
 async function useMultiFileAuthState(pasta) {
   pastasAuthState.push(pasta);
+  if (portaAuthState) await portaAuthState;
   fs.mkdirSync(pasta, { recursive: true });
   return {
     state: { creds: {}, keys: {} },
@@ -155,6 +187,8 @@ function limparHistorico() {
   idsGerados.length = 0;
   contagem.saveCreds = 0;
   tratadorSaveCreds = async () => {};
+  modoLogout = "ok";
+  portaAuthState = null;
 }
 
 /** Último socket criado (falha o teste se nenhum foi criado). */
@@ -176,6 +210,8 @@ module.exports = {
   drenar,
   definirDownload,
   definirSaveCreds,
+  definirLogout,
+  definirPortaAuthState,
   contagem,
   sockets,
   pastasAuthState,

@@ -154,7 +154,7 @@ test("o download nunca grava em disco", async () => {
   Object.assign(fs, { writeFile: marcar, writeFileSync: marcar, createWriteStream: marcar, appendFile: marcar, appendFileSync: marcar });
   fs.promises.writeFile = /** @type {any} */ (marcar);
   try {
-    const resultado = await obterMidiaValidada(socketFalso, imagemWa(), { mimetype: "image/jpeg", tamanho_bytes: 100, nome_arquivo: null, duracao_segundos: null, ptt: false }, {
+    const resultado = await obterMidiaValidada(socketFalso, imagemWa(), { mimetype: "image/jpeg", tamanho_bytes: 100, nome_arquivo: null, duracao_segundos: null, ptt: false, gif: false }, {
       tetoBytes: 1024,
       prazoMs: 1000,
       baixar: async () => streamDe(arquivos.jpeg()),
@@ -168,7 +168,7 @@ test("o download nunca grava em disco", async () => {
 });
 
 /** @param {Partial<import("../../src/whatsapp/filtroEntrada").MetadadosMidia>} [m] */
-const metadados = (m = {}) => ({ mimetype: "application/pdf", tamanho_bytes: 50, nome_arquivo: "boleto.pdf", duracao_segundos: null, ptt: false, ...m });
+const metadados = (m = {}) => ({ mimetype: "application/pdf", tamanho_bytes: 50, nome_arquivo: "boleto.pdf", duracao_segundos: null, ptt: false, gif: false, ...m });
 
 test("obterMidiaValidada baixa, valida e devolve o buffer com o mimetype detectado e o tamanho real", async () => {
   const conteudo = arquivos.pdf();

@@ -3,6 +3,32 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.14.0] - 2026-10-16
+
+### Adicionado
+
+- Desconectar WhatsApp da equipe: `POST /equipe/:cod_equipe/desconectar` (token de serviço, 503 + `Retry-After` no encerramento). Entrada `{ hash_empresa }`. Saída 200 `{ msg: "WhatsApp da equipe desconectado.", cod_equipe, status_conexao: "DESCONECTADO", ultimo_erro_conexao: null, havia_sessao, remocao_aparelho: "CONFIRMADA" | "NAO_CONFIRMADA" | "SEM_PAREAMENTO" }`. Erros: 400 (código inválido ou sem `hash_empresa`), 409 (equipe de outra empresa, nada é desconectado), 500. Faz o `sock.logout()` (prazo técnico de 3 s, `end()` como reserva; espera as credenciais por até 1,5 s e o reporte por até 2,5 s, no pior caso 7 s, dentro do teto de 10 s do encerramento), apaga a sessão Baileys, tira a equipe do registro de pareadas e reporta `DESCONECTADO` sem erro por `/interno/wa/status` (canal C sem mudança), aguardando o reporte antes de liberar a trava. Sem reconexão automática depois. Idempotente: sem instância, registro nem `creds.json`, responde `havia_sessao: false` sem tocar em nada. Equipe em ERRO, sem instância ou com logout que falha ou estoura o prazo: sessão local apagada e `NAO_CONFIRMADA`.
+- `instanciaManager`: `desconectar(cod, hash)`, `reconectarSePareada(cod, hash)`, `equipeOcupada(cod)` e trava por equipe que serializa conectar, desconectar e a reconexão do heartbeat (cliques simultâneos em conectar continuam abrindo um socket só).
+- `BaileysAdapter`: `desconectar()`, `temSocket()` e o helper exportado `apagarSessaoEmDisco` (só o `rm` da pasta, sem listar nem ler).
+
+### Alterado
+
+- A reconexão do heartbeat e o `reconectarTodas` do boot usam a trava da equipe (`reconectarSePareada`): conferem o registro e o `creds.json` dentro da trava, então uma rodada que leu o registro antes de um desconectar não abre socket nem gera QR. O heartbeat pula a equipe com conectar/desconectar em andamento, e códigos de equipe inválidos rejeitam a Promise em vez de lançar de forma síncrona.
+- A limpeza da sessão local (caches e `rm` da pasta) virou uma rotina comum ao logout pelo aparelho e ao desconectar voluntário, e agora espera a gravação de credenciais em andamento antes de apagar a pasta (corrige o risco de o logout pelo aparelho não esperar a fila de credenciais). A remoção feita pelo celular continua reportando "Sessão encerrada pelo aparelho.".
+- O desligamento gracioso (`pararSocket`) continua sem logout.
+- Ordem de deploy: rota nova do canal D, publicar o wa-back antes do back.
+
+## [0.13.0] - 2026-10-16
+
+### Adicionado
+
+- GIF recebido. No WhatsApp o GIF chega como `videoMessage` (ou `ptvMessage`) com `gifPlayback: true`. `POST /interno/mensagem-recebida` ganha `midia.gif: boolean` (campo opcional para o back): `true` só nesse caso e `false` em imagem, áudio, documento, figurinha e vídeo comum. O tipo continua `VIDEO` e `POST /interno/midia` não muda.
+
+### Alterado
+
+- O GIF (`midia.gif === true`) não é enfileirado para transcrição (sem trilha de áudio, geraria transcrição FALHOU): nenhuma chamada a `/interno/transcricao` para ele. A mídia continua sendo baixada, validada e enviada ao back.
+- Ordem de deploy: back, wa-back, front.
+
 ## [0.12.2] - 2026-10-16
 
 ### Corrigido

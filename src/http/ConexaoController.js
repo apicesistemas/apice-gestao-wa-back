@@ -6,7 +6,7 @@ const { normalizarCodEquipe } = require("../whatsapp/BaileysAdapter");
 const exigirTokenServico = require("./exigirTokenServico");
 const desligamentoDoProcesso = require("../utils/desligamento").padrao;
 
-/** @typedef {Pick<typeof instanciaManager, "conectar" | "obter">} ManagerConexao */
+/** @typedef {Pick<typeof instanciaManager, "conectar" | "obter" | "desconectar">} ManagerConexao */
 
 /**
  * @param {unknown} valor
@@ -59,6 +59,45 @@ function criarConexaoController(manager = instanciaManager, { desligamento = des
         }
         console.error(`[CONEXAO] Falha ao conectar a equipe ${cod}:`, erro instanceof Error ? erro.message : erro);
         res.status(500).json({ msg: "Erro ao conectar o WhatsApp da equipe." });
+      }
+    });
+
+    /**
+     * Canal D. POST /equipe/:cod_equipe/desconectar (back waConexaoService.desconectar). Entrada:
+     * { hash_empresa }. Saída 200: { msg, cod_equipe, status_conexao: "DESCONECTADO",
+     * ultimo_erro_conexao: null, havia_sessao, remocao_aparelho: "CONFIRMADA" | "NAO_CONFIRMADA" |
+     * "SEM_PAREAMENTO" }. 400 código/hash inválido, 409 outra empresa, 503 no encerramento, 500.
+     */
+    server.post("/equipe/:cod_equipe/desconectar", exigirTokenServico, recusarDuranteEncerramento, async (req, res) => {
+      const cod = codEquipeValido(req.params.cod_equipe);
+      if (!cod) {
+        res.status(400).json({ msg: "Código da equipe inválido." });
+        return;
+      }
+      const hashEmpresa = req.body?.hash_empresa;
+      if (typeof hashEmpresa !== "string" || hashEmpresa.trim() === "") {
+        res.status(400).json({ msg: "Informe o hash_empresa da equipe." });
+        return;
+      }
+
+      try {
+        const { havia_sessao, remocao_aparelho } = await manager.desconectar(cod, hashEmpresa);
+        res.status(200).json({
+          msg: "WhatsApp da equipe desconectado.",
+          cod_equipe: Number(cod),
+          status_conexao: "DESCONECTADO",
+          ultimo_erro_conexao: null,
+          havia_sessao,
+          remocao_aparelho,
+        });
+      } catch (erro) {
+        if (erro instanceof instanciaManager.ErroConexaoEquipe && erro.codigo === "EQUIPE_OUTRA_EMPRESA") {
+          res.status(409).json({ msg: "Esta equipe já está conectada por outra empresa." });
+          return;
+        }
+        // Só o nome do erro: a mensagem pode trazer JID ou telefone.
+        console.error(`[CONEXAO] Falha ao desconectar a equipe ${cod}:`, erro instanceof Error ? erro.name : "erro");
+        res.status(500).json({ msg: "Erro ao desconectar o WhatsApp da equipe." });
       }
     });
 

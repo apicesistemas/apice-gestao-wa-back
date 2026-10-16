@@ -140,3 +140,98 @@ test("POST /conectar de equipe já ligada a outra empresa responde 409", async (
   assert.equal(resposta.status, 409);
   assert.equal(typeof (await lerJson(resposta)).msg, "string");
 });
+
+/**
+ * @param {string} cod
+ * @param {unknown} corpo
+ * @param {string | null} [token]
+ */
+function postDesconectar(cod, corpo, token = TOKEN) {
+  /** @type {Record<string, string>} */
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers["X-Internal-Token"] = token;
+  return fetch(`${baseUrl}/equipe/${cod}/desconectar`, { method: "POST", headers, body: JSON.stringify(corpo) });
+}
+
+/** Deixa a equipe pareada e CONECTADA (creds.json, user.id e open). */
+async function conectarPareada(/** @type {string} */ cod, hash = "hash-a") {
+  assert.equal((await postConectar(cod, { hash_empresa: hash })).status, 200);
+  fs.writeFileSync(path.join(raiz, "sessoes", cod, "creds.json"), "{}");
+  const socket = baileysFalso.ultimoSocket();
+  /** @type {any} */ (socket).user = { id: "5500000000002:1@s.whatsapp.net" };
+  await socket.emitir("connection.update", { connection: "open" });
+  return socket;
+}
+
+test("POST /equipe/:cod_equipe/desconectar faz o logout e responde o contrato D", async () => {
+  const socket = await conectarPareada("51");
+
+  const resposta = await postDesconectar("51", { hash_empresa: "hash-a" });
+
+  assert.equal(resposta.status, 200);
+  assert.deepEqual(await lerJson(resposta), {
+    msg: "WhatsApp da equipe desconectado.",
+    cod_equipe: 51,
+    status_conexao: "DESCONECTADO",
+    ultimo_erro_conexao: null,
+    havia_sessao: true,
+    remocao_aparelho: "CONFIRMADA",
+  });
+  assert.equal(socket.chamadasLogout, 1);
+  assert.equal(fs.existsSync(path.join(raiz, "sessoes", "51")), false);
+
+  // Idempotente: já desconectada.
+  const outra = await lerJson(await postDesconectar("51", { hash_empresa: "hash-a" }));
+  assert.equal(outra.havia_sessao, false);
+  assert.equal(outra.status_conexao, "DESCONECTADO");
+});
+
+test("POST /desconectar: sem token 401, código inválido 400, sem hash_empresa 400, outra empresa 409 sem desconectar", async () => {
+  assert.equal((await postDesconectar("52", { hash_empresa: "hash-a" }, null)).status, 401);
+  assert.equal((await postDesconectar("52", { hash_empresa: "hash-a" }, "token-errado")).status, 401);
+  for (const cod of ["abc", "0", "-1", "1.5"]) {
+    const r = await postDesconectar(cod, { hash_empresa: "hash-a" });
+    assert.equal(r.status, 400, cod);
+    assert.deepEqual(await lerJson(r), { msg: "Código da equipe inválido." });
+  }
+  for (const corpo of [{}, { hash_empresa: "" }, { hash_empresa: 5 }]) {
+    const r = await postDesconectar("52", corpo);
+    assert.equal(r.status, 400);
+    assert.deepEqual(await lerJson(r), { msg: "Informe o hash_empresa da equipe." });
+  }
+
+  const socket = await conectarPareada("53");
+  const r = await postDesconectar("53", { hash_empresa: "hash-b" });
+  assert.equal(r.status, 409);
+  assert.deepEqual(await lerJson(r), { msg: "Esta equipe já está conectada por outra empresa." });
+  assert.equal(socket.chamadasLogout, 0);
+  assert.equal(fs.existsSync(path.join(raiz, "sessoes", "53", "creds.json")), true);
+});
+
+test("POST /desconectar: falha inesperada do manager responde 500 sem vazar o erro", async () => {
+  const app = express();
+  app.use(express.json());
+  const falho = { ...manager, desconectar: async () => { throw new Error("falha com 5500000000003"); } };
+  registrarControllers(app, [criarConexaoController(/** @type {any} */ (falho))]);
+  const srv = http.createServer(app);
+  await new Promise((resolve) => srv.listen(0, () => resolve(undefined)));
+  /** @type {string[]} */
+  const logs = [];
+  const erroOriginal = console.error;
+  console.error = (...a) => void logs.push(a.map(String).join(" "));
+  try {
+    const porta = /** @type {import("node:net").AddressInfo} */ (srv.address()).port;
+    const r = await fetch(`http://127.0.0.1:${porta}/equipe/54/desconectar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Internal-Token": TOKEN },
+      body: JSON.stringify({ hash_empresa: "hash-a" }),
+    });
+    assert.equal(r.status, 500);
+    assert.deepEqual(await lerJson(r), { msg: "Erro ao desconectar o WhatsApp da equipe." });
+    assert.ok(logs.length > 0);
+    assert.ok(!logs.join(" ").includes("5500000000003"), "o log leva só o nome do erro");
+  } finally {
+    console.error = erroOriginal;
+    await new Promise((resolve) => srv.close(() => resolve(undefined)));
+  }
+});

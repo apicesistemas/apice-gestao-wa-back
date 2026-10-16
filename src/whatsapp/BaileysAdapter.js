@@ -78,6 +78,14 @@ const { criarCacheEnviadas } = require("./cacheEnviadas");
 const DIRETORIO_SESSOES = path.join(__dirname, "..", "..", "sessoes-baileys");
 /** Espera antes de reabrir o socket depois de uma queda que não foi logout. */
 const MS_RECONEXAO = 5000;
+/**
+ * Prazos técnicos do desligamento voluntário. Somados ao prazo do reporte (instanciaManager), o pior
+ * caso (7 s) cabe folgado no teto de 10 s do encerramento gracioso, que espera a requisição em
+ * andamento: passado o prazo do `sock.logout()` a sessão local é apagada mesmo assim (NAO_CONFIRMADA).
+ */
+const MS_PRAZO_LOGOUT = 3000;
+/** Quanto o desconectar espera a gravação de credenciais em andamento antes de apagar a pasta. */
+const MS_PRAZO_CREDENCIAIS = 1500;
 /** A versão do WhatsApp Web é a mesma para todas as equipes: cache no módulo, não por adapter. */
 const MS_CACHE_VERSAO = 6 * 60 * 60 * 1000;
 /** `cod_equipe` é PK numérica: só dígitos, o que também impede caminho fora do diretório base. */
@@ -103,6 +111,7 @@ const EVENTOS_SOCKET = /** @type {const} */ ([
 ]);
 
 /** @typedef {"DESCONECTADO" | "QR_PENDENTE" | "CONECTADO" | "ERRO"} StatusConexao */
+/** @typedef {"CONFIRMADA" | "NAO_CONFIRMADA" | "SEM_PAREAMENTO"} RemocaoAparelho */
 /** @typedef {{ status_conexao: StatusConexao, ultimo_erro_conexao: string | null }} EstadoConexao */
 /** @typedef {typeof import("@whiskeysockets/baileys")} ModuloBaileys */
 /** @typedef {ReturnType<ModuloBaileys["makeWASocket"]>} SocketBaileys */
@@ -195,6 +204,17 @@ function existeSessaoEmDisco(codEquipe, diretorioSessoes = DIRETORIO_SESSOES) {
   return fs.existsSync(path.join(diretorioSessao(codEquipe, diretorioSessoes), "creds.json"));
 }
 
+/**
+ * Apaga só a pasta da sessão de uma equipe (sem listar nem ler o conteúdo). Para o desconectar de uma
+ * equipe sem instância neste processo. Rejeita se o `rm` falhar.
+ * @param {string | number} codEquipe
+ * @param {string} [diretorioSessoes]
+ * @returns {Promise<void>}
+ */
+async function apagarSessaoEmDisco(codEquipe, diretorioSessoes = DIRETORIO_SESSOES) {
+  await fsp.rm(diretorioSessao(codEquipe, diretorioSessoes), { recursive: true, force: true });
+}
+
 /** @typedef {import("./filtroEntrada").MensagemRecebida} MensagemRecebida */
 /** @typedef {import("../services/mensagemInternoClient").ContextoInstancia} ContextoInstancia */
 /** @typedef {import("../services/mensagemInternoClient").EstadoMidia} EstadoMidia */
@@ -211,6 +231,8 @@ function existeSessaoEmDisco(codEquipe, diretorioSessoes = DIRETORIO_SESSOES) {
  *   hashEmpresa: string,
  *   diretorioSessoes?: string,
  *   msReconexao?: number,
+ *   msPrazoLogout?: number,
+ *   msPrazoCredenciais?: number,
  *   onStatusChange?: (estado: EstadoConexao) => void,
  *   onSessaoRemovida?: () => void,
  *   registrarMensagem?: (mensagem: MensagemParaRegistro, contexto: ContextoInstancia, estadoMidia: EstadoMidia) => Promise<unknown>,
@@ -230,6 +252,8 @@ function existeSessaoEmDisco(codEquipe, diretorioSessoes = DIRETORIO_SESSOES) {
  *   hashEmpresa: string,
  *   iniciar: () => Promise<EstadoConexao>,
  *   pararSocket: () => Promise<void>,
+ *   desconectar: () => Promise<{ remocao_aparelho: RemocaoAparelho }>,
+ *   temSocket: () => boolean,
  *   obterStatusConexao: () => EstadoConexao,
  *   obterQr: () => string | null,
  *   obterQrPng: () => Promise<Buffer | null>,
@@ -250,6 +274,8 @@ function criarAdapter({
   hashEmpresa,
   diretorioSessoes = DIRETORIO_SESSOES,
   msReconexao = MS_RECONEXAO,
+  msPrazoLogout = MS_PRAZO_LOGOUT,
+  msPrazoCredenciais = MS_PRAZO_CREDENCIAIS,
   onStatusChange,
   onSessaoRemovida,
   registrarMensagem = mensagemInternoClient.registrarMensagem,
@@ -315,13 +341,8 @@ function criarAdapter({
     timerReconexao = null;
   }
 
-  /**
-   * Fecha um socket sem disparar reconexão: tira os listeners deste adapter antes do `end()`
-   * (senão o `close` do próprio `end()` agendaria uma reconexão fantasma).
-   * @param {SocketBaileys | null} alvo
-   */
-  function fecharSocket(alvo) {
-    if (!alvo) return;
+  /** @param {SocketBaileys} alvo */
+  function removerListeners(alvo) {
     for (const evento of EVENTOS_SOCKET) {
       try {
         alvo.ev.removeAllListeners(evento);
@@ -329,6 +350,49 @@ function criarAdapter({
         console.error(`[BAILEYS] Falha ao remover listener do socket da equipe ${cod}:`, nomeDoErro(erro));
       }
     }
+  }
+
+  /**
+   * Limpeza comum da sessão local (logout pelo aparelho e desconexão voluntária): zera os caches da
+   * equipe, ESPERA a gravação de credenciais em andamento (senão ela recriaria a pasta) e só então
+   * apaga a pasta da sessão. Nunca rejeita.
+   * @returns {Promise<void>}
+   */
+  async function apagarSessaoLocal() {
+    msgRetryCounterCache.flushAll();
+    userDevicesCache.flushAll();
+    registroAparelho.limpar();
+    resolvedorLid.limpar();
+    recibos.limpar();
+    presenca.limpar();
+    nomesGrupo.limpar();
+    cacheEnviadas.limpar();
+    recuperacao.limpar();
+    // Um saveCreds pendurado não pode travar a equipe para sempre: passado o prazo, apaga mesmo assim.
+    /** @type {ReturnType<typeof setTimeout> | undefined} */
+    let timerCreds;
+    await Promise.race([
+      filaCredenciais,
+      new Promise((resolve) => {
+        timerCreds = setTimeout(resolve, msPrazoCredenciais);
+      }),
+    ]);
+    clearTimeout(timerCreds);
+    try {
+      await fsp.rm(pastaSessao, { recursive: true, force: true });
+    } catch (erroRm) {
+      console.error(`[BAILEYS] Falha ao apagar a sessão da equipe ${cod}:`, nomeDoErro(erroRm));
+    }
+  }
+
+  /**
+   * Fecha um socket sem disparar reconexão: tira os listeners deste adapter antes do `end()`
+   * (senão o `close` do próprio `end()` agendaria uma reconexão fantasma).
+   * @param {SocketBaileys | null} alvo
+   */
+  function fecharSocket(alvo) {
+    if (!alvo) return;
+    removerListeners(alvo);
     try {
       alvo.end(undefined);
     } catch (erro) {
@@ -383,20 +447,7 @@ function criarAdapter({
 
       if (codigo === DisconnectReason.loggedOut) {
         // Credencial revogada pelo aparelho: apaga a sessão para a próxima conexão gerar QR novo.
-        msgRetryCounterCache.flushAll();
-        userDevicesCache.flushAll();
-        registroAparelho.limpar();
-        resolvedorLid.limpar();
-        recibos.limpar();
-        presenca.limpar();
-        nomesGrupo.limpar();
-        cacheEnviadas.limpar();
-        recuperacao.limpar();
-        try {
-          await fsp.rm(pastaSessao, { recursive: true, force: true });
-        } catch (erroRm) {
-          console.error(`[BAILEYS] Falha ao apagar a sessão da equipe ${cod}:`, nomeDoErro(erroRm));
-        }
+        await apagarSessaoLocal();
         try {
           onSessaoRemovida?.();
         } catch (erroCb) {
@@ -513,7 +564,8 @@ function criarAdapter({
     }
 
     // Sem `await`: a transcrição roda na fila própria e não segura a entrada da equipe.
-    if (TIPOS_TRANSCRITOS.has(normalizada.tipo)) {
+    // GIF (mp4 sem trilha de áudio) não é transcrito: geraria uma transcrição FALHOU sem necessidade.
+    if (TIPOS_TRANSCRITOS.has(normalizada.tipo) && normalizada.midia?.gif !== true) {
       try {
         enfileirarTranscricao({
           mensagem_wa_id: id,
@@ -665,6 +717,57 @@ function criarAdapter({
   }
 
   /**
+   * Logout voluntário: remove o aparelho no WhatsApp, apaga a sessão local e deixa a
+   * equipe DESCONECTADO, sem reconexão. Cancela o timer, espera a abertura em andamento, tira os
+   * listeners ANTES do logout (o tratador de "encerrada pelo aparelho" não roda e nenhum `creds.update`
+   * novo começa), espera a fila de credenciais e apaga a pasta. O status novo NÃO passa por
+   * `onStatusChange`: quem chama reporta ao back e espera o reporte. Nunca rejeita.
+   * @returns {Promise<{ remocao_aparelho: RemocaoAparelho }>}
+   */
+  async function desconectar() {
+    cancelarReconexao();
+    if (iniciando) await iniciando.catch(() => {});
+    cancelarReconexao();
+    const alvo = socket;
+    const status = estado.status_conexao;
+    /** @type {RemocaoAparelho} */
+    let remocao = "NAO_CONFIRMADA";
+    socket = null;
+    qrAtual = null;
+    // "Em desconexão": quem lê o estado durante o logout (heartbeat, /ping) já vê DESCONECTADO.
+    estado = { status_conexao: "DESCONECTADO", ultimo_erro_conexao: null };
+    if (alvo) {
+      removerListeners(alvo);
+      if (status === "QR_PENDENTE") {
+        remocao = "SEM_PAREAMENTO";
+      } else if (status === "CONECTADO" && alvo.user?.id) {
+        /** @type {ReturnType<typeof setTimeout> | undefined} */
+        let timerPrazo;
+        const logout = Promise.resolve()
+          .then(() => alvo.logout())
+          .then(
+            () => true,
+            (erro) => {
+              console.error(`[BAILEYS] Falha no logout da equipe ${cod}:`, nomeDoErro(erro));
+              return false;
+            }
+          );
+        const prazo = new Promise((resolve) => {
+          timerPrazo = setTimeout(() => resolve(false), msPrazoLogout); // sem unref: sempre limpo logo abaixo
+        });
+        const confirmado = await Promise.race([logout, prazo]);
+        clearTimeout(timerPrazo);
+        if (confirmado) remocao = "CONFIRMADA";
+        else console.error(`[BAILEYS] Logout da equipe ${cod} não confirmado.`);
+      }
+      fecharSocket(alvo); // reserva: o end() derruba o que o logout deixou aberto
+    }
+    await apagarSessaoLocal();
+    estado = { status_conexao: "DESCONECTADO", ultimo_erro_conexao: null };
+    return { remocao_aparelho: remocao };
+  }
+
+  /**
    * Destinos que podem pedir o reenvio de uma mensagem enviada: o chat e, na conversa privada, o
    * outro JID do mesmo contato (LID <-> telefone), quando o par é conhecido.
    * @param {string} chatJid
@@ -688,6 +791,8 @@ function criarAdapter({
     hashEmpresa,
     iniciar,
     pararSocket,
+    desconectar,
+    temSocket: () => socket !== null,
     obterStatusConexao: () => ({ ...estado }),
     obterQr: () => qrAtual,
     async obterQrPng() {
@@ -720,8 +825,11 @@ function criarAdapter({
 module.exports = {
   criarAdapter,
   existeSessaoEmDisco,
+  apagarSessaoEmDisco,
   diretorioSessao,
   normalizarCodEquipe,
   DIRETORIO_SESSOES,
   MS_RECONEXAO,
+  MS_PRAZO_LOGOUT,
+  MS_PRAZO_CREDENCIAIS,
 };

@@ -31,7 +31,7 @@ function managerFalso({ equipes, emMemoria = {}, comSessao = [] }) {
       return estado ? /** @type {any} */ ({ codEquipe: String(cod), hashEmpresa: equipes[String(cod)], obterStatusConexao: () => ({ ...estado }) }) : null;
     },
     temSessaoSalva: (/** @type {string | number} */ cod) => comSessao.includes(String(cod)),
-    conectar: async (/** @type {string | number} */ cod, /** @type {string} */ hash) => {
+    reconectarSePareada: async (/** @type {string | number} */ cod, /** @type {string} */ hash) => {
       conectadas.push({ cod: String(cod), hash });
       return /** @type {any} */ ({});
     },
@@ -90,7 +90,7 @@ test("uma equipe com instância em memória reporta o status atual dela, sem rec
 
 test("falha ao reportar ou ao reconectar uma equipe não impede as demais nem rejeita", async () => {
   const { manager } = managerFalso({ equipes: { 5: "hash-e", 6: "hash-f" }, comSessao: ["5", "6"] });
-  manager.conectar = async () => {
+  manager.reconectarSePareada = async () => {
     throw new Error("falha ao abrir");
   };
   /** @type {string[]} */
@@ -171,4 +171,24 @@ test("com o instanciaManager real: sem instância e com sessão salva reabre o s
   assert.equal(baileysFalso.sockets.length, 1);
   assert.deepEqual(reportados.find((r) => r.cod === "11")?.status, { hash_empresa: "hash-k", status_conexao: "DESCONECTADO", ultimo_erro_conexao: null });
   await manager.encerrarTodas();
+});
+
+test("com o manager real, a rodada reconecta a equipe pareada e, depois do desconectar, não reabre nada", async () => {
+  const diretorioSessoes = path.join(raiz, "sessoes-19");
+  const caminhoRegistro = path.join(raiz, "cache-19", "equipes-wa.json");
+  fs.mkdirSync(path.join(diretorioSessoes, "3"), { recursive: true });
+  fs.writeFileSync(path.join(diretorioSessoes, "3", "creds.json"), "{}");
+  fs.mkdirSync(path.dirname(caminhoRegistro), { recursive: true });
+  fs.writeFileSync(caminhoRegistro, JSON.stringify({ 3: { hash_empresa: "hash-a" } }));
+  const manager = criarInstanciaManager({ diretorioSessoes, caminhoRegistro, reportarStatus: async () => {} });
+  const health = criarInstanciaHealth({ manager, reportarStatus: async () => {} });
+
+  await health.verificarTodas();
+  assert.equal(baileysFalso.sockets.length, 1, "pareada e sem instância: reconecta");
+
+  await manager.desconectar(3, "hash-a");
+  baileysFalso.limparHistorico();
+  await health.verificarTodas();
+  assert.equal(baileysFalso.sockets.length, 0, "desconectada: o heartbeat não reabre");
+  assert.deepEqual(manager.listarRegistradas(), []);
 });

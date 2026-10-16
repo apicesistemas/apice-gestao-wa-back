@@ -28,6 +28,7 @@
  *   nome_arquivo: string | null,
  *   duracao_segundos: number | null,
  *   ptt: boolean,
+ *   gif: boolean,
  * }} MetadadosMidia
  */
 /**
@@ -260,15 +261,17 @@ function textoDe(m) {
 /**
  * @param {any} no nó da mídia (`imageMessage`, `audioMessage`...)
  * @param {boolean} [ptt]
+ * @param {boolean} [gif] verdadeiro só para vídeo com `gifPlayback === true` (GIF do WhatsApp: mp4 sem áudio)
  * @returns {MetadadosMidia}
  */
-function metadadosMidia(no, ptt = false) {
+function metadadosMidia(no, ptt = false, gif = false) {
   return {
     mimetype: texto(no.mimetype),
     tamanho_bytes: inteiroDe(no.fileLength),
     nome_arquivo: texto(no.fileName),
     duracao_segundos: inteiroDe(no.seconds),
     ptt,
+    gif,
   };
 }
 
@@ -362,7 +365,7 @@ function extrairConteudo(m) {
 
   if (m.imageMessage) return { tipo: "IMAGEM", legenda: texto(m.imageMessage.caption), midia: metadadosMidia(m.imageMessage), ...contexto(m.imageMessage) };
   const video = m.videoMessage ?? m.ptvMessage;
-  if (video) return { tipo: "VIDEO", legenda: texto(video.caption), midia: metadadosMidia(video), ...contexto(video) };
+  if (video) return { tipo: "VIDEO", legenda: texto(video.caption), midia: metadadosMidia(video, false, video.gifPlayback === true), ...contexto(video) };
   if (m.audioMessage) return { tipo: "AUDIO", midia: metadadosMidia(m.audioMessage, m.audioMessage.ptt === true), ...contexto(m.audioMessage) };
   if (m.documentMessage) {
     return { tipo: "DOCUMENTO", legenda: texto(m.documentMessage.caption), midia: metadadosMidia(m.documentMessage), ...contexto(m.documentMessage) };

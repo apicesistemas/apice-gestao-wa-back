@@ -26,6 +26,7 @@ const envios = [];
 /** @type {(() => void) | null} */
 let concluirEnvioManual = null;
 let conexoes = 0;
+let desconexoes = 0;
 
 const socket = {
   user: { id: EU.jid, lid: EU.lid },
@@ -49,6 +50,10 @@ const manager = {
   /** @param {string | number} cod */
   obter: (cod) => (String(cod) === "7" ? /** @type {any} */ (adapter) : null),
   listarRegistradas: () => [],
+  desconectar: async () => {
+    desconexoes += 1;
+    return { havia_sessao: true, remocao_aparelho: "CONFIRMADA" };
+  },
   conectar: async () => {
     conexoes += 1;
     return adapter;
@@ -94,6 +99,7 @@ beforeEach(() => {
   envios.length = 0;
   concluirEnvioManual = null;
   conexoes = 0;
+  desconexoes = 0;
 });
 
 /** @param {string} texto */
@@ -175,4 +181,13 @@ test("fora do desligamento o envio segue normal (200)", async () => {
   const resposta = await postEnviarTexto("Oi");
   assert.equal(resposta.status, 200);
   assert.equal(desligamento.estaEncerrando(), false);
+});
+
+test("desconectar durante o desligamento responde 503 com Retry-After, sem tocar no manager", async () => {
+  desligamento.marcarEncerrando();
+  const resposta = await postJson("/equipe/7/desconectar", { hash_empresa: "hash-a" });
+  assert.equal(resposta.status, 503);
+  assert.deepEqual(await resposta.json(), { msg: MSG_REINICIANDO });
+  assert.ok(Number(resposta.headers.get("retry-after")) > 0);
+  assert.equal(desconexoes, 0);
 });

@@ -179,14 +179,14 @@ test("os listeners de recibo, presença e grupo saem com o socket (pararSocket)"
 
 test("recibo de um id enviado pelo CRM só vai ao back depois do atraso; o socketConectado só existe com a equipe CONECTADA", async () => {
   const original = process.env.RECIBO_ATRASO_ENVIO_MS;
-  process.env.RECIBO_ATRASO_ENVIO_MS = "40";
+  process.env.RECIBO_ATRASO_ENVIO_MS = "400";
   try {
     const { adapter, socket, status, emitir } = await adapterConectado();
     assert.equal(adapter.socketConectado(), socket);
     adapter.marcarEnviadaPeloCrm("3EB0DOCRM1");
     await emitir("messages.update", [{ key: { remoteJid: JID_CLIENTE, fromMe: true, id: "3EB0DOCRM1" }, update: { status: DELIVERY_ACK } }]);
     assert.equal(status.length, 0);
-    await new Promise((resolve) => setTimeout(resolve, 80));
+    await new Promise((resolve) => setTimeout(resolve, 700));
     await drenar();
     assert.deepEqual(status.map((s) => [s.mensagem_wa_id, s.status]), [["3EB0DOCRM1", "ENTREGUE"]]);
 

@@ -7,6 +7,8 @@
 // - instância em memória → reporta o status atual dela (o adapter cuida da própria reconexão);
 // - sem instância → reporta DESCONECTADO e só reconecta se houver sessão salva (`creds.json`). Sem
 //   sessão não abre socket (abrir geraria QR à toa): a equipe precisa clicar em Conectar.
+// A reconexão confere o registro e o creds.json dentro da trava da equipe (um desconectar voluntário
+// feito depois da leitura do registro cancela a reconexão).
 // Cada equipe tem o próprio try/catch, e uma rodada nunca começa antes de a anterior terminar.
 const instanciaManagerPadrao = require("./instanciaManager");
 const conexaoInternoClient = require("../services/conexaoInternoClient");
@@ -23,7 +25,8 @@ const ERRO_SEM_SESSAO = "Nenhuma sessão do WhatsApp pareada neste servidor. Cli
  *   listarRegistradas: () => { cod_equipe: string, hash_empresa: string }[],
  *   obter: (codEquipe: string | number) => BaileysAdapter | null,
  *   temSessaoSalva: (codEquipe: string | number) => boolean,
- *   conectar: (codEquipe: string | number, hashEmpresa: string) => Promise<unknown>,
+ *   equipeOcupada?: (codEquipe: string | number) => boolean,
+ *   reconectarSePareada: (codEquipe: string | number, hashEmpresa: string) => Promise<unknown>,
  * }} ManagerHeartbeat
  */
 
@@ -57,6 +60,8 @@ function criarInstanciaHealth({
    * @param {string} hashEmpresa
    */
   async function verificarEquipe(cod, hashEmpresa) {
+    // Desconectar/conectar em andamento: o estado lido agora seria reportado depois do final.
+    if (manager.equipeOcupada?.(cod)) return;
     const instancia = manager.obter(cod);
     if (instancia) {
       await reportarStatus(cod, { hash_empresa: instancia.hashEmpresa, ...instancia.obterStatusConexao() }).catch((erro) =>
@@ -74,7 +79,7 @@ function criarInstanciaHealth({
 
     if (!temSessao || parado) return;
     await manager
-      .conectar(cod, hashEmpresa)
+      .reconectarSePareada(cod, hashEmpresa)
       .catch((erro) => console.error(`[HEARTBEAT] Falha ao reconectar a equipe ${cod}:`, descreverErro(erro)));
   }
 

@@ -204,3 +204,34 @@ test("cod_equipe inválido é recusado (sem caminho fora do diretório de sessõ
     assert.throws(() => novoAdapter(invalido), /cod_equipe/);
   }
 });
+
+test("loggedOut pelo aparelho espera a gravação de credenciais em andamento antes de apagar a pasta", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const { adapter } = novoAdapter("16");
+  await adapter.iniciar();
+  const pastaSessao = path.join(diretorioSessoes, "16");
+  const socket = ultimoSocket();
+  /** @type {() => void} */
+  let concluir = () => {};
+  baileysFalso.definirSaveCreds(
+    () =>
+      new Promise((resolve) => {
+        concluir = () => {
+          fs.mkdirSync(pastaSessao, { recursive: true });
+          fs.writeFileSync(path.join(pastaSessao, "creds.json"), "{}");
+          resolve();
+        };
+      })
+  );
+  await socket.emitir("creds.update", {});
+
+  let terminou = false;
+  const queda = socket.emitir("connection.update", fechamento(DisconnectReason.loggedOut)).then(() => (terminou = true));
+  await drenar();
+  assert.equal(terminou, false, "espera a fila de credenciais");
+  concluir();
+  await queda;
+
+  assert.equal(fs.existsSync(pastaSessao), false, "a gravação terminou antes do rm");
+  assert.equal(adapter.obterStatusConexao().ultimo_erro_conexao, "Sessão encerrada pelo aparelho.");
+});

@@ -91,7 +91,7 @@ test("imagem com legenda produz IMAGEM com legenda e os metadados da mídia (sem
     esperadoPrivado(msg, {
       tipo: "IMAGEM",
       legenda: "print do erro",
-      midia: { mimetype: "image/jpeg", tamanho_bytes: 48213, nome_arquivo: null, duracao_segundos: null, ptt: false },
+      midia: { mimetype: "image/jpeg", tamanho_bytes: 48213, nome_arquivo: null, duracao_segundos: null, ptt: false, gif: false },
     })
   );
 });
@@ -102,7 +102,7 @@ test("áudio PTT produz AUDIO com ptt verdadeiro e a duração declarada", () =>
     normalizarSemBruto(msg),
     esperadoPrivado(msg, {
       tipo: "AUDIO",
-      midia: { mimetype: "audio/ogg; codecs=opus", tamanho_bytes: 15320, nome_arquivo: null, duracao_segundos: 9, ptt: true },
+      midia: { mimetype: "audio/ogg; codecs=opus", tamanho_bytes: 15320, nome_arquivo: null, duracao_segundos: 9, ptt: true, gif: false },
     })
   );
 });
@@ -125,7 +125,7 @@ test("documento PDF com legenda (documentWithCaptionMessage) produz DOCUMENTO co
     esperadoPrivado(msg, {
       tipo: "DOCUMENTO",
       legenda: "segue a nota",
-      midia: { mimetype: "application/pdf", tamanho_bytes: 2048, nome_arquivo: "nota-fiscal.pdf", duracao_segundos: null, ptt: false },
+      midia: { mimetype: "application/pdf", tamanho_bytes: 2048, nome_arquivo: "nota-fiscal.pdf", duracao_segundos: null, ptt: false, gif: false },
     })
   );
 });
@@ -145,9 +145,21 @@ test("vídeo produz VIDEO com legenda e duração", () => {
     esperadoPrivado(msg, {
       tipo: "VIDEO",
       legenda: "veja",
-      midia: { mimetype: "video/mp4", tamanho_bytes: 900000, nome_arquivo: null, duracao_segundos: 12, ptt: false },
+      midia: { mimetype: "video/mp4", tamanho_bytes: 900000, nome_arquivo: null, duracao_segundos: 12, ptt: false, gif: false },
     })
   );
+});
+
+test("GIF (videoMessage com gifPlayback) é VIDEO com midia.gif verdadeiro; vídeo comum e ptvMessage sem gifPlayback têm gif falso", () => {
+  const gif = normalizarSemBruto(mensagemWa({ videoMessage: { mimetype: "video/mp4", fileLength: 1000, seconds: 2, gifPlayback: true } }));
+  assert.equal(gif.tipo, "VIDEO");
+  assert.equal(gif.midia.gif, true);
+  const ptvGif = normalizarSemBruto(mensagemWa({ ptvMessage: { mimetype: "video/mp4", fileLength: 1000, gifPlayback: true } }));
+  assert.equal(ptvGif.midia.gif, true);
+  assert.equal(normalizarSemBruto(mensagemWa({ videoMessage: { mimetype: "video/mp4", fileLength: 1000, gifPlayback: false } })).midia.gif, false);
+  assert.equal(normalizarSemBruto(mensagemWa({ videoMessage: { mimetype: "video/mp4", fileLength: 1000 } })).midia.gif, false);
+  assert.equal(normalizarSemBruto(mensagemWa({ stickerMessage: { mimetype: "image/webp", gifPlayback: true } })).midia.gif, false);
+  assert.equal(normalizarSemBruto(mensagemWa({ imageMessage: { mimetype: "image/jpeg", gifPlayback: true } })).midia.gif, false);
 });
 
 test("figurinha produz FIGURINHA com os metadados", () => {
@@ -156,7 +168,7 @@ test("figurinha produz FIGURINHA com os metadados", () => {
     normalizarSemBruto(msg),
     esperadoPrivado(msg, {
       tipo: "FIGURINHA",
-      midia: { mimetype: "image/webp", tamanho_bytes: 5120, nome_arquivo: null, duracao_segundos: null, ptt: false },
+      midia: { mimetype: "image/webp", tamanho_bytes: 5120, nome_arquivo: null, duracao_segundos: null, ptt: false, gif: false },
     })
   );
 });
