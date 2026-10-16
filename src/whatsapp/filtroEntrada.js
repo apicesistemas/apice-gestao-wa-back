@@ -285,6 +285,21 @@ function contexto(no) {
 }
 
 /**
+ * Menções do conteúdo editado: o `contextInfo` do texto (`extendedTextMessage`) ou, na edição de
+ * legenda, o do nó da mídia (imagem, vídeo, documento). O `documentWithCaptionMessage` já vem
+ * desembrulhado em `documentMessage`. `protocolMessage.editedMessage` é um `Message` direto.
+ * @param {any} editado conteúdo já desembrulhado
+ * @returns {string[]}
+ */
+function mencoesDaEdicao(editado) {
+  for (const no of [editado?.extendedTextMessage, editado?.imageMessage, editado?.videoMessage, editado?.documentMessage]) {
+    const { mencoes } = contexto(no);
+    if (mencoes.length > 0) return mencoes;
+  }
+  return [];
+}
+
+/**
  * Nó da mídia com legenda (imagem, vídeo, documento) de um conteúdo, para a legenda editada.
  * @param {any} m
  * @returns {string | null}
@@ -328,7 +343,7 @@ function extrairConteudo(m) {
         texto: textoDe(editado),
         legenda: legendaDe(editado),
         alvo: { mensagem_wa_id: alvo },
-        mencoes: contexto(editado?.extendedTextMessage).mencoes,
+        mencoes: mencoesDaEdicao(editado),
       };
     }
     return null;

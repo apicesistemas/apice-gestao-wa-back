@@ -3,6 +3,24 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.12.0] - 2026-10-16
+
+### Adicionado
+
+- Task 17.1, menções detalhadas. Em grupo, a menção chegava ao livechat só como o LID cru ("@48039360200936"). `POST /interno/mensagem-recebida` (que também leva a edição, tipo `EDICAO`) ganha o campo opcional `mencoes_detalhe: { jid, lid, telefone, propria }[]`, um item por JID de `mencoes` (que continua exatamente como era). `jid` até 100 caracteres, `lid` `/^\d{1,25}@lid$/` ou `null`, `telefone` `/^\d{8,15}$/` ou `null` e `propria` é `true` quando o mencionado é o número da própria equipe. Sem par conhecido, o campo fica `null` e a mensagem é registrada normalmente. Só vai quando a mensagem tem menções.
+- `src/whatsapp/mencoesEntrada.js`: `detalharMencoes(mencoes, { resolvedorLid, participantes, eu })`, função pura que usa o resolvedor de LID da equipe e os participantes do grupo.
+- `POST /equipe/:cod_equipe/grupo/participantes` (`src/http/GrupoController.js`, back → wa-back, token de serviço). Corpo `{ hash_empresa, chat_jid }` (`chat_jid` de grupo); 200 `{ participantes: [{ jid, lid, telefone, admin }] }`, sem o número da equipe e sem nome. `jid` é o `id` do participante no endereçamento do grupo (LID ou telefone), o valor que vai em `mentionedJid`. Erros: 400 ("Informe o hash_empresa da equipe.", "Grupo inválido.", "Código da equipe inválido."), 401, 404 "Equipe não encontrada." (outro tenant), 404 "Grupo não encontrado." (número fora do grupo), 409 "O WhatsApp da equipe não está conectado.", 503 com `Retry-After` (desligamento), 504 "A consulta dos participantes não respondeu." e 502 "Não foi possível consultar os participantes." (outra falha do WhatsApp). Sem efeito no WhatsApp; o log leva só o `cod_equipe` e o código do erro.
+- `nomeGrupo.js`: o cache de grupo guarda também os participantes (mesma consulta ao `groupMetadata` do nome, uma por grupo mesmo com chamadas simultâneas), com `obterParticipantes(socket, jid)` (rejeita com `ErroConsultaGrupo`: `PRAZO_ESGOTADO`, `GRUPO_NAO_ENCONTRADO` ou `FALHA`) e `esquecer(jid)`.
+- `BaileysAdapter`: escuta `group-participants.update` (esquece o grupo) e expõe `obterParticipantesGrupo(chatJid)`. `groups.update` continua atualizando o nome sem nova consulta e passa a invalidar os participantes do grupo.
+
+### Corrigido
+
+- `filtroEntrada`: na edição (`EDICAO`), as menções também são lidas do `contextInfo` do nó de mídia editado (`imageMessage`, `videoMessage`, `documentMessage` e `documentWithCaptionMessage`, que já vem desembrulhado), não só do `extendedTextMessage`. Editar a legenda de uma mídia que tinha "@<lid>" não zera mais `mencoes` nem `mencoes_detalhe`.
+
+### Deploy
+
+- Campo e rota são aditivos e opcionais. Ordem recomendada: back → wa-back → front (o back passa a aceitar `mencoes_detalhe` antes de o wa-back enviá-lo; a rota de participantes só é chamada pelo back depois de o wa-back estar no ar). A ordem inversa também é segura: o back atual ignora o campo desconhecido, e o wa-back antigo responde 404 à rota nova, que o back deve tratar como indisponível.
+
 ## [0.11.1] - 2026-10-15
 
 ### Alterado

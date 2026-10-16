@@ -7,9 +7,17 @@ const { chamarRotaInterna } = require("./internoHttpClient");
 /** @typedef {import("../whatsapp/filtroEntrada").MensagemRecebida} MensagemRecebida */
 /** @typedef {{ hash_empresa: string, cod_equipe: string | number }} ContextoInstancia */
 /**
+ * Um item por JID de `mencoes` (mesma ordem), com o par LID ↔ telefone conhecido (Task 17.1).
+ * `jid` até 100 caracteres; `lid` /^d{1,25}@lid$/ ou null; `telefone` /^d{8,15}$/ ou null (sem par
+ * conhecido a mensagem é registrada normalmente); `propria` é true quando o mencionado é o número da equipe.
+ * @typedef {{ jid: string, lid: string | null, telefone: string | null, propria: boolean }} MencaoDetalhe
+ */
+/**
  * A MensagemRecebida com o `nome_chat` (subject do grupo, Task 6.2). Só vai em mensagem de grupo e
  * quando o subject foi obtido; ausente no privado (o back usa o nome do contato).
- * @typedef {MensagemRecebida & { nome_chat?: string }} MensagemParaRegistro
+ * `mencoes_detalhe` (opcional, Task 17.1) só vai quando a mensagem tem menções; `mencoes` não muda.
+ * A edição (tipo EDICAO) também sai por `/interno/mensagem-recebida`, com as menções do texto novo.
+ * @typedef {MensagemRecebida & { nome_chat?: string, mencoes_detalhe?: MencaoDetalhe[] }} MensagemParaRegistro
  */
 /** @typedef {import("../whatsapp/midiaEntrada").MotivoPendenciaMidia} MotivoPendenciaMidia */
 /**

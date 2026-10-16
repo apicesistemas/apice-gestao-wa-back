@@ -11,7 +11,7 @@ const baileysFalso = require("../helpers/baileysFalso");
 
 baileysFalso.instalarBaileysFalso();
 const { criarAdapter } = require("../../src/whatsapp/BaileysAdapter");
-const { mensagemWa, mensagemGrupo, JID_CLIENTE, JID_GRUPO, JID_PARTICIPANTE, EU } = require("../helpers/mensagensWa");
+const { mensagemWa, mensagemGrupo, JID_CLIENTE, JID_GRUPO, JID_PARTICIPANTE, EU, TELEFONE_EQUIPE } = require("../helpers/mensagensWa");
 
 const { ultimoSocket, drenar } = baileysFalso;
 const diretorioSessoes = fs.mkdtempSync(path.join(os.tmpdir(), "wa-back-eventos-"));
@@ -198,3 +198,181 @@ test("recibo de um id enviado pelo CRM só vai ao back depois do atraso; o socke
     else process.env.RECIBO_ATRASO_ENVIO_MS = original;
   }
 });
+
+// ---- Task 17.1: menções detalhadas (mencoes_detalhe) e participantes do grupo ----
+
+const LID_MENCIONADO = "10000000000001@lid";
+const TELEFONE_MENCIONADO = "5511900000003";
+const JID_EQUIPE_LID = "100000000000099@lid";
+
+/** Captura o console durante o teste: nenhum JID, LID ou telefone pode aparecer nele. */
+function capturarConsole() {
+  /** @type {string[]} */
+  const linhas = [];
+  const originais = { log: console.log, error: console.error };
+  const gravar = (/** @type {any[]} */ ...args) => void linhas.push(args.map(String).join(" "));
+  console.log = gravar;
+  console.error = gravar;
+  return {
+    linhas,
+    restaurar() {
+      console.log = originais.log;
+      console.error = originais.error;
+    },
+  };
+}
+
+test("regressão do print: menção por LID com par conhecido vai com mencoes igual a hoje e mencoes_detalhe com o telefone", async () => {
+  const { registradas, emitir } = await adapterConectado();
+  await emitir("contacts.upsert", [{ id: LID_MENCIONADO, lid: LID_MENCIONADO, jid: `${TELEFONE_MENCIONADO}@s.whatsapp.net` }]);
+  const msg = mensagemGrupo(
+    { extendedTextMessage: { text: "@10000000000001 pode ver?", contextInfo: { mentionedJid: [LID_MENCIONADO] } } },
+    { key: { fromMe: true, participant: undefined, participantLid: undefined } }
+  );
+  await emitir("messages.upsert", { messages: [msg], type: "notify" });
+  assert.equal(registradas.length, 1);
+  assert.equal(registradas[0].origem, "APARELHO");
+  assert.deepEqual(registradas[0].mencoes, [LID_MENCIONADO]);
+  assert.deepEqual(registradas[0].mencoes_detalhe, [{ jid: LID_MENCIONADO, lid: LID_MENCIONADO, telefone: TELEFONE_MENCIONADO, propria: false }]);
+});
+
+test("o par pode vir dos participantes do groupMetadata (a mesma consulta do nome, uma só)", async () => {
+  let consultas = 0;
+  const { registradas, emitir } = await adapterConectado({
+    groupMetadata: async (jid) => {
+      consultas += 1;
+      return {
+        id: jid,
+        subject: "Suporte Loja Centro",
+        addressingMode: "lid",
+        participants: [{ id: LID_MENCIONADO, lid: LID_MENCIONADO, jid: `${TELEFONE_MENCIONADO}@s.whatsapp.net`, admin: null }],
+      };
+    },
+  });
+  const conteudo = { extendedTextMessage: { text: "@10000000000001", contextInfo: { mentionedJid: [LID_MENCIONADO] } } };
+  await emitir("messages.upsert", { messages: [mensagemGrupo(conteudo)], type: "notify" });
+  await emitir("messages.upsert", { messages: [mensagemGrupo(conteudo)], type: "notify" });
+  assert.deepEqual(registradas[0].mencoes_detalhe, [{ jid: LID_MENCIONADO, lid: LID_MENCIONADO, telefone: TELEFONE_MENCIONADO, propria: false }]);
+  assert.equal(registradas[0].nome_chat, "Suporte Loja Centro");
+  assert.equal(consultas, 1, "nome e participantes saem da mesma consulta, e a segunda mensagem usa o cache");
+});
+
+test("menção ao número da própria equipe (LID ou telefone) vem com propria: true", async () => {
+  const { registradas, emitir } = await adapterConectado();
+  const msg = mensagemGrupo({
+    extendedTextMessage: { text: "@equipe @outro", contextInfo: { mentionedJid: [JID_EQUIPE_LID, `${TELEFONE_EQUIPE}@s.whatsapp.net`, LID_MENCIONADO] } },
+  });
+  await emitir("messages.upsert", { messages: [msg], type: "notify" });
+  const detalhe = registradas[0].mencoes_detalhe;
+  assert.deepEqual(detalhe.map((/** @type {any} */ d) => d.propria), [true, true, false]);
+});
+
+test("menção sem par conhecido: telefone null e a mensagem é registrada normalmente", async () => {
+  const { registradas, emitir } = await adapterConectado();
+  await emitir("messages.upsert", {
+    messages: [mensagemGrupo({ extendedTextMessage: { text: "@10000000000001", contextInfo: { mentionedJid: [LID_MENCIONADO] } } })],
+    type: "notify",
+  });
+  assert.equal(registradas.length, 1);
+  assert.deepEqual(registradas[0].mencoes, [LID_MENCIONADO]);
+  assert.deepEqual(registradas[0].mencoes_detalhe, [{ jid: LID_MENCIONADO, lid: LID_MENCIONADO, telefone: null, propria: false }]);
+});
+
+test("groupMetadata que falha não impede o registro: mencoes_detalhe segue sem o telefone", async () => {
+  const { registradas, emitir } = await adapterConectado({
+    groupMetadata: async () => {
+      throw new Error("rate-overlimit");
+    },
+  });
+  await emitir("messages.upsert", {
+    messages: [mensagemGrupo({ extendedTextMessage: { text: "@x", contextInfo: { mentionedJid: [LID_MENCIONADO] } } })],
+    type: "notify",
+  });
+  assert.equal(registradas.length, 1);
+  assert.equal(registradas[0].mencoes_detalhe[0].telefone, null);
+});
+
+test("mensagem sem menções vai sem mencoes_detalhe", async () => {
+  const { registradas, emitir } = await adapterConectado();
+  await emitir("messages.upsert", { messages: [mensagemGrupo({ conversation: "bom dia" })], type: "notify" });
+  assert.deepEqual(registradas[0].mencoes, []);
+  assert.equal("mencoes_detalhe" in registradas[0], false);
+});
+
+test("a edição com menção também leva mencoes_detalhe", async () => {
+  const { registradas, emitir } = await adapterConectado();
+  await emitir("contacts.upsert", [{ id: LID_MENCIONADO, lid: LID_MENCIONADO, jid: `${TELEFONE_MENCIONADO}@s.whatsapp.net` }]);
+  const edicao = mensagemGrupo({
+    protocolMessage: {
+      type: 14,
+      key: { id: "3EB0ALVOEDIT01" },
+      editedMessage: { extendedTextMessage: { text: "@10000000000001 corrigido", contextInfo: { mentionedJid: [LID_MENCIONADO] } } },
+    },
+  });
+  await emitir("messages.upsert", { messages: [edicao], type: "notify" });
+  assert.equal(registradas[0].tipo, "EDICAO");
+  assert.deepEqual(registradas[0].mencoes_detalhe, [{ jid: LID_MENCIONADO, lid: LID_MENCIONADO, telefone: TELEFONE_MENCIONADO, propria: false }]);
+});
+
+test("group-participants.update esquece o grupo: a próxima mensagem consulta o groupMetadata de novo", async () => {
+  let consultas = 0;
+  const { registradas, emitir } = await adapterConectado({
+    groupMetadata: async (jid) => {
+      consultas += 1;
+      return { id: jid, subject: "Suporte", participants: [] };
+    },
+  });
+  const conteudo = { extendedTextMessage: { text: "@x", contextInfo: { mentionedJid: [LID_MENCIONADO] } } };
+  await emitir("messages.upsert", { messages: [mensagemGrupo(conteudo)], type: "notify" });
+  await emitir("messages.upsert", { messages: [mensagemGrupo(conteudo)], type: "notify" });
+  assert.equal(consultas, 1);
+  await emitir("group-participants.update", { id: JID_GRUPO, participants: [LID_MENCIONADO], action: "add" });
+  await emitir("messages.upsert", { messages: [mensagemGrupo(conteudo)], type: "notify" });
+  assert.equal(consultas, 2);
+  assert.equal(registradas.length, 3);
+});
+
+test("o listener de group-participants.update sai com o socket", async () => {
+  const { adapter, socket } = await adapterConectado();
+  await adapter.pararSocket();
+  assert.ok(socket.removidos.includes("group-participants.update"));
+});
+
+test("a entrada com menção não escreve JID, LID nem telefone no console", async () => {
+  const captura = capturarConsole();
+  try {
+    const { emitir } = await adapterConectado({
+      groupMetadata: async () => {
+        throw Object.assign(new Error(`falha ${LID_MENCIONADO} ${TELEFONE_MENCIONADO}`), { name: "Boom" });
+      },
+    });
+    await emitir("messages.upsert", {
+      messages: [mensagemGrupo({ extendedTextMessage: { text: "@x", contextInfo: { mentionedJid: [LID_MENCIONADO] } } })],
+      type: "notify",
+    });
+  } finally {
+    captura.restaurar();
+  }
+  const tudo = captura.linhas.join("\n");
+  assert.doesNotMatch(tudo, /10000000000001|5511900000003|@lid|@s\.whatsapp\.net/);
+});
+
+for (const [nome, no, extra] of /** @type {[string, string, any][]} */ ([
+  ["imagem", "imageMessage", {}],
+  ["vídeo", "videoMessage", {}],
+  ["documento", "documentMessage", {}],
+  ["documento com legenda (envelope)", "documentWithCaptionMessage", {}],
+])) {
+  test(`edição da legenda de ${nome} com menção chega ao back com mencoes e mencoes_detalhe`, async () => {
+    const { registradas, emitir } = await adapterConectado();
+    await emitir("contacts.upsert", [{ id: LID_MENCIONADO, lid: LID_MENCIONADO, jid: `${TELEFONE_MENCIONADO}@s.whatsapp.net` }]);
+    const legenda = { caption: "@10000000000001 legenda corrigida", contextInfo: { mentionedJid: [LID_MENCIONADO] }, ...extra };
+    const editedMessage = no === "documentWithCaptionMessage" ? { documentWithCaptionMessage: { message: { documentMessage: legenda } } } : { [no]: legenda };
+    const edicao = mensagemGrupo({ protocolMessage: { type: 14, key: { id: "3EB0ALVOLEGEND1" }, editedMessage } });
+    await emitir("messages.upsert", { messages: [edicao], type: "notify" });
+    assert.equal(registradas[0].tipo, "EDICAO");
+    assert.equal(registradas[0].legenda, "@10000000000001 legenda corrigida");
+    assert.deepEqual(registradas[0].mencoes, [LID_MENCIONADO]);
+    assert.deepEqual(registradas[0].mencoes_detalhe, [{ jid: LID_MENCIONADO, lid: LID_MENCIONADO, telefone: TELEFONE_MENCIONADO, propria: false }]);
+  });
+}

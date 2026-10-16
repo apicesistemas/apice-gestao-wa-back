@@ -67,7 +67,8 @@ const midiaInternoClient = require("../services/midiaInternoClient");
 const filaTranscricao = require("../audio/filaTranscricao");
 const { criarRecibos, extrairDeAtualizacoes, extrairDeRecibos } = require("./recibos");
 const { criarPresenca } = require("./presenca");
-const { criarCacheNomeGrupo } = require("./nomeGrupo");
+const { criarCacheNomeGrupo, ErroConsultaGrupo } = require("./nomeGrupo");
+const { detalharMencoes } = require("./mencoesEntrada");
 const mensagemStatusInternoClient = require("../services/mensagemStatusInternoClient");
 const presencaInternoClient = require("../services/presencaInternoClient");
 const { criarRecuperacao } = require("./recuperacao");
@@ -98,6 +99,7 @@ const EVENTOS_SOCKET = /** @type {const} */ ([
   "message-receipt.update",
   "presence.update",
   "groups.update",
+  "group-participants.update",
 ]);
 
 /** @typedef {"DESCONECTADO" | "QR_PENDENTE" | "CONECTADO" | "ERRO"} StatusConexao */
@@ -234,6 +236,7 @@ function existeSessaoEmDisco(codEquipe, diretorioSessoes = DIRETORIO_SESSOES) {
  *   marcarEnviadaPeloCrm: (mensagemWaId: string) => void,
  *   guardarEnviada: (mensagemWaId: string, message: any, chatJid: string) => void,
  *   socketConectado: () => SocketBaileys | null,
+ *   obterParticipantesGrupo: (chatJid: string) => Promise<import("./nomeGrupo").ParticipanteGrupo[]>,
  * }} BaileysAdapter
  */
 
@@ -436,6 +439,13 @@ function criarAdapter({
     // Sem `await`: a inscrição de presença e o nome do grupo correm junto com o resto (LID, mídia).
     void presenca.inscrever(s, normalizada.chat_jid);
     const nomeChat = normalizada.tipo_chat === "GRUPO" ? nomesGrupo.obterNome(s, normalizada.chat_jid) : Promise.resolve(null);
+    // Menção em grupo: os participantes saem da mesma consulta do nome (cache e consulta únicos). Nunca rejeita.
+    const temMencoes = Array.isArray(normalizada.mencoes) && normalizada.mencoes.length > 0;
+    /** @type {Promise<import("./nomeGrupo").ParticipanteGrupo[]>} */
+    const participantesGrupo =
+      temMencoes && normalizada.tipo_chat === "GRUPO"
+        ? nomesGrupo.obterParticipantes(s, normalizada.chat_jid).catch(() => [])
+        : Promise.resolve([]);
 
     let remetente = resolvedorLid.completarIdentidade(normalizada.remetente);
     let contato = normalizada.contato && resolvedorLid.completarIdentidade(normalizada.contato);
@@ -470,6 +480,13 @@ function criarAdapter({
     const paraRegistro = { ...normalizada, remetente, contato };
     const nome_chat = await nomeChat; // nunca rejeita, e o prazo é curto
     if (nome_chat) paraRegistro.nome_chat = nome_chat;
+    if (temMencoes) {
+      paraRegistro.mencoes_detalhe = detalharMencoes(normalizada.mencoes ?? [], {
+        resolvedorLid,
+        participantes: await participantesGrupo,
+        eu: { jid: s.user?.id, lid: s.user?.lid },
+      });
+    }
 
     try {
       await registrarMensagem(paraRegistro, { hash_empresa: hashEmpresa, cod_equipe: cod }, estadoMidia);
@@ -604,6 +621,7 @@ function criarAdapter({
     s.ev.on("message-receipt.update", (lista) => enfileirarRecibos(extrairDeRecibos(lista, { jid: s.user?.id, lid: s.user?.lid })));
     s.ev.on("presence.update", (evento) => presenca.tratarAtualizacao(evento, { jid: s.user?.id, lid: s.user?.lid }));
     s.ev.on("groups.update", (grupos) => nomesGrupo.aprender(grupos));
+    s.ev.on("group-participants.update", (evento) => nomesGrupo.esquecer(evento?.id));
 
     return { ...estado };
   }
@@ -689,6 +707,13 @@ function criarAdapter({
     },
     // Só com a equipe CONECTADA: durante QR, queda ou reconexão não há para onde enviar.
     socketConectado: () => (socket && estado.status_conexao === "CONECTADO" ? socket : null),
+    // Para `POST /equipe/:cod_equipe/grupo/participantes`: cache e consulta única do nomeGrupo.
+    // Rejeita com ErroConsultaGrupo (nunca com JID/telefone na mensagem).
+    async obterParticipantesGrupo(chatJid) {
+      const conectado = socket && estado.status_conexao === "CONECTADO" ? socket : null;
+      if (!conectado) throw new ErroConsultaGrupo("FALHA");
+      return nomesGrupo.obterParticipantes(conectado, chatJid);
+    },
   };
 }
 

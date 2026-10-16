@@ -2,6 +2,7 @@
 const HealthController = require("./HealthController");
 const ConexaoController = require("./ConexaoController");
 const EnvioController = require("./EnvioController");
+const GrupoController = require("./GrupoController");
 
 /** @typedef {(server: import("express").Express) => void} Controller */
 
@@ -10,7 +11,7 @@ const EnvioController = require("./EnvioController");
  * (sem `express.Router()`). Controller novo entra aqui.
  * @type {Controller[]}
  */
-const CONTROLLERS = [HealthController, ConexaoController, EnvioController];
+const CONTROLLERS = [HealthController, ConexaoController, EnvioController, GrupoController];
 
 /**
  * Registra os controllers e, depois deles, o 404 e o tratador de erros em pt-BR.
