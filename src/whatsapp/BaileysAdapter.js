@@ -531,6 +531,9 @@ function criarAdapter({
     const paraRegistro = { ...normalizada, remetente, contato };
     const nome_chat = await nomeChat; // nunca rejeita, e o prazo é curto
     if (nome_chat) paraRegistro.nome_chat = nome_chat;
+    // Marca de recuperada (Task 24.3): só `append` de mensagem do CLIENTE. Em `notify` e no eco do
+    // aparelho a chave não vai. O back usa a marca para não disparar o aviso de recebimento.
+    if (tipoLote === "append" && normalizada.origem === "CLIENTE") paraRegistro.recuperada = true;
     if (temMencoes) {
       paraRegistro.mencoes_detalhe = detalharMencoes(normalizada.mencoes ?? [], {
         resolvedorLid,

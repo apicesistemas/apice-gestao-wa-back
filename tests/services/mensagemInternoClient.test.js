@@ -70,6 +70,29 @@ test("registrarMensagem envia midia_pendente e o motivo quando o download ou a v
   assert.equal(corpo.hash_empresa, "hash-a");
 });
 
+test("registrarMensagem repassa recuperada: true e mantém token, hash_empresa e cod_equipe (Task 24.3)", async () => {
+  /** @type {RequestInit[]} */
+  const inits = [];
+  globalThis.fetch = /** @type {typeof fetch} */ (
+    async (_url, init) => {
+      inits.push(init || {});
+      return Response.json({ msg: "Mensagem registrada." });
+    }
+  );
+  const mensagem = normalizarMensagem(mensagemWa({ conversation: "oi" }));
+  assert.ok(mensagem);
+
+  await registrarMensagem({ ...mensagem, recuperada: true }, { hash_empresa: "hash-a", cod_equipe: "7" });
+  await registrarMensagem(mensagem, { hash_empresa: "hash-a", cod_equipe: "7" });
+
+  const [com, sem] = inits.map((i) => JSON.parse(String(i.body)));
+  assert.equal(com.recuperada, true);
+  assert.equal(com.hash_empresa, "hash-a");
+  assert.equal(com.cod_equipe, 7);
+  assert.equal(new Headers(inits[0].headers).get("X-Internal-Token"), "token-wa-para-back");
+  assert.equal("recuperada" in sem, false);
+});
+
 test("registrarMensagem sem hash_empresa rejeita sem chamar o back", async () => {
   let chamou = false;
   globalThis.fetch = /** @type {typeof fetch} */ (

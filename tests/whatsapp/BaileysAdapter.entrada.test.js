@@ -82,6 +82,27 @@ test("mensagens recuperadas na reconexão (type append) também são registradas
   assert.deepEqual(registradas.map((r) => r.mensagem.texto), ["enviada durante a queda"]);
 });
 
+test("recuperada: true só no lote append com origem CLIENTE; notify e eco do aparelho vão sem a chave (Task 24.3)", async () => {
+  const { registradas, receber } = await adapterConectado();
+  const recuperadaDoCliente = mensagemWa({ conversation: "enviada durante a queda" });
+  const aoVivo = mensagemWa({ conversation: "ao vivo" });
+  const doAparelhoAppend = mensagemWa({ conversation: "celular em append" }, { key: { fromMe: true }, pushName: null });
+  const doAparelhoNotify = mensagemWa({ conversation: "celular em notify" }, { key: { fromMe: true }, pushName: null });
+
+  await receber([recuperadaDoCliente], "append");
+  await receber([aoVivo], "notify");
+  await receber([doAparelhoAppend], "append");
+  await receber([doAparelhoNotify], "notify");
+
+  const porTexto = Object.fromEntries(registradas.map((r) => [r.mensagem.texto, r.mensagem]));
+  assert.equal(porTexto["enviada durante a queda"].origem, "CLIENTE");
+  assert.equal(porTexto["enviada durante a queda"].recuperada, true);
+  assert.equal("recuperada" in porTexto["ao vivo"], false);
+  assert.equal(porTexto["celular em append"].origem, "APARELHO");
+  assert.equal("recuperada" in porTexto["celular em append"], false);
+  assert.equal("recuperada" in porTexto["celular em notify"], false);
+});
+
 test("mensagem em @g.us chega ao back com o grupo e o participante remetente", async () => {
   const { registradas, receber } = await adapterConectado();
   await receber([mensagemGrupo({ conversation: "bom dia" })]);

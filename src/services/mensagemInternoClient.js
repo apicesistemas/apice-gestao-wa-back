@@ -17,7 +17,10 @@ const { chamarRotaInterna } = require("./internoHttpClient");
  * quando o subject foi obtido; ausente no privado (o back usa o nome do contato).
  * `mencoes_detalhe` (opcional, Task 17.1) só vai quando a mensagem tem menções; `mencoes` não muda.
  * A edição (tipo EDICAO) também sai por `/interno/mensagem-recebida`, com as menções do texto novo.
- * @typedef {MensagemRecebida & { nome_chat?: string, mencoes_detalhe?: MencaoDetalhe[] }} MensagemParaRegistro
+ * `recuperada` (opcional, Task 24.3): `true` só quando o lote do Baileys é `append` e a origem é CLIENTE
+ * (mensagem recuperada após reinício); em `notify` e no eco do aparelho a chave não vai. O back a usa
+ * para não disparar o aviso de recebimento, e trata a ausência como `false`.
+ * @typedef {MensagemRecebida & { nome_chat?: string, mencoes_detalhe?: MencaoDetalhe[], recuperada?: true }} MensagemParaRegistro
  */
 /** @typedef {import("../whatsapp/midiaEntrada").MotivoPendenciaMidia} MotivoPendenciaMidia */
 /**

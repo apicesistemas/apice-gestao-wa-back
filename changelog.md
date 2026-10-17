@@ -3,6 +3,13 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.15.0] - 2026-10-17
+
+### Adicionado
+
+- Marca de mensagem recuperada (Fase 24, Task 24.3): `POST /interno/mensagem-recebida` ganha `recuperada?: boolean` (aditivo). Vai `recuperada: true` somente quando o lote do `messages.upsert` é `append` e a origem é CLIENTE; em `notify` e no eco do aparelho (origem APARELHO) a chave não vai no corpo. Token (`X-Internal-Token`), `hash_empresa` e `cod_equipe` ficam intactos. O back usa a marca para não disparar o aviso de recebimento em mensagens recuperadas após reinício.
+- **Ordem de deploy: back antes do wa-back** (o back trata a ausência como `false` e nunca responde 400 por causa da chave). Só ligar o aviso automático nas equipes depois deste deploy.
+
 ## [0.14.2] - 2026-10-16
 
 ### Alterado
