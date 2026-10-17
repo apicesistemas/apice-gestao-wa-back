@@ -235,3 +235,128 @@ test("POST /desconectar: falha inesperada do manager responde 500 sem vazar o er
     await new Promise((resolve) => srv.close(() => resolve(undefined)));
   }
 });
+
+/**
+ * @param {string} cod
+ * @param {unknown} corpo
+ * @param {string | null} [token]
+ */
+function postRemover(cod, corpo, token = TOKEN) {
+  /** @type {Record<string, string>} */
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers["X-Internal-Token"] = token;
+  return fetch(`${baseUrl}/equipe/${cod}/remover`, { method: "POST", headers, body: JSON.stringify(corpo) });
+}
+
+/**
+ * Sobe um app só com o controller sobre o manager dado (e o desligamento dado).
+ * @param {any} managerAlternativo
+ * @param {any} [desligamento]
+ */
+async function subirApp(managerAlternativo, desligamento) {
+  const app = express();
+  app.use(express.json());
+  registrarControllers(app, [criarConexaoController(managerAlternativo, desligamento ? { desligamento } : undefined)]);
+  const srv = http.createServer(app);
+  await new Promise((resolve) => srv.listen(0, () => resolve(undefined)));
+  const porta = /** @type {import("node:net").AddressInfo} */ (srv.address()).port;
+  return { srv, url: `http://127.0.0.1:${porta}` };
+}
+
+test("POST /equipe/:cod_equipe/remover faz o logout, descarta a instância e responde o contrato D1", async () => {
+  const socket = await conectarPareada("61");
+
+  const resposta = await postRemover("61", { hash_empresa: "hash-a" });
+
+  assert.equal(resposta.status, 200);
+  assert.deepEqual(await lerJson(resposta), {
+    msg: "Equipe removida do WhatsApp.",
+    cod_equipe: 61,
+    status_conexao: "DESCONECTADO",
+    ultimo_erro_conexao: null,
+    havia_sessao: true,
+    remocao_aparelho: "CONFIRMADA",
+    instancia_descartada: true,
+  });
+  assert.equal(socket.chamadasLogout, 1);
+  assert.equal(fs.existsSync(path.join(raiz, "sessoes", "61")), false);
+  assert.equal(manager.obter(61), null);
+
+  // Idempotente: nada mais da equipe.
+  const outra = await lerJson(await postRemover("61", { hash_empresa: "hash-a" }));
+  assert.equal(outra.havia_sessao, false);
+  assert.equal(outra.instancia_descartada, false);
+  assert.equal(outra.remocao_aparelho, "SEM_PAREAMENTO");
+  assert.equal(outra.status_conexao, "DESCONECTADO");
+});
+
+test("POST /remover: sem token 401, código inválido 400, sem hash_empresa 400, outra empresa 409 sem tocar em nada", async () => {
+  assert.equal((await postRemover("62", { hash_empresa: "hash-a" }, null)).status, 401);
+  assert.equal((await postRemover("62", { hash_empresa: "hash-a" }, "token-errado")).status, 401);
+  for (const cod of ["abc", "0", "-1", "1.5"]) {
+    const r = await postRemover(cod, { hash_empresa: "hash-a" });
+    assert.equal(r.status, 400, cod);
+    assert.deepEqual(await lerJson(r), { msg: "Código da equipe inválido." });
+  }
+  for (const corpo of [{}, { hash_empresa: "" }, { hash_empresa: 5 }]) {
+    const r = await postRemover("62", corpo);
+    assert.equal(r.status, 400);
+    assert.deepEqual(await lerJson(r), { msg: "Informe o hash_empresa da equipe." });
+  }
+
+  const socket = await conectarPareada("63");
+  const r = await postRemover("63", { hash_empresa: "hash-b" });
+  assert.equal(r.status, 409);
+  assert.deepEqual(await lerJson(r), { msg: "Esta equipe já está conectada por outra empresa." });
+  assert.equal(socket.chamadasLogout, 0);
+  assert.equal(fs.existsSync(path.join(raiz, "sessoes", "63", "creds.json")), true);
+  assert.ok(manager.obter(63), "a instância continua no Map");
+});
+
+test("POST /remover durante o encerramento responde 503 com Retry-After, sem tocar no manager", async () => {
+  const { criarDesligamento, MSG_REINICIANDO } = require("../../src/utils/desligamento");
+  const desligamento = criarDesligamento();
+  desligamento.marcarEncerrando();
+  let chamadas = 0;
+  const { srv, url } = await subirApp({ ...manager, remover: async () => void (chamadas += 1) }, desligamento);
+  try {
+    const r = await fetch(`${url}/equipe/64/remover`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Internal-Token": TOKEN },
+      body: JSON.stringify({ hash_empresa: "hash-a" }),
+    });
+    assert.equal(r.status, 503);
+    assert.deepEqual(await lerJson(r), { msg: MSG_REINICIANDO });
+    assert.ok(Number(r.headers.get("retry-after")) > 0);
+    assert.equal(chamadas, 0);
+  } finally {
+    await new Promise((resolve) => srv.close(() => resolve(undefined)));
+  }
+});
+
+test("POST /remover: falha inesperada do manager responde 500 sem vazar o erro", async () => {
+  const { srv, url } = await subirApp({
+    ...manager,
+    remover: async () => {
+      throw new Error("falha com 5500000000003");
+    },
+  });
+  /** @type {string[]} */
+  const logs = [];
+  const erroOriginal = console.error;
+  console.error = (...a) => void logs.push(a.map(String).join(" "));
+  try {
+    const r = await fetch(`${url}/equipe/65/remover`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Internal-Token": TOKEN },
+      body: JSON.stringify({ hash_empresa: "hash-a" }),
+    });
+    assert.equal(r.status, 500);
+    assert.deepEqual(await lerJson(r), { msg: "Erro ao remover a equipe do WhatsApp." });
+    assert.ok(logs.length > 0);
+    assert.ok(!logs.join(" ").includes("5500000000003"), "o log leva só o nome do erro");
+  } finally {
+    console.error = erroOriginal;
+    await new Promise((resolve) => srv.close(() => resolve(undefined)));
+  }
+});

@@ -3,6 +3,16 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.16.0] - 2026-10-17
+
+### Adicionado
+
+- Remoção da equipe no WhatsApp (Fase 26, Task 26.5): `POST /equipe/:cod_equipe/remover` (canal D, `exigirTokenServico` + `recusarDuranteEncerramento`), corpo `{ hash_empresa }`. Responde 200 `{ msg: "Equipe removida do WhatsApp.", cod_equipe, status_conexao: "DESCONECTADO", ultimo_erro_conexao: null, havia_sessao, remocao_aparelho, instancia_descartada }`. Erros: 400 (código ou `hash_empresa` inválido), 401, 409 (outra empresa, nada é tocado), 503 com `Retry-After` no encerramento e 500 sem vazar o erro.
+- `instanciaManager.remover(codEquipe, hashEmpresa)`: na mesma trava por equipe, faz o fluxo do `desconectar` (logout quando pareada, sessão em disco apagada, saída do registro de pareadas, reporte DESCONECTADO aguardado com prazo) e depois remove a atividade, a instância do Map e o `desdeStatus`. O `/ping` deixa de listar a equipe, e o heartbeat e o `reconectarTodas` não abrem socket nem geram QR. Idempotente: sem nada da equipe, `havia_sessao: false` e `instancia_descartada: false`; instância que ficou em DESCONECTADO, `havia_sessao: false` e `instancia_descartada: true`, sem logout nem reporte.
+- O corpo do `desconectar` virou `desconectarSemTrava`, compartilhado com o `remover` (sem mudança de comportamento do `/desconectar`).
+- Testes de regressão do `remover`: o 409 não toca em atividade, registro nem reporte (instância e só registro); o `desde` do `/ping` não é herdado ao conectar de novo; o `GET /ping` real não lista a equipe removida.
+- **Ordem de deploy: wa-back antes do back** (rota D nova). Com o wa-back antigo, o back recebe 404 no `/remover` e cai no `/desconectar`.
+
 ## [0.15.0] - 2026-10-17
 
 ### Adicionado

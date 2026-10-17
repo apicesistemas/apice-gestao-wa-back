@@ -6,7 +6,7 @@ const { normalizarCodEquipe } = require("../whatsapp/BaileysAdapter");
 const exigirTokenServico = require("./exigirTokenServico");
 const desligamentoDoProcesso = require("../utils/desligamento").padrao;
 
-/** @typedef {Pick<typeof instanciaManager, "conectar" | "obter" | "desconectar">} ManagerConexao */
+/** @typedef {Pick<typeof instanciaManager, "conectar" | "obter" | "desconectar" | "remover">} ManagerConexao */
 
 /**
  * @param {unknown} valor
@@ -98,6 +98,49 @@ function criarConexaoController(manager = instanciaManager, { desligamento = des
         // Só o nome do erro: a mensagem pode trazer JID ou telefone.
         console.error(`[CONEXAO] Falha ao desconectar a equipe ${cod}:`, erro instanceof Error ? erro.name : "erro");
         res.status(500).json({ msg: "Erro ao desconectar o WhatsApp da equipe." });
+      }
+    });
+
+    /**
+     * Canal D. POST /equipe/:cod_equipe/remover (back waConexaoService.remover, exclusão completa da
+     * equipe, Fase 26). Entrada: { hash_empresa }. Saída 200: { msg: "Equipe removida do WhatsApp.",
+     * cod_equipe, status_conexao: "DESCONECTADO", ultimo_erro_conexao: null, havia_sessao,
+     * remocao_aparelho: "CONFIRMADA" | "NAO_CONFIRMADA" | "SEM_PAREAMENTO", instancia_descartada }.
+     * Faz o fluxo do /desconectar e tira a instância do processo. Idempotente. 400 código/hash
+     * inválido, 401 sem token, 409 outra empresa (nada é tocado), 503 + Retry-After no encerramento,
+     * 500 sem vazar o erro.
+     */
+    server.post("/equipe/:cod_equipe/remover", exigirTokenServico, recusarDuranteEncerramento, async (req, res) => {
+      const cod = codEquipeValido(req.params.cod_equipe);
+      if (!cod) {
+        res.status(400).json({ msg: "Código da equipe inválido." });
+        return;
+      }
+      const hashEmpresa = req.body?.hash_empresa;
+      if (typeof hashEmpresa !== "string" || hashEmpresa.trim() === "") {
+        res.status(400).json({ msg: "Informe o hash_empresa da equipe." });
+        return;
+      }
+
+      try {
+        const { havia_sessao, remocao_aparelho, instancia_descartada } = await manager.remover(cod, hashEmpresa);
+        res.status(200).json({
+          msg: "Equipe removida do WhatsApp.",
+          cod_equipe: Number(cod),
+          status_conexao: "DESCONECTADO",
+          ultimo_erro_conexao: null,
+          havia_sessao,
+          remocao_aparelho,
+          instancia_descartada,
+        });
+      } catch (erro) {
+        if (erro instanceof instanciaManager.ErroConexaoEquipe && erro.codigo === "EQUIPE_OUTRA_EMPRESA") {
+          res.status(409).json({ msg: "Esta equipe já está conectada por outra empresa." });
+          return;
+        }
+        // Só o nome do erro: a mensagem pode trazer JID ou telefone.
+        console.error(`[CONEXAO] Falha ao remover a equipe ${cod}:`, erro instanceof Error ? erro.name : "erro");
+        res.status(500).json({ msg: "Erro ao remover a equipe do WhatsApp." });
       }
     });
 
