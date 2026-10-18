@@ -327,11 +327,13 @@ test("GET /ping real (HealthController) não lista a equipe removida e mantém a
   });
   const url = `http://127.0.0.1:${httpServer.address().port}/ping`;
   try {
+    /** @type {any} */
     const antes = await (await fetch(url)).json();
     assert.deepEqual(antes.equipes.map((/** @type {any} */ e) => e.cod_equipe), [16, 17]);
 
     await ctx.manager.remover(16, "hash-a");
 
+    /** @type {any} */
     const depois = await (await fetch(url)).json();
     assert.deepEqual(depois.equipes.map((/** @type {any} */ e) => [e.cod_equipe, e.status]), [[17, "CONECTADO"]]);
   } finally {

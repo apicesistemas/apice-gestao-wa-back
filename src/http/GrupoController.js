@@ -54,7 +54,7 @@ function criarGrupoController(manager, { desligamento = desligamentoDoProcesso }
     server.post("/equipe/:cod_equipe/grupo/participantes", exigirTokenServico, recusarDuranteEncerramento, async (req, res) => {
       let cod;
       try {
-        cod = normalizarCodEquipe(req.params.cod_equipe);
+        cod = normalizarCodEquipe(/** @type {string} */ (req.params.cod_equipe));
       } catch {
         res.status(400).json({ msg: "Código da equipe inválido." });
         return;

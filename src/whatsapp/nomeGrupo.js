@@ -142,7 +142,7 @@ function criarCacheNomeGrupo({ msTtl = MS_TTL_NOME, msTtlFalha = MS_TTL_FALHA, m
       const lista = Array.isArray(metadados?.participants) ? metadados.participants : [];
       entrada = {
         nome: limparSubject(metadados?.subject),
-        participantes: lista.map(mapearParticipante).filter(/** @returns {p is ParticipanteGrupo} */ (p) => p !== null),
+        participantes: lista.map(mapearParticipante).filter(/** @param {ParticipanteGrupo | null} p @returns {p is ParticipanteGrupo} */ (p) => p !== null),
         erro: null,
       };
     } catch (erro) {

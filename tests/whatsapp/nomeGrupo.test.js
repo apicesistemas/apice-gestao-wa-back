@@ -191,7 +191,7 @@ test("a invalidação do grupo A não afeta a consulta em andamento do grupo B (
   await new Promise((resolve) => setImmediate(resolve));
   cache.esquecer(grupoA);
   cache.aprender([{ id: grupoA, subject: "A2" }]);
-  /** @type {() => void} */ (liberarB)();
+  /** @type {() => void} */ (/** @type {unknown} */ (liberarB))();
   await Promise.all([emAndamentoB, outraB]);
   await cache.obterParticipantes(socket, grupoB);
   assert.equal(consultasB, 1, "uma consulta só, e o resultado de B foi para o cache");

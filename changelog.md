@@ -3,6 +3,12 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.17.1] - 2026-10-18
+
+### Corrigido
+
+- `yarn typecheck` volta a passar (5 erros de tipagem): cast de `req.params.cod_equipe` no `GrupoController`, parâmetro tipado no `filter` do `nomeGrupo` e casts de teste em `instanciaManager.remover` e `nomeGrupo`. Sem mudança de comportamento e sem contrato novo para o back.
+
 ## [0.17.0] - 2026-10-18
 
 ### Adicionado
