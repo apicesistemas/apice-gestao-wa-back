@@ -130,6 +130,7 @@ module.exports = {
   docx,
   xlsx,
   zipComum,
+  ole,
   doc,
   xls,
   MIME_DOCX,

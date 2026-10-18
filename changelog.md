@@ -3,6 +3,15 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.17.0] - 2026-10-18
+
+### Adicionado
+
+- `yarn test:cobertura`: roda a mesma suíte do `yarn test` (`scripts/run-tests.js --cobertura`) com a cobertura do Node limitada a `src/**` e mínimos sobre o total: linhas 95%, desvios 88%, funções 90%. Abaixo de qualquer um, o processo sai com código ≠ 0. O `yarn test` e o `deploy.sh` ficam iguais.
+- Testes de ramos de erro e de borda: tratador de erros do `registrarControllers` (JSON malformado, resposta já iniciada, erro que não é `Error`), `internoHttpClient` (corpo ilegível, JSON inválido, prazo por ambiente, detalhe truncado, multipart), heartbeat (falhas isoladas por equipe, equipe ocupada, parada no meio da rodada) e `tipoMidia` (MP3 sem ID3, ADTS, AMR, brands ISO, ZIP/OLE adulterados ou ambíguos, Ogg truncado). O helper `arquivosMidia` passa a exportar `ole`.
+- `scripts/run-tests.js` exporta `montarArgumentos`, `listarArquivosDeTeste` e `LIMITES_COBERTURA` e só roda quando executado direto; `tests/scripts/runTests.test.js` confere as flags 95/88/90, o include `src/**` e o código de saída (≠ 0 abaixo do limite, 0 acima) num projeto temporário.
+- Sem mudança de comportamento em `src/` e sem contrato novo para o back. Ordem de deploy: indiferente.
+
 ## [0.16.0] - 2026-10-17
 
 ### Adicionado
