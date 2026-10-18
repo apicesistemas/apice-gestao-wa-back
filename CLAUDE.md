@@ -79,6 +79,7 @@ No servidor `192.168.1.167`, na pasta do submódulo: `bash deploy.sh`.
 - Framework frontend: não se aplica
 - Onde ficam os testes: `tests/`, espelhando `src/`. O Baileys é mockado via `require.cache`, com payloads montados nos testes.
 - Regra: cobertura mínima de linhas ≥ 95%, desvios ≥ 88% e funções ≥ 90% no total de `src/`, conferida por `yarn test:cobertura` no Gate (mesma suíte do `yarn test`, via `scripts/run-tests.js --cobertura`, com código ≠ 0 abaixo do limite). Todo critério de aceitação do SPEC tem teste, e a task só termina com `yarn test` verde. A cobertura nativa do Node conta só os arquivos de `src/` carregados pelos testes: arquivo novo sem teste não entra no denominador e não derruba o percentual, por isso todo arquivo novo de `src/` precisa de teste.
+- Tipos: o Gate exige `yarn typecheck` (`tsc -p jsconfig.json`) sem nenhum erro, além do `yarn test:cobertura`. Erro de tipo se corrige com JSDoc ou cast (`/** @type {X} */ (valor)`), nunca com `@ts-ignore`/`@ts-nocheck` nem afrouxando o `jsconfig.json`.
 - Testes críticos deste projeto:
   - [ ] Cada tipo recebido (texto, foto, vídeo, áudio, documento, figurinha, localização, contato, reação, citação, edição, exclusão) é normalizado corretamente. Mensagens de grupo identificam o grupo e o participante.
   - [ ] A mesma mensagem recebida duas vezes gera um único registro.
