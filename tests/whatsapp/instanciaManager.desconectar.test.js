@@ -23,7 +23,7 @@ after(() => fs.rmSync(raiz, { recursive: true, force: true }));
 let contador = 0;
 beforeEach(() => baileysFalso.limparHistorico());
 
-/** @param {{ msPrazoLogout?: number, msPrazoCredenciais?: number, msPrazoReporte?: number, msReconexao?: number, reportarStatus?: (cod: string, status: any) => Promise<unknown> }} [extra] */
+/** @param {{ msPrazoLogout?: number, msPrazoCredenciais?: number, msPrazoReporte?: number, msReconexao?: number, travaGrupo?: import("../../src/whatsapp/travaGrupo").TravaGrupo, reportarStatus?: (cod: string, status: any) => Promise<unknown> }} [extra] */
 function novoManager(extra = {}) {
   contador += 1;
   const diretorioSessoes = path.join(raiz, `sessoes-${contador}`);
@@ -37,6 +37,7 @@ function novoManager(extra = {}) {
     msPrazoCredenciais: extra.msPrazoCredenciais,
     msPrazoReporte: extra.msPrazoReporte,
     msReconexao: extra.msReconexao,
+    ...(extra.travaGrupo ? { travaGrupo: extra.travaGrupo } : {}),
     reportarStatus:
       extra.reportarStatus ??
       (async (codEquipe, status) => {
@@ -609,4 +610,47 @@ test("nenhum log nem reporte leva JID, telefone, LID ou QR", async () => {
   assert.ok(!tudo.includes("5500000000001"));
   assert.ok(!tudo.includes(QR_FALSO));
   assert.ok(!tudo.includes("s.whatsapp.net"));
+});
+
+test("desconectar durante uma operação de grupo aborta o sinal ANTES do logout e libera a trava (a seguinte não fica OCUPADA)", async () => {
+  const { criarTravaGrupo } = require("../../src/whatsapp/travaGrupo");
+  const trava = criarTravaGrupo();
+  const ctx = novoManager({ travaGrupo: trava });
+  const { socket } = await conectarPareada(ctx, "30");
+  const sinal = /** @type {AbortSignal} */ (trava.entrar("30"));
+  /** @type {boolean[]} */
+  const abortadoNoLogout = [];
+  const socketAny = /** @type {any} */ (socket);
+  const logoutOriginal = socketAny.logout;
+  socketAny.logout = async () => {
+    abortadoNoLogout.push(sinal.aborted);
+    return logoutOriginal.call(socket);
+  };
+
+  await ctx.manager.desconectar(30, "hash-a");
+
+  assert.deepEqual(abortadoNoLogout, [true], "o laço de grupo já estava abortado quando o logout começou");
+  assert.equal(trava.ocupada("30"), false);
+  assert.ok(trava.entrar("30"), "uma operação nova entra (e vai encontrar a equipe desconectada)");
+});
+
+test("desconectar de outra empresa não aborta a operação de grupo da equipe", async () => {
+  const { criarTravaGrupo } = require("../../src/whatsapp/travaGrupo");
+  const trava = criarTravaGrupo();
+  const ctx = novoManager({ travaGrupo: trava });
+  await conectarPareada(ctx, "31");
+  const sinal = /** @type {AbortSignal} */ (trava.entrar("31"));
+  await assert.rejects(ctx.manager.desconectar(31, "hash-b"), (erro) => erro instanceof ErroConexaoEquipe);
+  assert.equal(sinal.aborted, false);
+  assert.equal(trava.ocupada("31"), true);
+});
+
+test("a operação de grupo de OUTRA equipe não é afetada pelo desconectar", async () => {
+  const { criarTravaGrupo } = require("../../src/whatsapp/travaGrupo");
+  const trava = criarTravaGrupo();
+  const ctx = novoManager({ travaGrupo: trava });
+  await conectarPareada(ctx, "32");
+  const outra = /** @type {AbortSignal} */ (trava.entrar("33"));
+  await ctx.manager.desconectar(32, "hash-a");
+  assert.equal(outra.aborted, false);
 });

@@ -15,6 +15,7 @@ const path = require("node:path");
 const BaileysAdapter = require("./BaileysAdapter");
 const conexaoInternoClient = require("../services/conexaoInternoClient");
 const { criarArmazemAtividade } = require("./recuperacao");
+const travaGrupoDoProcesso = require("./travaGrupo").padrao;
 
 const CAMINHO_REGISTRO = path.join(__dirname, "..", "..", ".cache", "equipes-wa.json");
 
@@ -61,6 +62,7 @@ function descreverErro(erro) {
  *   msPrazoReporte?: number,
  *   reportarStatus?: (codEquipe: string, status: StatusParaReportar) => Promise<unknown>,
  *   criarAdapter?: (opcoes: OpcoesAdapter) => BaileysAdapter,
+ *   travaGrupo?: Pick<import("./travaGrupo").TravaGrupo, "abortar">,
  * }} [opcoes]
  */
 function criarInstanciaManager({
@@ -73,6 +75,7 @@ function criarInstanciaManager({
   msPrazoReporte = MS_PRAZO_REPORTE,
   reportarStatus = conexaoInternoClient.reportarStatus,
   criarAdapter = BaileysAdapter.criarAdapter,
+  travaGrupo = travaGrupoDoProcesso,
 } = {}) {
   /** @type {Map<string, BaileysAdapter>} */
   const instancias = new Map();
@@ -267,7 +270,7 @@ function criarInstanciaManager({
   }
 
   /**
-   * A equipe tem um conectar/desconectar/reconexão em andamento? O heartbeat pula a equipe ocupada
+   * A equipe tem um conectar/desconectar/remover/reconexão em andamento? O heartbeat pula a equipe ocupada
    * (o estado lido no meio de um desconectar seria reportado depois do DESCONECTADO final).
    * @param {string | number} codEquipe
    * @returns {boolean}
@@ -320,6 +323,9 @@ function criarInstanciaManager({
     if (hashDono !== undefined && hashDono !== hashEmpresa) {
       throw new ErroConexaoEquipe("A equipe já está conectada por outra empresa.", "EQUIPE_OUTRA_EMPRESA");
     }
+    // Uma adição de participantes em andamento para antes do logout (o restante sai NAO_PROCESSADO) e
+    // a trava de grupo cai: a chamada seguinte encontra a equipe desconectada, não "ocupada".
+    travaGrupo.abortar(cod);
     const comCreds = BaileysAdapter.existeSessaoEmDisco(cod, diretorioSessoes);
     const haviaSessao = Boolean(
       doRegistro || comCreds || (instancia && (instancia.temSocket() || instancia.obterStatusConexao().status_conexao !== "DESCONECTADO"))

@@ -14,6 +14,8 @@ function criarDesligamento() {
   let emAndamento = 0;
   /** @type {Set<() => void>} quem espera as requisições em andamento terminarem */
   const esperando = new Set();
+  /** @type {(() => void)[]} quem precisa parar o que está em andamento assim que o desligamento começa */
+  const aoIniciarEncerramento = [];
 
   function avisarSeVazio() {
     if (emAndamento > 0) return;
@@ -54,6 +56,21 @@ function criarDesligamento() {
   return {
     marcarEncerrando: () => {
       encerrando = true;
+      for (const aviso of aoIniciarEncerramento) {
+        try {
+          aviso();
+        } catch (erro) {
+          console.error("[DESLIGAMENTO] Falha ao avisar uma operação em andamento:", erro instanceof Error ? erro.name : "erro");
+        }
+      }
+    },
+    /**
+     * Registra o que roda quando o desligamento começa (ex.: interromper a adição de participantes,
+     * cujo sono entre as adições não pode segurar o teto do encerramento).
+     * @param {() => void} aviso
+     */
+    aoIniciarEncerramento: (aviso) => {
+      aoIniciarEncerramento.push(aviso);
     },
     estaEncerrando: () => encerrando,
     emAndamento: () => emAndamento,

@@ -196,3 +196,48 @@ test("a invalidação do grupo A não afeta a consulta em andamento do grupo B (
   await cache.obterParticipantes(socket, grupoB);
   assert.equal(consultasB, 1, "uma consulta só, e o resultado de B foi para o cache");
 });
+
+// ---------- podeAdicionar (Fase 28, Task 28.1) ----------
+
+const EU_ID = { jid: "5511900000099:7@s.whatsapp.net", lid: "100000000000099:7@lid" };
+const EU_NO_GRUPO = { id: "100000000000099@lid", lid: "100000000000099@lid", jid: "5511900000099@s.whatsapp.net" };
+
+/** @param {any[]} participants @param {boolean | undefined} memberAddMode */
+const socketComGrupo = (participants, memberAddMode) => {
+  const estado = { consultas: 0 };
+  return {
+    estado,
+    groupMetadata: async (/** @type {string} */ jid) => {
+      estado.consultas += 1;
+      return { id: jid, subject: "Suporte", participants, ...(memberAddMode === undefined ? {} : { memberAddMode }) };
+    },
+  };
+};
+
+test("podeAdicionar: admin pode; participante comum só com memberAddMode; usa uma consulta e o cache", async () => {
+  const cache = criarCacheNomeGrupo();
+  const admin = socketComGrupo([{ ...EU_NO_GRUPO, admin: "admin" }], false);
+  assert.equal(await cache.podeAdicionar(admin, JID_GRUPO, EU_ID), true);
+  assert.equal(await cache.podeAdicionar(admin, JID_GRUPO, EU_ID), true);
+  assert.equal(admin.estado.consultas, 1);
+
+  const superadmin = socketComGrupo([{ ...EU_NO_GRUPO, admin: "superadmin" }], false);
+  assert.equal(await criarCacheNomeGrupo().podeAdicionar(superadmin, JID_GRUPO, EU_ID), true);
+
+  const comum = socketComGrupo([{ ...EU_NO_GRUPO, admin: null }], false);
+  assert.equal(await criarCacheNomeGrupo().podeAdicionar(comum, JID_GRUPO, EU_ID), false);
+  const semCampo = socketComGrupo([{ ...EU_NO_GRUPO, admin: null }], undefined);
+  assert.equal(await criarCacheNomeGrupo().podeAdicionar(semCampo, JID_GRUPO, EU_ID), false, "sem memberAddMode vale só admin");
+  const todosAdicionam = socketComGrupo([{ ...EU_NO_GRUPO, admin: null }], true);
+  assert.equal(await criarCacheNomeGrupo().podeAdicionar(todosAdicionam, JID_GRUPO, EU_ID), true);
+});
+
+test("podeAdicionar: número da equipe fora do grupo, grupo inválido e falha da consulta rejeitam com ErroConsultaGrupo", async () => {
+  const cache = criarCacheNomeGrupo({ msPrazo: 20 });
+  const fora = socketComGrupo([{ id: "100000000000004@lid", lid: "100000000000004@lid", admin: "admin" }], true);
+  await assert.rejects(cache.podeAdicionar(fora, JID_GRUPO, EU_ID), (e) => e instanceof ErroConsultaGrupo && e.codigo === "GRUPO_NAO_ENCONTRADO");
+  await assert.rejects(cache.podeAdicionar(fora, "5511900000001@s.whatsapp.net", EU_ID), (e) => e instanceof ErroConsultaGrupo && e.codigo === "GRUPO_NAO_ENCONTRADO");
+  await assert.rejects(cache.podeAdicionar({}, JID_GRUPO, EU_ID), (e) => e instanceof ErroConsultaGrupo && e.codigo === "FALHA");
+  const lento = { groupMetadata: () => new Promise(() => {}) };
+  await assert.rejects(cache.podeAdicionar(lento, "120363000000000090@g.us", EU_ID), (e) => e instanceof ErroConsultaGrupo && e.codigo === "PRAZO_ESGOTADO");
+});

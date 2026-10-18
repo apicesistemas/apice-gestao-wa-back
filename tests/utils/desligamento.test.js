@@ -76,3 +76,24 @@ test("aguardarEmAndamento resolve na hora sem requisições, e espera as que já
   assert.equal(terminou, true);
   assert.equal(d.emAndamento(), 0);
 });
+
+test("aoIniciarEncerramento: os avisos rodam quando o desligamento começa, e uma falha de um não impede os outros", () => {
+  const d = criarDesligamento();
+  /** @type {string[]} */
+  const ordem = [];
+  d.aoIniciarEncerramento(() => ordem.push("a"));
+  d.aoIniciarEncerramento(() => {
+    throw new Error("falha do aviso");
+  });
+  d.aoIniciarEncerramento(() => ordem.push("c"));
+  assert.deepEqual(ordem, [], "nada roda antes do desligamento");
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    d.marcarEncerrando();
+  } finally {
+    console.error = originalError;
+  }
+  assert.deepEqual(ordem, ["a", "c"]);
+  assert.equal(d.estaEncerrando(), true);
+});

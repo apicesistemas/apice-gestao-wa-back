@@ -22,7 +22,7 @@ after(() => fs.rmSync(raiz, { recursive: true, force: true }));
 let contador = 0;
 beforeEach(() => baileysFalso.limparHistorico());
 
-/** @param {{ msPrazoLogout?: number, reportarStatus?: (cod: string, status: any) => Promise<unknown> }} [extra] */
+/** @param {{ msPrazoLogout?: number, travaGrupo?: import("../../src/whatsapp/travaGrupo").TravaGrupo, reportarStatus?: (cod: string, status: any) => Promise<unknown> }} [extra] */
 function novoManager(extra = {}) {
   contador += 1;
   const diretorioSessoes = path.join(raiz, `sessoes-${contador}`);
@@ -35,6 +35,7 @@ function novoManager(extra = {}) {
     caminhoRegistro,
     caminhoAtividade,
     msPrazoLogout: extra.msPrazoLogout,
+    ...(extra.travaGrupo ? { travaGrupo: extra.travaGrupo } : {}),
     reportarStatus:
       extra.reportarStatus ??
       (async (codEquipe, status) => {
@@ -339,4 +340,40 @@ test("GET /ping real (HealthController) não lista a equipe removida e mantém a
   } finally {
     await new Promise((resolve) => httpServer.close(resolve));
   }
+});
+
+test("remover durante uma operação de grupo aborta o sinal ANTES do logout, libera a trava e a equipe sai do Map (a seguinte vê a equipe desconectada)", async () => {
+  const { criarTravaGrupo } = require("../../src/whatsapp/travaGrupo");
+  const trava = criarTravaGrupo();
+  const ctx = novoManager({ travaGrupo: trava });
+  const { socket } = await conectarPareada(ctx, "40");
+  const sinal = /** @type {AbortSignal} */ (trava.entrar("40"));
+  /** @type {boolean[]} */
+  const abortadoNoLogout = [];
+  const socketAny = /** @type {any} */ (socket);
+  const logoutOriginal = socketAny.logout;
+  socketAny.logout = async () => {
+    abortadoNoLogout.push(sinal.aborted);
+    return logoutOriginal.call(socket);
+  };
+
+  await ctx.manager.remover(40, "hash-a");
+
+  assert.deepEqual(abortadoNoLogout, [true]);
+  assert.equal(trava.ocupada("40"), false);
+  assert.equal(ctx.manager.obter(40), null);
+  await drenar(); // a trava da equipe cai um microtask depois da resposta
+  assert.equal(ctx.manager.equipeOcupada(40), false);
+});
+
+test("remover de equipe sem sessão também libera uma operação de grupo pendente, e remover de outra empresa não", async () => {
+  const { criarTravaGrupo } = require("../../src/whatsapp/travaGrupo");
+  const trava = criarTravaGrupo();
+  const ctx = novoManager({ travaGrupo: trava });
+  await conectarPareada(ctx, "41");
+  const sinal = /** @type {AbortSignal} */ (trava.entrar("41"));
+  await assert.rejects(ctx.manager.remover(41, "hash-b"), (erro) => erro instanceof ErroConexaoEquipe);
+  assert.equal(sinal.aborted, false);
+  await ctx.manager.remover(41, "hash-a");
+  assert.equal(sinal.aborted, true);
 });

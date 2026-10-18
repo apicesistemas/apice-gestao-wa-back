@@ -198,6 +198,85 @@ function ultimoSocket() {
   return socket;
 }
 
+/**
+ * Métodos de grupo para acoplar a um socket falso (`Object.assign(ultimoSocket(), grupo.metodos)`) ou a um
+ * socket de teste unitário: `onWhatsApp`, `groupMetadata`, `groupParticipantsUpdate` e `sendMessage`
+ * (inclusive o de `groupInvite`). Cada chamada fica em `chamadas`, na ordem em que ocorreu (`ordem`).
+ * Números fictícios: `numeros` mapeia o telefone digitado ao JID real devolvido pelo `onWhatsApp` (número
+ * ausente = sem WhatsApp, como o Baileys, que o omite); `adds` mapeia o JID ao item (ou erro) do `add`.
+ * @param {{
+ *   participantes?: any[],
+ *   subject?: string,
+ *   memberAddMode?: boolean,
+ *   numeros?: Record<string, string | { jid: string, lid?: string } | Error>,
+ *   adds?: Record<string, { status: string, content?: any } | Error | any[]>,
+ *   aoChamar?: (evento: string) => void | Promise<void>,
+ *   criacao?: Error | "travar" | { id: string },
+ *   falhaMetadata?: boolean,
+ * }} [config]
+ */
+function criarGrupoFalso({ participantes = [], subject = "Suporte Loja Centro", memberAddMode = false, numeros = {}, adds = {}, aoChamar, criacao = { id: "120363000000000777@g.us" }, falhaMetadata = false } = {}) {
+  /** @type {{ onWhatsApp: any[][], metadata: number, add: { jid: string, alvos: string[], acao: string }[], envios: { jid: string, conteudo: any, opcoes: any }[], criacoes: { subject: string, participantes: string[] }[], ordem: string[] }} */
+  const chamadas = { onWhatsApp: [], metadata: 0, add: [], envios: [], criacoes: [], ordem: [] };
+  const metodos = {
+    /** @param {string[]} jids */
+    async onWhatsApp(...jids) {
+      chamadas.onWhatsApp.push(jids);
+      chamadas.ordem.push("onWhatsApp");
+      await aoChamar?.("onWhatsApp");
+      /** @type {any[]} */
+      const resposta = [];
+      for (const jid of jids) {
+        const real = numeros[String(jid).split("@")[0] ?? ""];
+        if (real instanceof Error) throw real;
+        if (real) resposta.push(typeof real === "string" ? { jid: real, exists: true } : { exists: true, ...real });
+      }
+      return resposta;
+    },
+    /** @param {string} jid */
+    async groupMetadata(jid) {
+      chamadas.metadata += 1;
+      chamadas.ordem.push("groupMetadata");
+      await aoChamar?.("groupMetadata");
+      if (falhaMetadata) throw new Error("falha do groupMetadata");
+      return { id: jid, subject, memberAddMode, participants: participantes };
+    },
+    /** @param {string} nome @param {string[]} alvos */
+    async groupCreate(nome, alvos) {
+      chamadas.criacoes.push({ subject: nome, participantes: alvos });
+      chamadas.ordem.push("groupCreate");
+      await aoChamar?.("groupCreate");
+      if (criacao === "travar") return new Promise(() => {});
+      if (criacao instanceof Error) throw criacao;
+      return { id: criacao.id, subject: nome, participants: alvos.map((id) => ({ id })) };
+    },
+    /** @param {string} jid @param {string[]} alvos @param {string} acao */
+    async groupParticipantsUpdate(jid, alvos, acao) {
+      chamadas.add.push({ jid, alvos, acao });
+      chamadas.ordem.push("add");
+      await aoChamar?.("add");
+      const resposta = adds[/** @type {string} */ (alvos[0])];
+      if (resposta instanceof Error) throw resposta;
+      if (Array.isArray(resposta)) return resposta;
+      return [Object.assign({ status: "200", jid: alvos[0], content: { tag: "participant", attrs: { jid: alvos[0] } } }, resposta)];
+    },
+    /** @param {string} jid @param {any} conteudo @param {any} opcoes */
+    async sendMessage(jid, conteudo, opcoes) {
+      chamadas.envios.push({ jid, conteudo, opcoes });
+      chamadas.ordem.push("sendMessage");
+      await aoChamar?.("sendMessage");
+      return { key: { remoteJid: jid, fromMe: true, id: opcoes?.messageId }, message: conteudo, messageTimestamp: Math.floor(Date.now() / 1000) };
+    },
+  };
+  return { metodos, chamadas };
+}
+
+/** Item `participant` do BinaryNode do 403, com o `add_request` do convite (como o Baileys devolve em `content`). */
+/** @param {string} jid @param {string} code @param {string | number} expiration */
+function conteudoComAddRequest(jid, code, expiration) {
+  return { tag: "participant", attrs: { jid, error: "403" }, content: [{ tag: "add_request", attrs: { code, expiration: String(expiration) } }] };
+}
+
 /** Drena microtasks e callbacks de I/O pendentes (o `iniciar()` da reconexão é fire-and-forget). */
 async function drenar() {
   for (let i = 0; i < 5; i += 1) await new Promise((resolve) => setImmediate(resolve));
@@ -212,6 +291,8 @@ module.exports = {
   definirSaveCreds,
   definirLogout,
   definirPortaAuthState,
+  criarGrupoFalso,
+  conteudoComAddRequest,
   contagem,
   sockets,
   pastasAuthState,

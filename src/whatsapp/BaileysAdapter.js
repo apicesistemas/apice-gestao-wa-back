@@ -73,6 +73,7 @@ const mensagemStatusInternoClient = require("../services/mensagemStatusInternoCl
 const presencaInternoClient = require("../services/presencaInternoClient");
 const { criarRecuperacao } = require("./recuperacao");
 const { criarCacheEnviadas } = require("./cacheEnviadas");
+const grupoGestao = require("./grupoGestao");
 
 /** Diretório base das sessões: `./sessoes-baileys/<cod_equipe>` na raiz do projeto. */
 const DIRETORIO_SESSOES = path.join(__dirname, "..", "..", "sessoes-baileys");
@@ -109,6 +110,13 @@ const EVENTOS_SOCKET = /** @type {const} */ ([
   "groups.update",
   "group-participants.update",
 ]);
+
+/**
+ * `messageStubType` das mensagens de sistema que mudam os participantes de um grupo (proto do Baileys
+ * 6.7.24: GROUP_PARTICIPANT_ADD = 27, REMOVE = 28, PROMOTE = 29, DEMOTE = 30, INVITE = 31, LEAVE = 32).
+ * Elas não são mensagens do chat (nunca viram registro), mas invalidam o cache dos participantes.
+ */
+const STUBS_PARTICIPANTES_GRUPO = new Set([27, 28, 29, 30, 31, 32]);
 
 /** @typedef {"DESCONECTADO" | "QR_PENDENTE" | "CONECTADO" | "ERRO"} StatusConexao */
 /** @typedef {"CONFIRMADA" | "NAO_CONFIRMADA" | "SEM_PAREAMENTO"} RemocaoAparelho */
@@ -248,6 +256,17 @@ async function apagarSessaoEmDisco(codEquipe, diretorioSessoes = DIRETORIO_SESSO
 
 /**
  * @typedef {{
+ *   telefones: string[],
+ *   segundosIntervalo: number,
+ *   convite?: { texto: string } | null,
+ *   dormir?: (segundos: number, sinal?: AbortSignal) => Promise<void>,
+ *   sinal?: AbortSignal,
+ *   msPrazoCriacao?: number,
+ * }} OpcoesAdicaoGrupo
+ */
+
+/**
+ * @typedef {{
  *   codEquipe: string,
  *   hashEmpresa: string,
  *   iniciar: () => Promise<EstadoConexao>,
@@ -261,6 +280,8 @@ async function apagarSessaoEmDisco(codEquipe, diretorioSessoes = DIRETORIO_SESSO
  *   guardarEnviada: (mensagemWaId: string, message: any, chatJid: string) => void,
  *   socketConectado: () => SocketBaileys | null,
  *   obterParticipantesGrupo: (chatJid: string) => Promise<import("./nomeGrupo").ParticipanteGrupo[]>,
+ *   adicionarParticipantesGrupo: (chatJid: string, opcoes: OpcoesAdicaoGrupo) => Promise<import("./grupoGestao").ResultadoParticipante[]>,
+ *   criarGrupo: (nome: string, opcoes: OpcoesAdicaoGrupo) => Promise<{ chat_jid: string, nome_grupo: string, participantes: import("./grupoGestao").ResultadoParticipante[] }>,
  * }} BaileysAdapter
  */
 
@@ -478,6 +499,8 @@ function criarAdapter({
    * @param {unknown} tipoLote `notify` (tempo real) ou `append` (fila offline da reconexão, eco)
    */
   async function processarMensagem(s, waMessage, tipoLote) {
+    // Mensagem de sistema de entrada/saída/papel de participante: o grupo é consultado de novo na próxima vez.
+    if (STUBS_PARTICIPANTES_GRUPO.has(Number(waMessage?.messageStubType))) nomesGrupo.esquecer(waMessage?.key?.remoteJid);
     resolvedorLid.aprenderDaMensagem(waMessage);
     const normalizada = normalizarMensagem(waMessage, { eu: { jid: s.user?.id, lid: s.user?.lid } });
     if (!normalizada || !registroAparelho.deveRegistrar(normalizada)) return;
@@ -789,6 +812,26 @@ function criarAdapter({
     return lidDoContato ? [jid, lidDoContato] : [jid];
   }
 
+  /**
+   * O que o `grupoGestao` usa do adapter (adicionar e criar grupo): socket atual, cache do grupo, marca de
+   * envio do CRM e cache de reenvio.
+   * @param {SocketBaileys} conectado socket que a operação começou usando (o cache do grupo consulta por ele)
+   * @returns {import("./grupoGestao").AdapterGrupo}
+   */
+  function fachadaGrupo(conectado) {
+    return {
+      socketConectado: () => (socket && estado.status_conexao === "CONECTADO" ? socket : null),
+      obterParticipantesGrupo: (jid) => nomesGrupo.obterParticipantes(conectado, jid),
+      obterNomeGrupo: (jid) => nomesGrupo.obterNome(conectado, jid),
+      aprenderGrupo: (grupos) => nomesGrupo.aprender(grupos),
+      marcarEnviadaPeloCrm: (id) => {
+        registroAparelho.marcarEnviada(id);
+        recibos.adiarRecibos(id);
+      },
+      guardarEnviada: (id, message, jid) => cacheEnviadas.guardar(id, message, destinosDoChat(jid)),
+    };
+  }
+
   return {
     codEquipe: cod,
     hashEmpresa,
@@ -821,6 +864,29 @@ function criarAdapter({
       const conectado = socket && estado.status_conexao === "CONECTADO" ? socket : null;
       if (!conectado) throw new ErroConsultaGrupo("FALHA");
       return nomesGrupo.obterParticipantes(conectado, chatJid);
+    },
+    // Para `POST /equipe/:cod_equipe/grupo/participantes/adicionar` (Fase 28): confere que a equipe pode
+    // adicionar (admin ou `memberAddMode`) e adiciona em série. O cache do grupo é descartado no fim,
+    // com sucesso ou não. Rejeita com ErroGrupo ou ErroConsultaGrupo (sem JID/telefone na mensagem).
+    async adicionarParticipantesGrupo(chatJid, { telefones, ...opcoes }) {
+      const conectado = socket && estado.status_conexao === "CONECTADO" ? socket : null;
+      if (!conectado) throw new grupoGestao.ErroGrupo("DESCONECTADA");
+      const pode = await nomesGrupo.podeAdicionar(conectado, chatJid, { jid: conectado.user?.id, lid: conectado.user?.lid });
+      if (!pode) throw new grupoGestao.ErroGrupo("NAO_ADMIN");
+      try {
+        return await grupoGestao.adicionarEmSerie(fachadaGrupo(conectado), chatJid, telefones, opcoes);
+      } finally {
+        nomesGrupo.esquecer(chatJid);
+      }
+    },
+
+    // Para `POST /equipe/:cod_equipe/grupo/criar` (Fase 29): cria o grupo com o 1º telefone com WhatsApp e
+    // adiciona os demais. O nome entra no cache do grupo (`aprender`). Rejeita com ErroGrupo (sem JID/telefone
+    // na mensagem); depois do `groupCreate` bem-sucedido não rejeita mais.
+    async criarGrupo(nome, { telefones, ...opcoes }) {
+      const conectado = socket && estado.status_conexao === "CONECTADO" ? socket : null;
+      if (!conectado) throw new grupoGestao.ErroGrupo("DESCONECTADA");
+      return grupoGestao.criarGrupo(fachadaGrupo(conectado), nome, telefones, opcoes);
     },
   };
 }

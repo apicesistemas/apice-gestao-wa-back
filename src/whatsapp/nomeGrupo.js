@@ -12,6 +12,7 @@
 // `group-participants.update` esquece o grupo inteiro (`esquecer`).
 // Só memória; nunca JID, LID ou telefone em log.
 const { normalizarJid, lidDe, telefoneDe } = require("./filtroEntrada");
+const { ehProprio } = require("./mencoesEntrada");
 
 /** Subject em cache: grupos mudam de nome raramente, e o `groups.update` cobre a mudança. */
 const MS_TTL_NOME = 60 * 60 * 1000;
@@ -24,7 +25,7 @@ const MAX_GRUPOS = 2000;
 
 /** @typedef {{ jid: string, lid: string | null, telefone: string | null, admin: boolean }} ParticipanteGrupo */
 /** @typedef {"PRAZO_ESGOTADO" | "GRUPO_NAO_ENCONTRADO" | "FALHA"} CodigoErroGrupo */
-/** @typedef {{ nome: string | null, participantes: ParticipanteGrupo[] | null, erro: CodigoErroGrupo | null, expiraEm: number }} EntradaGrupo */
+/** @typedef {{ nome: string | null, participantes: ParticipanteGrupo[] | null, memberAddMode: boolean, erro: CodigoErroGrupo | null, expiraEm: number }} EntradaGrupo */
 
 /** Falha da consulta de participantes; a mensagem não traz JID, LID nem telefone. */
 class ErroConsultaGrupo extends Error {
@@ -143,12 +144,14 @@ function criarCacheNomeGrupo({ msTtl = MS_TTL_NOME, msTtlFalha = MS_TTL_FALHA, m
       entrada = {
         nome: limparSubject(metadados?.subject),
         participantes: lista.map(mapearParticipante).filter(/** @param {ParticipanteGrupo | null} p @returns {p is ParticipanteGrupo} */ (p) => p !== null),
+        // `member_add_mode` do grupo: true = qualquer participante adiciona; false = só admin.
+        memberAddMode: metadados?.memberAddMode === true,
         erro: null,
       };
     } catch (erro) {
       const nomeErro = erro instanceof Error ? erro.name : "erro";
       console.log(`[ENTRADA] Dados do grupo indisponíveis (${nomeErro}); a mensagem segue sem nome_chat.`);
-      entrada = { nome: null, participantes: null, erro: classificarErro(erro) };
+      entrada = { nome: null, participantes: null, memberAddMode: false, erro: classificarErro(erro) };
     } finally {
       clearTimeout(timer);
     }
@@ -199,13 +202,40 @@ function criarCacheNomeGrupo({ msTtl = MS_TTL_NOME, msTtlFalha = MS_TTL_FALHA, m
    * @throws {ErroConsultaGrupo} prazo esgotado, grupo não encontrado (número fora dele) ou falha
    */
   async function obterParticipantes(socket, jid) {
+    return (await entradaDeParticipantes(socket, jid)).participantes ?? [];
+  }
+
+  /**
+   * Entrada do grupo com os participantes carregados (cache ou uma consulta).
+   * @param {{ groupMetadata?: (jid: string) => Promise<any> }} socket
+   * @param {unknown} jid
+   * @returns {Promise<EntradaGrupo>}
+   * @throws {ErroConsultaGrupo}
+   */
+  async function entradaDeParticipantes(socket, jid) {
     if (!ehGrupo(jid)) throw new ErroConsultaGrupo("GRUPO_NAO_ENCONTRADO");
     if (typeof socket?.groupMetadata !== "function") throw new ErroConsultaGrupo("FALHA");
     const chave = /** @type {string} */ (jid);
     let entrada = emCache(chave);
     if (!entrada || (!entrada.erro && !entrada.participantes)) entrada = await buscar(socket, chave);
     if (entrada.erro) throw new ErroConsultaGrupo(entrada.erro);
-    return entrada.participantes ?? [];
+    return entrada;
+  }
+
+  /**
+   * A equipe pode adicionar participantes neste grupo? Sim quando é admin ou quando o grupo deixa
+   * qualquer participante adicionar (`memberAddMode`). Número fora do grupo → GRUPO_NAO_ENCONTRADO.
+   * @param {{ groupMetadata?: (jid: string) => Promise<any> }} socket
+   * @param {unknown} jid
+   * @param {{ jid?: string | null, lid?: string | null }} proprio identidade do número da equipe (`sock.user`)
+   * @returns {Promise<boolean>}
+   * @throws {ErroConsultaGrupo} prazo esgotado, grupo não encontrado (equipe fora dele) ou falha
+   */
+  async function podeAdicionar(socket, jid, proprio) {
+    const entrada = await entradaDeParticipantes(socket, jid);
+    const eu = (entrada.participantes ?? []).find((p) => ehProprio(p, proprio));
+    if (!eu) throw new ErroConsultaGrupo("GRUPO_NAO_ENCONTRADO");
+    return eu.admin || entrada.memberAddMode;
   }
 
   /**
@@ -219,7 +249,7 @@ function criarCacheNomeGrupo({ msTtl = MS_TTL_NOME, msTtlFalha = MS_TTL_FALHA, m
       if (!ehGrupo(grupo?.id)) continue;
       const nome = limparSubject(grupo.subject);
       const atual = cache.get(grupo.id);
-      if (nome) guardar(grupo.id, { nome, participantes: null, erro: null }, msTtl);
+      if (nome) guardar(grupo.id, { nome, participantes: null, memberAddMode: false, erro: null }, msTtl);
       else if (atual && !atual.erro) cache.set(grupo.id, { ...atual, participantes: null });
       invalidarGeracao(grupo.id);
       emAndamento.delete(grupo.id);
@@ -240,6 +270,7 @@ function criarCacheNomeGrupo({ msTtl = MS_TTL_NOME, msTtlFalha = MS_TTL_FALHA, m
   return {
     obterNome,
     obterParticipantes,
+    podeAdicionar,
     aprender,
     esquecer,
     limpar() {
