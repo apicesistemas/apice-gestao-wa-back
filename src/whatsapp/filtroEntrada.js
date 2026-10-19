@@ -503,4 +503,4 @@ function normalizarMensagem(waMessage, { eu } = {}) {
   };
 }
 
-module.exports = { normalizarMensagem, normalizarJid, lidDe, telefoneDe, mensagemWaIdValido, paraJson };
+module.exports = { normalizarMensagem, normalizarJid, lidDe, telefoneDe, mensagemWaIdValido, paraJson, desembrulhar };

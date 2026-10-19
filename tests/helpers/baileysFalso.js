@@ -314,8 +314,37 @@ async function drenar() {
   for (let i = 0; i < 5; i += 1) await new Promise((resolve) => setImmediate(resolve));
 }
 
+/**
+ * Espião das saídas de um socket falso (Task 34.0, reaproveitado pela 34.2): instala `sendMessage` e
+ * `rejectCall` no socket e troca o `fetch` global (toda chamada a `/interno/*` passa por ele). Nada
+ * chega a rede: o `fetch` espião rejeita. `efeitos` guarda, em ordem, o que foi chamado; `restaurar()`
+ * devolve o `fetch` original (chame no `finally`).
+ * @param {any} socket
+ * @returns {{ efeitos: string[], restaurar: () => void }}
+ */
+function espiarSaidas(socket) {
+  /** @type {string[]} */
+  const efeitos = [];
+  const fetchOriginal = globalThis.fetch;
+  socket.sendMessage = async () => void efeitos.push("sendMessage");
+  socket.rejectCall = async () => void efeitos.push("rejectCall");
+  globalThis.fetch = /** @type {any} */ (
+    async () => {
+      efeitos.push("fetch");
+      throw new Error("sem rede nos testes");
+    }
+  );
+  return {
+    efeitos,
+    restaurar() {
+      globalThis.fetch = fetchOriginal;
+    },
+  };
+}
+
 module.exports = {
   instalarBaileysFalso,
+  espiarSaidas,
   limparHistorico,
   ultimoSocket,
   drenar,

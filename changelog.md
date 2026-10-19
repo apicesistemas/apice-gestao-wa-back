@@ -3,6 +3,44 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.21.0] - 2026-10-19
+
+### Adicionado
+
+- Diagnóstico das chamadas de voz e vídeo (Fase 34, Task 34.0). **Só log, nada sai do wa-back:** nenhuma rota `/interno/*`, nenhum `sendMessage`, nenhum `rejectCall`, nenhuma resposta a quem liga. Serve para a homologação escolher a fonte da chamada feita (bloco W do PLAN: F1 evento `call` ou F2 `callLogMesssage`).
+- Ativação: `DIAGNOSTICO_CHAMADAS=S` no ambiente (lido a cada evento; qualquer outro valor, ou ausente, desliga e não escreve nada). Documentado no `.env.example` (padrão `N`).
+- Novo `src/whatsapp/diagnosticoChamadas.js` (`registrarFormaEventoCall`, `registrarFormaMensagem`). Uma linha `[DIAG-CHAMADA]` por evento `call` e por mensagem do `messages.upsert`, só com flags, nomes de enum e domínios (`s.whatsapp.net`, `lid`, `g.us`, `outro`, `ausente`). Nunca id, telefone, JID, LID nem nome (o teste recusa dígitos longos, `@`, id e nome).
+- `BaileysAdapter`: `"call"` em `EVENTOS_SOCKET` (sai no `fecharSocket`, como os demais) com um listener que só chama o diagnóstico, e `registrarFormaMensagem` no início do `processarMensagem`, antes do `normalizarMensagem`. O registro das mensagens não muda (teste de regressão compara o registro com o diagnóstico ligado e desligado; o `callLogMesssage` continua sem virar registro). `filtroEntrada` passa a exportar `desembrulhar` (sem mudança de comportamento).
+- Linha do evento `call` (um `WACallEvent`): `[DIAG-CHAMADA] evento=call status=<offer|ringing|timeout|reject|accept|terminate|outro> offline=<S|N|?> video=<S|N|?> grupo=<S|N|?> groupJid=<S|N> from_equipe=<S|N|?> from_dominio=<dom> chat_equipe=<S|N|?> chat_dominio=<dom>`. `from_equipe` e `chat_equipe` valem S quando o `from` e o `chatId` são o número da própria equipe (por telefone ou LID, sem o sufixo de dispositivo).
+- Linha da mensagem (`messages.upsert`, todas as mensagens, não só chamadas; filtre pelo grep): `[DIAG-CHAMADA] evento=upsert fromMe=<S|N|?> dominio=<dom do remoteJid> participante=<dom|ausente> stub=<CALL_MISSED_VOICE|CALL_MISSED_VIDEO|CALL_MISSED_GROUP_VOICE|CALL_MISSED_GROUP_VIDEO|número|outro|ausente> embrulhada=<S|N> callLog=<S|N> call=<S|N> outcome=<CONNECTED|MISSED|FAILED|REJECTED|ACCEPTED_ELSEWHERE|ONGOING|SILENCED_BY_DND|SILENCED_UNKNOWN_CALLER|ausente|outro|-> video=<S|N|?|-> duracao=<S|N|-> campo=<nome do campo do proto, ex.: conversation, callLogMesssage, nenhum> equipe_remetente=<S|N|?>`. `outcome`, `video` e `duracao` valem `-` quando não há `callLogMesssage` (3 "s", como no WAProto); `duracao=S` quer dizer que o `durationSecs` veio presente.
+- Testes: `tests/whatsapp/diagnosticoChamadas.test.js` (8) e 3 casos novos em `tests/whatsapp/BaileysAdapter.eventos.test.js` (desligado não loga, ligado loga sem efeito algum, regressão do registro, listener `call` removido no `pararSocket`). Rodada de correção 1: o espião das saídas vive em `tests/helpers/baileysFalso.js` (`espiarSaidas(socket)`: instala `sendMessage` e `rejectCall` no socket e troca o `fetch` global por um que rejeita, registrando tudo em `efeitos`; `restaurar()` no `finally`) e é usado nos três casos da 34.0, inclusive o do `callLogMesssage`, que antes não vigiava `sendMessage` nem `rejectCall`; o terceiro caso agora emite um `call` antes do `pararSocket`. Variável `comDiagnostico` (adapter sem diagnóstico) renomeada para `semDiagnostico`.
+- **Ordem de deploy:** nenhum contrato novo, sem SQL e sem dependência do back. Publicar o wa-back, pôr `DIAGNOSTICO_CHAMADAS=S` no `.env` do wa-back e reiniciar o PM2 "Ápice Gestão - WA Back". Depois da coleta, voltar a `N` (ou remover a linha) e reiniciar de novo.
+
+### Roteiro de homologação da 34.0 (número de teste, fora do CI)
+
+Como coletar: depois de cada cenário, `pm2 logs "Ápice Gestão - WA Back" --lines 200 --nostream | grep "\[DIAG-CHAMADA\]"` (ou `grep "\[DIAG-CHAMADA\]"` no arquivo da pasta `LOGS/`). Devolver as linhas de cada cenário, na ordem, com o número do cenário. Linhas esperadas abaixo (`<dom>` = `s.whatsapp.net` ou `lid`; `*` = qualquer valor; o que decide está na última coluna). Se um cenário não gerar nenhuma linha, informe isso: também é resposta.
+
+| # | Cenário | Linhas esperadas (formato) | O que decide |
+|---|---------|----------------------------|--------------|
+| 1 | Recebida e não atendida (deixar tocar até o fim) | `evento=call status=offer offline=N video=N grupo=* groupJid=N from_equipe=N from_dominio=<dom> chat_equipe=N chat_dominio=<dom>`, depois `evento=call status=timeout ...` (mesmo formato) e, talvez, `evento=upsert fromMe=N dominio=<dom> ... stub=CALL_MISSED_VOICE callLog=N ...` ou `callLog=S ... outcome=MISSED` | Confirma `offer` e `timeout` da recebida (PERDIDA) |
+| 2 | Recebida e o cliente desiste antes do fim | `status=offer from_equipe=N`, depois `status=terminate` (ou `timeout`); possível `upsert ... stub=CALL_MISSED_VOICE` ou `callLog=S outcome=MISSED fromMe=N` | Qual status chega quando o cliente cancela (ENCERRADA ou PERDIDA) |
+| 3 | Recebida e atendida no celular | `status=offer from_equipe=N`, possível `status=accept`, depois `status=terminate`; possível `upsert ... callLog=S ... outcome=CONNECTED` ou `ACCEPTED_ELSEWHERE` | Se o `accept` chega ao aparelho vinculado (ATENDIDA) e se o registro vem com `fromMe=N` |
+| 4 | Recebida e recusada no celular | `status=offer from_equipe=N`, depois `status=reject`; possível `upsert ... callLog=S ... outcome=REJECTED` | Se o `reject` chega (RECUSADA) |
+| 5 | Feita pelo celular e atendida | F1: `evento=call status=offer ... from_equipe=S chat_equipe=N` e `status=accept`. F2: `evento=upsert fromMe=S dominio=<dom> ... callLog=S call=N outcome=CONNECTED video=N duracao=S ...` | **F2 se aparecer `upsert fromMe=S callLog=S`; F1 se só houver `call` com `from_equipe=S`; nenhuma das duas = limitação** |
+| 6 | Feita pelo celular e não atendida (deixar tocar) | F1: `evento=call ... from_equipe=S ... status=timeout`. F2: `evento=upsert fromMe=S ... callLog=S ... outcome=MISSED` (ou `FAILED`) `duracao=N` | Como a não atendida aparece (NAO_ATENDIDA) |
+| 7 | Feita e cancelada antes de atender | F1: `evento=call status=terminate ... from_equipe=S`. F2: `evento=upsert fromMe=S ... callLog=S ... outcome=MISSED`, `REJECTED` ou `FAILED` | Como o cancelamento aparece (ENCERRADA ou NAO_ATENDIDA) |
+| 8 | Feita pelo WhatsApp Desktop | As mesmas linhas do cenário 5 (F1: `from_equipe=S`; F2: `fromMe=S callLog=S`) | **Se a chamada do Desktop também chega ao número vinculado do wa-back** |
+| 9 | Vídeo nos dois sentidos (uma recebida e uma feita) | Recebida: `evento=call status=offer ... video=S ...`. Feita: `video=S` no `call` (F1) ou `callLog=S ... video=S` (F2) | Se o `isVideo` vem correto nas duas pontas |
+| 10 | Chamada num grupo da equipe (recebida e, se possível, feita) | `evento=call status=offer ... grupo=S groupJid=S from_equipe=N from_dominio=<dom> chat_equipe=N chat_dominio=g.us`; possível `evento=upsert ... dominio=g.us participante=<dom> ... stub=CALL_MISSED_GROUP_VOICE` ou `callLog=S` | Domínio do grupo e se o participante vem identificado (D8) |
+| 11 | Reiniciar o wa-back (`pm2 restart`) no meio de uma chamada recebida tocando | Depois do boot: `evento=call status=offer offline=S ...`, ou só `evento=upsert fromMe=N ... stub=CALL_MISSED_VOICE` / `callLog=S`, ou nenhuma linha | Se a chamada perdida durante a queda chega como `offline=S` ou como registro de mensagem (`append`) |
+
+Instruções no servidor (192.168.1.167):
+
+1. Ligar: editar o `.env` do wa-back e acrescentar `DIAGNOSTICO_CHAMADAS=S`; depois `pm2 restart "Ápice Gestão - WA Back" --update-env`. Conferir com `pm2 logs "Ápice Gestão - WA Back" --lines 50 --nostream` que o processo voltou e a equipe reconectou sem QR.
+2. Executar os 11 cenários com o número de teste. Para cada um, esperar uns 30 s e coletar com o `grep` acima (as linhas dos cenários anteriores ficam no log: anote o horário de cada cenário).
+3. Desligar: trocar para `DIAGNOSTICO_CHAMADAS=N` (ou remover a linha) e reiniciar o PM2 como no passo 1. Conferir que uma mensagem de teste não gera mais nenhuma linha `[DIAG-CHAMADA]`.
+4. Com as linhas em mãos, aplicar a tabela do bloco W do PLAN (F2, F1 ou limitação) e registrar o resultado neste changelog antes de iniciar a Task 34.2.
+
 ## [0.20.0] - 2026-10-18
 
 ### Adicionado

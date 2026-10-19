@@ -75,6 +75,7 @@ const { criarRecuperacao } = require("./recuperacao");
 const { criarCacheEnviadas } = require("./cacheEnviadas");
 const grupoGestao = require("./grupoGestao");
 const fotoPerfil = require("./fotoPerfil");
+const diagnosticoChamadas = require("./diagnosticoChamadas");
 
 /** Diretório base das sessões: `./sessoes-baileys/<cod_equipe>` na raiz do projeto. */
 const DIRETORIO_SESSOES = path.join(__dirname, "..", "..", "sessoes-baileys");
@@ -110,6 +111,7 @@ const EVENTOS_SOCKET = /** @type {const} */ ([
   "presence.update",
   "groups.update",
   "group-participants.update",
+  "call",
 ]);
 
 /**
@@ -502,6 +504,7 @@ function criarAdapter({
    * @param {unknown} tipoLote `notify` (tempo real) ou `append` (fila offline da reconexão, eco)
    */
   async function processarMensagem(s, waMessage, tipoLote) {
+    diagnosticoChamadas.registrarFormaMensagem(waMessage, { jid: s.user?.id, lid: s.user?.lid }); // só log (DIAGNOSTICO_CHAMADAS=S)
     // Mensagem de sistema de entrada/saída/papel de participante: o grupo é consultado de novo na próxima vez.
     if (STUBS_PARTICIPANTES_GRUPO.has(Number(waMessage?.messageStubType))) nomesGrupo.esquecer(waMessage?.key?.remoteJid);
     resolvedorLid.aprenderDaMensagem(waMessage);
@@ -703,6 +706,8 @@ function criarAdapter({
     s.ev.on("presence.update", (evento) => presenca.tratarAtualizacao(evento, { jid: s.user?.id, lid: s.user?.lid }));
     s.ev.on("groups.update", (grupos) => nomesGrupo.aprender(grupos));
     s.ev.on("group-participants.update", (evento) => nomesGrupo.esquecer(evento?.id));
+    // Task 34.0: só o diagnóstico da forma do evento (log com DIAGNOSTICO_CHAMADAS=S); nada é registrado nem recusado.
+    s.ev.on("call", (eventos) => diagnosticoChamadas.registrarFormaEventoCall(eventos, { jid: s.user?.id, lid: s.user?.lid }));
 
     return { ...estado };
   }

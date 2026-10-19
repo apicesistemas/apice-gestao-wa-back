@@ -13,7 +13,7 @@ baileysFalso.instalarBaileysFalso();
 const { criarAdapter } = require("../../src/whatsapp/BaileysAdapter");
 const { mensagemWa, mensagemGrupo, JID_CLIENTE, JID_GRUPO, JID_PARTICIPANTE, EU, TELEFONE_EQUIPE } = require("../helpers/mensagensWa");
 
-const { ultimoSocket, drenar } = baileysFalso;
+const { ultimoSocket, drenar, espiarSaidas } = baileysFalso;
 const diretorioSessoes = fs.mkdtempSync(path.join(os.tmpdir(), "wa-back-eventos-"));
 after(() => fs.rmSync(diretorioSessoes, { recursive: true, force: true }));
 beforeEach(() => baileysFalso.limparHistorico());
@@ -376,3 +376,101 @@ for (const [nome, no, extra] of /** @type {[string, string, any][]} */ ([
     assert.deepEqual(registradas[0].mencoes_detalhe, [{ jid: LID_MENCIONADO, lid: LID_MENCIONADO, telefone: TELEFONE_MENCIONADO, propria: false }]);
   });
 }
+
+// ---- Task 34.0: diagnóstico das chamadas (só log, nada sai do wa-back) ----
+
+test("34.0: o evento call só alimenta o diagnóstico: sem DIAGNOSTICO_CHAMADAS não loga, e nunca registra, envia nem recusa", async () => {
+  const original = process.env.DIAGNOSTICO_CHAMADAS;
+  const logOriginal = console.log;
+  /** @type {string[]} */
+  const linhas = [];
+  console.log = (/** @type {any[]} */ ...a) => void linhas.push(a.join(" "));
+  /** @type {ReturnType<typeof espiarSaidas> | undefined} */
+  let espiao;
+  try {
+    const { socket, registradas, status, presencas, emitir } = await adapterConectado();
+    espiao = espiarSaidas(socket);
+    const efeitos = espiao.efeitos;
+    const chamada = { chatId: JID_CLIENTE, from: JID_CLIENTE, id: "CALLID1", date: new Date(), status: "offer", offline: false, isVideo: true };
+
+    delete process.env.DIAGNOSTICO_CHAMADAS;
+    await emitir("call", [chamada]);
+    await emitir("messages.upsert", { type: "notify", messages: [mensagemWa({ conversation: "olá" })] });
+    assert.deepEqual(linhas.filter((l) => l.includes("[DIAG-CHAMADA]")), []);
+    assert.equal(registradas.length, 1);
+
+    process.env.DIAGNOSTICO_CHAMADAS = "S";
+    await emitir("call", [chamada, { ...chamada, status: "timeout" }]);
+    const diag = linhas.filter((l) => l.includes("[DIAG-CHAMADA]"));
+    assert.equal(diag.length, 2);
+    assert.match(diag[0], /evento=call status=offer .*video=S .*from_equipe=N from_dominio=s\.whatsapp\.net/);
+    assert.match(diag[1], /status=timeout/);
+
+    // A chamada nunca vira registro, status, presença, envio nem recusa.
+    assert.equal(registradas.length, 1);
+    assert.deepEqual([status.length, presencas.length], [0, 0]);
+    assert.deepEqual(efeitos, []);
+  } finally {
+    console.log = logOriginal;
+    espiao?.restaurar();
+    if (original === undefined) delete process.env.DIAGNOSTICO_CHAMADAS;
+    else process.env.DIAGNOSTICO_CHAMADAS = original;
+  }
+});
+
+test("34.0: o diagnóstico do messages.upsert loga a forma e o registro das mensagens segue igual (inclui callLogMesssage sem virar registro)", async () => {
+  const original = process.env.DIAGNOSTICO_CHAMADAS;
+  const logOriginal = console.log;
+  /** @type {string[]} */
+  const linhas = [];
+  console.log = (/** @type {any[]} */ ...a) => void linhas.push(a.join(" "));
+  /** @type {ReturnType<typeof espiarSaidas>[]} */
+  const espioes = [];
+  try {
+    const mensagem = mensagemWa({ conversation: "um" });
+    const semDiagnostico = await adapterConectado();
+    espioes.push(espiarSaidas(semDiagnostico.socket));
+    delete process.env.DIAGNOSTICO_CHAMADAS;
+    await semDiagnostico.emitir("messages.upsert", { type: "notify", messages: [mensagem] });
+    const semDiag = semDiagnostico.registradas.map((m) => ({ ...m }));
+    assert.deepEqual(linhas.filter((l) => l.includes("[DIAG-CHAMADA]")), []);
+
+    process.env.DIAGNOSTICO_CHAMADAS = "S";
+    const outra = await adapterConectado();
+    espioes.push(espiarSaidas(outra.socket));
+    await outra.emitir("messages.upsert", { type: "notify", messages: [mensagem] });
+    assert.deepEqual(outra.registradas, semDiag, "o registro é idêntico com o diagnóstico ligado");
+
+    const antes = outra.registradas.length;
+    await outra.emitir("messages.upsert", {
+      type: "notify",
+      messages: [{ key: { remoteJid: JID_CLIENTE, fromMe: true, id: "3EB0CHAMADA01" }, message: { callLogMesssage: { callOutcome: 0, isVideo: false, durationSecs: 9 } } }],
+    });
+    const diag = linhas.filter((l) => l.includes("[DIAG-CHAMADA]"));
+    assert.equal(diag.length, 2);
+    assert.match(diag[1], /evento=upsert fromMe=S dominio=s\.whatsapp\.net .*callLog=S .*outcome=CONNECTED video=N duracao=S/);
+    assert.equal(outra.registradas.length, antes, "o registro de chamada não vai por mensagem-recebida");
+    // O registro de chamada não envia nem recusa nada, e não chama o back por fora do registrarMensagem injetado.
+    assert.deepEqual(espioes.flatMap((e) => e.efeitos), []);
+  } finally {
+    console.log = logOriginal;
+    for (const e of espioes.reverse()) e.restaurar();
+    if (original === undefined) delete process.env.DIAGNOSTICO_CHAMADAS;
+    else process.env.DIAGNOSTICO_CHAMADAS = original;
+  }
+});
+
+test("34.0: o listener de call sai com o socket (pararSocket)", async () => {
+  const { adapter, socket, emitir } = await adapterConectado();
+  const espiao = espiarSaidas(socket);
+  try {
+    assert.equal(typeof socket.listeners.call, "function");
+    await emitir("call", [{ chatId: JID_CLIENTE, from: JID_CLIENTE, id: "CALLID2", status: "offer", offline: false }]);
+    await adapter.pararSocket();
+    assert.ok(socket.removidos.includes("call"), "call removido");
+    assert.equal(socket.listeners.call, undefined);
+    assert.deepEqual(espiao.efeitos, []);
+  } finally {
+    espiao.restaurar();
+  }
+});
