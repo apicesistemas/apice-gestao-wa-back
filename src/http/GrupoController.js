@@ -51,6 +51,22 @@
 // Erros: 400 · 401 · 404 "Equipe não encontrada." · 409 { msg, codigo: "DESCONECTADA" | "OCUPADA" | "SEM_PARTICIPANTE_VALIDO"
 //   (com `participantes`) } · 502 · 503 + Retry-After · 504 "Criação do grupo não confirmada." · 500 sem vazar o erro.
 // O log leva só `cod_equipe`, contagens e códigos: nunca telefone, JID, LID nem o nome do grupo.
+//
+// Identificação do participante para a conversa privada (Fase 32, Task 32.1), contrato D1:
+// Canal D — `POST /equipe/:cod_equipe/grupo/participante/contato` (token de serviço + 503 no desligamento; SEM trava de
+// grupo, porque não altera o grupo)
+// Entrada JSON (allowlist; chave desconhecida, inclusive transcricao, nota_interna e explicacao, → 400 sem tocar o Baileys):
+//   { hash_empresa: string, chat_jid: /^[\d-]{1,40}@g\.us$/, participante_jid: /^(\d{1,25}@lid|\d{8,15}@s\.whatsapp\.net)$/ }
+// Fluxo: socket da equipe (404 tenant, 409 desconectada) → participantes pelo cache do nomeGrupo (equipe fora do grupo → 404
+//   "Grupo não encontrado.") → participante achado por jid, LID ou telefone (o número da equipe → 400 PROPRIO_NUMERO; ausente
+//   → 409 FORA_DO_GRUPO) → telefone = p.telefone ?? par do LID no resolvedor → com telefone: UM onWhatsApp (sem WhatsApp → 409
+//   SEM_WHATSAPP); jid_privado = o jid DEVOLVIDO (9º dígito), lid = p.lid ?? o da consulta, e o par é aprendido; sem telefone:
+//   jid_privado = o LID, telefone null, sem consulta.
+// 200 { jid_privado: string, lid: string | null, telefone: string | null }
+// Erros: 400 { msg } · 400 { msg, codigo: "PROPRIO_NUMERO" } · 401 · 404 "Equipe não encontrada." | "Grupo não encontrado." ·
+//   409 { msg, codigo: "DESCONECTADA" | "FORA_DO_GRUPO" | "SEM_WHATSAPP" } · 502 · 503 + Retry-After ·
+//   504 "A consulta do participante não respondeu." · 500 sem vazar o erro.
+// Nenhum sendMessage e nada em /interno/*. O log leva só `cod_equipe` e o código: nunca telefone, JID nem LID.
 const exigirTokenServico = require("./exigirTokenServico");
 const { ErroEnvio, obterSocketDaEquipe } = require("../whatsapp/envio");
 const { normalizarCodEquipe } = require("../whatsapp/BaileysAdapter");
@@ -74,6 +90,16 @@ const MSG_NOME_GRUPO = `Informe o nome do grupo com até ${MAX_NOME_GRUPO} carac
 const PADRAO_CONTROLE = /[\u0000-\u001F\u007F]/;
 const PADRAO_INVISIVEIS = /[\u200B-\u200D\uFEFF]/g;
 const ALLOWLIST_CRIACAO = new Set(["hash_empresa", "nome_grupo", "telefones", "segundos_intervalo", "convite"]);
+/** Chaves aceitas no corpo da identificação do participante (D1); qualquer outra (inclusive campo interno) é 400. */
+const ALLOWLIST_CONTATO = new Set(["hash_empresa", "chat_jid", "participante_jid"]);
+const PADRAO_PARTICIPANTE = /^(\d{1,25}@lid|\d{8,15}@s\.whatsapp\.net)$/;
+/** Respostas da consulta do grupo e do número na identificação do participante (D1). */
+/** @type {Record<import("../whatsapp/nomeGrupo").CodigoErroGrupo, { status: number, msg: string }>} */
+const RESPOSTA_DO_ERRO_CONTATO = {
+  GRUPO_NAO_ENCONTRADO: { status: 404, msg: "Grupo não encontrado." },
+  PRAZO_ESGOTADO: { status: 504, msg: "A consulta do participante não respondeu." },
+  FALHA: { status: 502, msg: "Não foi possível consultar o participante." },
+};
 const MSG_OCUPADA = "Outra alteração de grupo desta equipe está em andamento.";
 
 /** @type {Record<import("../whatsapp/envio").CodigoErroEnvio, number>} */
@@ -174,8 +200,31 @@ function validarCorpoCriacao(corpo) {
 }
 
 /**
+ * Valida o corpo da identificação do participante contra a allowlist do contrato D1.
+ * @param {unknown} corpo
+ * @returns {{ hash_empresa: unknown, chat_jid: string, participante_jid: string }}
+ * @throws {ErroRequisicao}
+ */
+function validarCorpoContato(corpo) {
+  const c = lerCorpoPermitido(corpo, ALLOWLIST_CONTATO, "na identificação do participante");
+  if (typeof c.chat_jid !== "string" || !PADRAO_GRUPO.test(c.chat_jid)) throw new ErroRequisicao("Grupo inválido.");
+  if (typeof c.participante_jid !== "string" || !PADRAO_PARTICIPANTE.test(c.participante_jid)) throw new ErroRequisicao("Participante inválido.");
+  return { hash_empresa: c.hash_empresa, chat_jid: c.chat_jid, participante_jid: c.participante_jid };
+}
+
+/**
+ * Erro de negócio da operação de grupo: PROPRIO_NUMERO é 400; os demais códigos são 409 com `codigo`.
  * @param {import("express").Response} res
- * @param {"DESCONECTADA" | "NAO_ADMIN" | "OCUPADA" | "CRIACAO_NAO_CONFIRMADA" | "SEM_PARTICIPANTE_VALIDO"} codigo
+ * @param {InstanceType<typeof ErroGrupo>} erro
+ */
+function responderErroGrupo(res, erro) {
+  if (erro.codigo === "PROPRIO_NUMERO") res.status(400).json({ msg: erro.message, codigo: erro.codigo });
+  else responder409(res, erro.codigo, erro.message);
+}
+
+/**
+ * @param {import("express").Response} res
+ * @param {"DESCONECTADA" | "NAO_ADMIN" | "OCUPADA" | "CRIACAO_NAO_CONFIRMADA" | "SEM_PARTICIPANTE_VALIDO" | "FORA_DO_GRUPO" | "SEM_WHATSAPP"} codigo
  * @param {string} msg
  */
 const responder409 = (res, codigo, msg) => void res.status(409).json({ msg, codigo });
@@ -187,10 +236,11 @@ const responder409 = (res, codigo, msg) => void res.status(409).json({ msg, codi
  *   travaGrupo?: import("../whatsapp/travaGrupo").TravaGrupo,
  *   dormir?: (segundos: number, sinal?: AbortSignal) => Promise<void>,
  *   msPrazoCriacao?: number,
- * }} [opcoes] estado de desligamento, trava das operações de grupo, relógio da pausa entre adições e prazo técnico do groupCreate (os testes injetam)
+ *   msPrazoConsulta?: number,
+ * }} [opcoes] estado de desligamento, trava das operações de grupo, relógio da pausa entre adições e prazos técnicos do groupCreate e da consulta do número (os testes injetam)
  * @returns {(server: import("express").Express) => void}
  */
-function criarGrupoController(manager, { desligamento = desligamentoDoProcesso, travaGrupo = travaGrupoDoProcesso, dormir, msPrazoCriacao } = {}) {
+function criarGrupoController(manager, { desligamento = desligamentoDoProcesso, travaGrupo = travaGrupoDoProcesso, dormir, msPrazoCriacao, msPrazoConsulta } = {}) {
   // Desligamento: a pausa entre as adições para na hora e o restante sai NAO_PROCESSADO, dentro do teto.
   desligamento.aoIniciarEncerramento?.(() => travaGrupo.abortarTodas());
   /** @returns {ManagerGrupo} */
@@ -233,6 +283,46 @@ function criarGrupoController(manager, { desligamento = desligamentoDoProcesso, 
         }
         console.error(`[GRUPO] Erro inesperado na consulta de participantes da equipe ${cod}:`, erro instanceof Error ? erro.name : "erro");
         res.status(500).json({ msg: "Erro interno ao consultar os participantes." });
+      }
+    });
+
+    server.post("/equipe/:cod_equipe/grupo/participante/contato", exigirTokenServico, recusarDuranteEncerramento, async (req, res) => {
+      let cod;
+      try {
+        cod = normalizarCodEquipe(/** @type {string} */ (req.params.cod_equipe));
+      } catch {
+        res.status(400).json({ msg: "Código da equipe inválido." });
+        return;
+      }
+      try {
+        const dados = validarCorpoContato(req.body);
+        const { adapter } = obterSocketDaEquipe(obterManager(), cod, dados.hash_empresa);
+        const resolver = /** @type {{ resolverContatoParticipante?: import("../whatsapp/BaileysAdapter").BaileysAdapter["resolverContatoParticipante"] }} */ (adapter).resolverContatoParticipante;
+        if (typeof resolver !== "function") throw new ErroConsultaGrupo("FALHA");
+        const contato = await resolver.call(adapter, dados.chat_jid, dados.participante_jid, { msPrazoConsulta });
+        res.status(200).json(contato);
+      } catch (erro) {
+        if (erro instanceof ErroRequisicao) {
+          res.status(400).json({ msg: erro.message });
+          return;
+        }
+        if (erro instanceof ErroGrupo) {
+          responderErroGrupo(res, erro);
+          return;
+        }
+        if (erro instanceof ErroEnvio) {
+          if (erro.codigo === "EQUIPE_DESCONECTADA") responder409(res, "DESCONECTADA", erro.message);
+          else res.status(STATUS_DO_ERRO[erro.codigo] ?? 500).json({ msg: erro.message });
+          return;
+        }
+        if (erro instanceof ErroConsultaGrupo) {
+          const { status, msg } = RESPOSTA_DO_ERRO_CONTATO[erro.codigo];
+          console.error(`[GRUPO] Identificação de participante da equipe ${cod} falhou: ${erro.codigo}`);
+          res.status(status).json({ msg });
+          return;
+        }
+        console.error(`[GRUPO] Erro inesperado na identificação de participante da equipe ${cod}:`, erro instanceof Error ? erro.name : "erro");
+        res.status(500).json({ msg: "Erro interno ao identificar o participante." });
       }
     });
 
@@ -310,7 +400,7 @@ function criarGrupoController(manager, { desligamento = desligamentoDoProcesso, 
               // Abortada pelo desligamento gracioso antes de criar: nada foi criado, o back tenta de novo depois.
               res.set("Retry-After", String(SEGUNDOS_RETRY_AFTER)).status(503).json({ msg: MSG_REINICIANDO });
             } else {
-              responder409(res, erro.codigo, erro.message);
+              responderErroGrupo(res, erro);
             }
             return;
           }
@@ -375,4 +465,4 @@ function criarGrupoController(manager, { desligamento = desligamentoDoProcesso, 
 
 const GrupoController = criarGrupoController();
 
-module.exports = Object.assign(GrupoController, { criarGrupoController, ALLOWLIST_ADICAO, ALLOWLIST_CRIACAO });
+module.exports = Object.assign(GrupoController, { criarGrupoController, ALLOWLIST_ADICAO, ALLOWLIST_CRIACAO, ALLOWLIST_CONTATO });

@@ -16,9 +16,13 @@
 // - `enviarConviteV4`: convite nativo (groupInvite) individual, em mensagem privada, só no 403 com
 //   `add_request` e só quando o back mandou `convite`. O id é marcado como enviado pelo CRM ANTES do
 //   `sendMessage`, então o eco não vira `/interno/mensagem-recebida`.
+// - `resolverContatoParticipante` (Fase 32, contrato D1): identifica UM participante do grupo para a conversa
+//   privada. Não envia nada: só o índice de participantes do grupo, o par LID <-> telefone e um `onWhatsApp`.
 //
 // Nunca JID, LID, telefone ou código de convite em log: só códigos e contagens.
 const { normalizarJid, lidDe, telefoneDe } = require("./filtroEntrada");
+const { ehProprio } = require("./mencoesEntrada");
+const { ErroConsultaGrupo } = require("./nomeGrupo");
 
 /**
  * Prazos técnicos de rede (não são regra de negócio; o ritmo e as quantidades vêm do back).
@@ -41,6 +45,9 @@ const MENSAGENS_ERRO_GRUPO = {
   DESCONECTADA: "O WhatsApp da equipe não está conectado.",
   CRIACAO_NAO_CONFIRMADA: "Criação do grupo não confirmada.",
   SEM_PARTICIPANTE_VALIDO: "Nenhum dos telefones informados tem WhatsApp. O grupo não foi criado.",
+  FORA_DO_GRUPO: "Participante não encontrado no grupo.",
+  SEM_WHATSAPP: "Este número não tem WhatsApp.",
+  PROPRIO_NUMERO: "Não é possível iniciar conversa com o número da própria equipe.",
 };
 
 /** Falha de negócio da operação de grupo; a mensagem não leva JID, LID nem telefone. */
@@ -258,6 +265,74 @@ function indexarParticipantes(participantes) {
 }
 
 /**
+ * @typedef {AdapterGrupo & {
+ *   telefoneDoLid: (lid: string) => string | null,
+ *   aprenderPar: (lid: string, telefone: string) => void,
+ * }} AdapterContato
+ */
+
+/**
+ * Participante do grupo pelo jid pedido: o `jid` do grupo (LID ou telefone), o LID ou o telefone.
+ * @param {import("./nomeGrupo").ParticipanteGrupo[]} participantes
+ * @param {string} jid jid já normalizado
+ * @returns {import("./nomeGrupo").ParticipanteGrupo | undefined}
+ */
+function acharParticipante(participantes, jid) {
+  const lid = lidDe(jid);
+  const telefone = telefoneDe(jid);
+  return participantes.find((p) => p.jid === jid || (lid !== null && p.lid === lid) || (telefone !== null && p.telefone === telefone));
+}
+
+/**
+ * Identifica o participante para a conversa privada com a equipe (contrato D1). NÃO envia nada: lê o índice de
+ * participantes (cache do nomeGrupo), o par LID <-> telefone do resolvedor e faz no máximo UM `onWhatsApp`.
+ * - com telefone (do grupo ou do par): `onWhatsApp` de 1 número; o `jid_privado` é o jid DEVOLVIDO (9º dígito),
+ *   nunca o digitado; sem WhatsApp → SEM_WHATSAPP; o par (LID, telefone) é aprendido;
+ * - só LID sem par: `jid_privado` = o LID, `telefone` null, sem consulta.
+ * @param {AdapterContato} adapter
+ * @param {string} chatJid grupo
+ * @param {string} participanteJid LID ou jid de telefone do participante
+ * @param {{ msPrazoConsulta?: number }} [opcoes]
+ * @returns {Promise<{ jid_privado: string, lid: string | null, telefone: string | null }>}
+ * @throws {ErroGrupo} DESCONECTADA, FORA_DO_GRUPO, PROPRIO_NUMERO, SEM_WHATSAPP
+ * @throws {import("./nomeGrupo").ErroConsultaGrupo} consulta do grupo (a equipe fora dele é GRUPO_NAO_ENCONTRADO) ou
+ *   consulta do número (PRAZO_ESGOTADO ou FALHA)
+ */
+async function resolverContatoParticipante(adapter, chatJid, participanteJid, { msPrazoConsulta } = {}) {
+  const socket = adapter.socketConectado();
+  if (!socket) throw new ErroGrupo("DESCONECTADA");
+  const participantes = await adapter.obterParticipantesGrupo(chatJid);
+  const eu = { jid: socket.user?.id, lid: socket.user?.lid };
+  // A equipe precisa estar no grupo (senão o grupo "não existe" para ela), como na adição.
+  if (!participantes.some((p) => ehProprio(p, eu))) throw new ErroConsultaGrupo("GRUPO_NAO_ENCONTRADO");
+  const jid = normalizarJid(participanteJid);
+  const p = jid ? acharParticipante(participantes, jid) : undefined;
+  if (!p) throw new ErroGrupo("FORA_DO_GRUPO");
+  if (ehProprio(p, eu)) throw new ErroGrupo("PROPRIO_NUMERO");
+
+  const telefoneConhecido = p.telefone ?? (p.lid ? adapter.telefoneDoLid(p.lid) : null);
+  if (telefoneConhecido) {
+    // O par do LID pode apontar para o número da própria equipe.
+    if (ehProprio({ lid: null, telefone: telefoneConhecido }, eu)) throw new ErroGrupo("PROPRIO_NUMERO");
+    /** @type {NumeroResolvido | null} */
+    let numero;
+    try {
+      numero = await consultarNumero(socket, telefoneConhecido, { msPrazo: msPrazoConsulta });
+    } catch (erro) {
+      // Prazo e falha da consulta viram códigos da consulta do grupo (a mensagem original pode ter o número).
+      throw new ErroConsultaGrupo(erro instanceof Error && erro.name === "TimeoutError" ? "PRAZO_ESGOTADO" : "FALHA");
+    }
+    if (!numero) throw new ErroGrupo("SEM_WHATSAPP");
+    const telefone = /** @type {string} */ (telefoneDe(numero.jid));
+    const lid = p.lid ?? numero.lid;
+    if (lid) adapter.aprenderPar(lid, telefone);
+    return { jid_privado: numero.jid, lid, telefone };
+  }
+  if (!p.lid) throw new ErroGrupo("FORA_DO_GRUPO");
+  return { jid_privado: p.lid, lid: p.lid, telefone: null };
+}
+
+/**
  * Adiciona os telefones ao grupo, um por vez. Nunca rejeita por causa de UM telefone (vira FALHA); rejeita
  * só se a operação inteira não pode começar (sem conexão, consulta dos participantes).
  * @param {AdapterGrupo} adapter
@@ -455,6 +530,11 @@ async function criarGrupo(adapter, nome, telefones, opcoes) {
 module.exports = {
   criarGrupo,
   consultarNumero,
+  resolverContatoParticipante,
+  acharParticipante,
+  comPrazo,
+  statusDoErro,
+  codigoDoErro,
   mapearStatusAdicao,
   adicionarEmSerie,
   enviarConviteV4,

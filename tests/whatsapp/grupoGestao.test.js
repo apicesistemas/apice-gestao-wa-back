@@ -537,3 +537,163 @@ test("nenhum log da criação leva telefone, JID, LID ou nome do grupo", async (
   const linhas = await capturarConsole(() => criarGrupo(m.adapter, NOME, [FONE_A, FONE_B], { segundosIntervalo: 1, dormir: m.dormir }));
   assert.doesNotMatch(linhas.join("\n"), new RegExp(`\\d{10,}|@lid|@s\\.whatsapp\\.net|@g\\.us|${NOME}`));
 });
+
+// ---------------------------------------------------------------------------------------------------------
+// Identificação do participante para a conversa privada (Fase 32, Task 32.1, contrato D1)
+// ---------------------------------------------------------------------------------------------------------
+
+const { resolverContatoParticipante } = require("../../src/whatsapp/grupoGestao");
+const { ErroConsultaGrupo } = require("../../src/whatsapp/nomeGrupo");
+const { TELEFONE_EQUIPE } = require("../helpers/mensagensWa");
+
+const LID_P = "10000000000021@lid";
+const LID_Q = "10000000000022@lid";
+const LID_NOVO = "10000000000023@lid";
+const FONE_SEM_9 = "551188887777";
+const JID_COM_9 = "5511988887777@s.whatsapp.net";
+const PARTICIPANTE_EQUIPE = { jid: "100000000000099@lid", lid: "100000000000099@lid", telefone: TELEFONE_EQUIPE, admin: true };
+
+/**
+ * @param {{ participantes?: any[], numeros?: any, pares?: Record<string, string>, desconectado?: boolean, aoChamar?: (e: string) => void | Promise<void>, falhaParticipantes?: Error }} [config]
+ */
+function montarContato({ participantes = [], numeros = {}, pares = {}, desconectado = false, aoChamar, falhaParticipantes } = {}) {
+  const todos = [PARTICIPANTE_EQUIPE, ...participantes];
+  const base = montar({ participantes: todos, numeros, aoChamar });
+  /** @type {[string, string][]} */
+  const aprendidos = [];
+  const adapter = {
+    ...base.adapter,
+    socketConectado: () => (desconectado ? null : base.socket),
+    obterParticipantesGrupo: async () => {
+      if (falhaParticipantes) throw falhaParticipantes;
+      return todos;
+    },
+    telefoneDoLid: (/** @type {string} */ lid) => pares[lid] ?? null,
+    aprenderPar: (/** @type {string} */ lid, /** @type {string} */ telefone) => {
+      aprendidos.push([lid, telefone]);
+    },
+  };
+  return { ...base, adapter, aprendidos };
+}
+
+test("contato: participante com telefone faz UM onWhatsApp e devolve o jid da consulta (9º dígito), nunca o digitado, com o LID", async () => {
+  const m = montarContato({
+    participantes: [{ jid: LID_P, lid: LID_P, telefone: FONE_SEM_9, admin: false }],
+    numeros: { [FONE_SEM_9]: { jid: JID_COM_9, lid: LID_NOVO } },
+  });
+  const r = await resolverContatoParticipante(m.adapter, GRUPO, LID_P);
+  assert.deepEqual(r, { jid_privado: JID_COM_9, lid: LID_P, telefone: "5511988887777" });
+  assert.deepEqual(m.grupo.chamadas.onWhatsApp, [[`${FONE_SEM_9}@s.whatsapp.net`]]);
+  assert.deepEqual(m.aprendidos, [[LID_P, "5511988887777"]]);
+  assert.deepEqual(m.grupo.chamadas.envios, []);
+});
+
+test("contato: o jid pode vir como telefone, e o LID cai no devolvido pela consulta quando o participante não tem LID", async () => {
+  const m = montarContato({
+    participantes: [{ jid: JID_A, lid: null, telefone: FONE_A, admin: false }],
+    numeros: { [FONE_A]: { jid: JID_A, lid: LID_NOVO } },
+  });
+  const r = await resolverContatoParticipante(m.adapter, GRUPO, JID_A);
+  assert.deepEqual(r, { jid_privado: JID_A, lid: LID_NOVO, telefone: FONE_A });
+  assert.deepEqual(m.aprendidos, [[LID_NOVO, FONE_A]]);
+});
+
+test("contato: participante achado pelo telefone quando o jid pedido é o de telefone e o do grupo é LID", async () => {
+  const m = montarContato({
+    participantes: [{ jid: LID_P, lid: LID_P, telefone: FONE_A, admin: false }],
+    numeros: { [FONE_A]: JID_A },
+  });
+  const r = await resolverContatoParticipante(m.adapter, GRUPO, JID_A);
+  assert.equal(r.jid_privado, JID_A);
+  assert.equal(r.lid, LID_P);
+});
+
+test("contato: sem LID conhecido em lugar nenhum devolve lid null e não aprende par", async () => {
+  const m = montarContato({
+    participantes: [{ jid: JID_A, lid: null, telefone: FONE_A, admin: false }],
+    numeros: { [FONE_A]: JID_A },
+  });
+  const r = await resolverContatoParticipante(m.adapter, GRUPO, JID_A);
+  assert.deepEqual(r, { jid_privado: JID_A, lid: null, telefone: FONE_A });
+  assert.deepEqual(m.aprendidos, []);
+});
+
+test("contato: só-LID com par no resolvedor usa o telefone do par e consulta", async () => {
+  const m = montarContato({
+    participantes: [{ jid: LID_Q, lid: LID_Q, telefone: null, admin: false }],
+    numeros: { [FONE_B]: JID_B },
+    pares: { [LID_Q]: FONE_B },
+  });
+  const r = await resolverContatoParticipante(m.adapter, GRUPO, LID_Q);
+  assert.deepEqual(r, { jid_privado: JID_B, lid: LID_Q, telefone: FONE_B });
+  assert.equal(m.grupo.chamadas.onWhatsApp.length, 1);
+  assert.deepEqual(m.aprendidos, [[LID_Q, FONE_B]]);
+});
+
+test("contato: só-LID sem par devolve o LID como jid_privado e telefone null, sem onWhatsApp", async () => {
+  const m = montarContato({ participantes: [{ jid: LID_Q, lid: LID_Q, telefone: null, admin: false }] });
+  const r = await resolverContatoParticipante(m.adapter, GRUPO, LID_Q);
+  assert.deepEqual(r, { jid_privado: LID_Q, lid: LID_Q, telefone: null });
+  assert.deepEqual(m.grupo.chamadas.onWhatsApp, []);
+  assert.deepEqual(m.aprendidos, []);
+});
+
+test("contato: número ausente no onWhatsApp → SEM_WHATSAPP", async () => {
+  const m = montarContato({ participantes: [{ jid: LID_P, lid: LID_P, telefone: FONE_A, admin: false }], numeros: {} });
+  await assert.rejects(resolverContatoParticipante(m.adapter, GRUPO, LID_P), (e) => e instanceof ErroGrupo && e.codigo === "SEM_WHATSAPP" && e.message === "Este número não tem WhatsApp.");
+});
+
+test("contato: prazo da consulta esgotado → PRAZO_ESGOTADO e falha do onWhatsApp → FALHA, sem o texto original", async () => {
+  const lento = montarContato({ participantes: [{ jid: LID_P, lid: LID_P, telefone: FONE_A, admin: false }], numeros: NUMEROS, aoChamar: () => new Promise(() => {}) });
+  await assert.rejects(resolverContatoParticipante(lento.adapter, GRUPO, LID_P, { msPrazoConsulta: 15 }), (e) => e instanceof ErroConsultaGrupo && e.codigo === "PRAZO_ESGOTADO");
+  const quebrado = montarContato({ participantes: [{ jid: LID_P, lid: LID_P, telefone: FONE_A, admin: false }], numeros: { [FONE_A]: new Error(`falha ${FONE_A}`) } });
+  await assert.rejects(resolverContatoParticipante(quebrado.adapter, GRUPO, LID_P), (e) => e instanceof ErroConsultaGrupo && e.codigo === "FALHA" && !e.message.includes(FONE_A));
+});
+
+test("contato: fora do grupo → FORA_DO_GRUPO, sem consulta", async () => {
+  const m = montarContato({ participantes: [{ jid: LID_P, lid: LID_P, telefone: FONE_A, admin: false }], numeros: NUMEROS });
+  await assert.rejects(resolverContatoParticipante(m.adapter, GRUPO, LID_Q), (e) => e instanceof ErroGrupo && e.codigo === "FORA_DO_GRUPO" && e.message === "Participante não encontrado no grupo.");
+  assert.deepEqual(m.grupo.chamadas.onWhatsApp, []);
+});
+
+test("contato: o número da equipe → PROPRIO_NUMERO, inclusive quando o par do LID resolve para o telefone da equipe", async () => {
+  const m = montarContato({ numeros: NUMEROS });
+  await assert.rejects(resolverContatoParticipante(m.adapter, GRUPO, PARTICIPANTE_EQUIPE.jid), (e) => e instanceof ErroGrupo && e.codigo === "PROPRIO_NUMERO");
+  const disfarcado = montarContato({
+    participantes: [{ jid: LID_Q, lid: LID_Q, telefone: null, admin: false }],
+    numeros: NUMEROS,
+    pares: { [LID_Q]: TELEFONE_EQUIPE },
+  });
+  await assert.rejects(resolverContatoParticipante(disfarcado.adapter, GRUPO, LID_Q), (e) => e instanceof ErroGrupo && e.codigo === "PROPRIO_NUMERO");
+  assert.deepEqual(disfarcado.grupo.chamadas.onWhatsApp, []);
+});
+
+test("contato: equipe fora do grupo → GRUPO_NAO_ENCONTRADO; falha da consulta do grupo sobe; sem socket → DESCONECTADA", async () => {
+  const base = montarContato({ participantes: [{ jid: LID_P, lid: LID_P, telefone: FONE_A, admin: false }] });
+  const semEquipe = { ...base.adapter, obterParticipantesGrupo: async () => [{ jid: LID_P, lid: LID_P, telefone: FONE_A, admin: false }] };
+  await assert.rejects(resolverContatoParticipante(semEquipe, GRUPO, LID_P), (e) => e instanceof ErroConsultaGrupo && e.codigo === "GRUPO_NAO_ENCONTRADO");
+  const falha = montarContato({ falhaParticipantes: new ErroConsultaGrupo("PRAZO_ESGOTADO") });
+  await assert.rejects(resolverContatoParticipante(falha.adapter, GRUPO, LID_P), (e) => e instanceof ErroConsultaGrupo && e.codigo === "PRAZO_ESGOTADO");
+  const desconectado = montarContato({ desconectado: true });
+  await assert.rejects(resolverContatoParticipante(desconectado.adapter, GRUPO, LID_P), (e) => e instanceof ErroGrupo && e.codigo === "DESCONECTADA");
+});
+
+test("contato: participante sem LID nem telefone utilizável é tratado como fora do grupo (defesa)", async () => {
+  const m = montarContato({ participantes: [{ jid: "x@s.whatsapp.net", lid: null, telefone: null, admin: false }] });
+  await assert.rejects(resolverContatoParticipante(m.adapter, GRUPO, "x@s.whatsapp.net"), (e) => e instanceof ErroGrupo && e.codigo === "FORA_DO_GRUPO");
+});
+
+test("contato: nenhum log leva telefone, JID ou LID, e nunca há sendMessage", async () => {
+  const m = montarContato({
+    participantes: [{ jid: LID_P, lid: LID_P, telefone: FONE_A, admin: false }, { jid: LID_Q, lid: LID_Q, telefone: null, admin: false }],
+    numeros: { [FONE_A]: { jid: JID_A, lid: LID_NOVO } },
+  });
+  const linhas = await capturarConsole(async () => {
+    await resolverContatoParticipante(m.adapter, GRUPO, LID_P);
+    await resolverContatoParticipante(m.adapter, GRUPO, LID_Q);
+    await resolverContatoParticipante(m.adapter, GRUPO, "10000000000099@lid").catch(() => {});
+  });
+  assert.doesNotMatch(String(linhas), /5511|@lid|@s\.whatsapp|1000000000/);
+  assert.deepEqual(m.grupo.chamadas.envios, []);
+  assert.deepEqual(m.grupo.chamadas.add, []);
+});

@@ -271,6 +271,38 @@ function criarGrupoFalso({ participantes = [], subject = "Suporte Loja Centro", 
   return { metodos, chamadas };
 }
 
+/**
+ * `profilePictureUrl` falso para acoplar a um socket (Fase 32, contrato D2). `urls` mapeia o JID consultado
+ * à URL devolvida, a `undefined` (sem foto, como o Baileys quando o nó `picture` não vem) ou a um Error
+ * (a consulta rejeita, como o Boom do `assertNodeErrorFree`). JID fora do mapa = sem foto. Cada chamada fica
+ * em `chamadas` (`jid`, `tipo`, `timeoutMs`). `"travar"` nunca responde.
+ * @param {{ urls?: Record<string, string | undefined | Error | "travar"> }} [config]
+ */
+function criarFotoFalsa({ urls = {} } = {}) {
+  /** @type {{ jid: string, tipo: string | undefined, timeoutMs: number | undefined }[]} */
+  const chamadas = [];
+  const metodos = {
+    /** @param {string} jid @param {string} [tipo] @param {number} [timeoutMs] */
+    async profilePictureUrl(jid, tipo, timeoutMs) {
+      chamadas.push({ jid, tipo, timeoutMs });
+      const resposta = urls[jid];
+      if (resposta === "travar") return new Promise(() => {});
+      if (resposta instanceof Error) throw resposta;
+      return resposta;
+    },
+  };
+  return { metodos, chamadas };
+}
+
+/**
+ * Erro como o `assertNodeErrorFree` do Baileys 6.7.24: Boom com `output.statusCode` 500 e o código real em `data`.
+ * @param {string} texto
+ * @param {number} data
+ */
+function erroBoomFalso(texto, data) {
+  return Object.assign(new Error(texto), { isBoom: true, data, output: { statusCode: 500 } });
+}
+
 /** Item `participant` do BinaryNode do 403, com o `add_request` do convite (como o Baileys devolve em `content`). */
 /** @param {string} jid @param {string} code @param {string | number} expiration */
 function conteudoComAddRequest(jid, code, expiration) {
@@ -292,6 +324,8 @@ module.exports = {
   definirLogout,
   definirPortaAuthState,
   criarGrupoFalso,
+  criarFotoFalsa,
+  erroBoomFalso,
   conteudoComAddRequest,
   contagem,
   sockets,

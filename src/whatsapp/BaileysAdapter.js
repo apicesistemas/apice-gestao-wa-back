@@ -74,6 +74,7 @@ const presencaInternoClient = require("../services/presencaInternoClient");
 const { criarRecuperacao } = require("./recuperacao");
 const { criarCacheEnviadas } = require("./cacheEnviadas");
 const grupoGestao = require("./grupoGestao");
+const fotoPerfil = require("./fotoPerfil");
 
 /** Diretório base das sessões: `./sessoes-baileys/<cod_equipe>` na raiz do projeto. */
 const DIRETORIO_SESSOES = path.join(__dirname, "..", "..", "sessoes-baileys");
@@ -282,6 +283,8 @@ async function apagarSessaoEmDisco(codEquipe, diretorioSessoes = DIRETORIO_SESSO
  *   obterParticipantesGrupo: (chatJid: string) => Promise<import("./nomeGrupo").ParticipanteGrupo[]>,
  *   adicionarParticipantesGrupo: (chatJid: string, opcoes: OpcoesAdicaoGrupo) => Promise<import("./grupoGestao").ResultadoParticipante[]>,
  *   criarGrupo: (nome: string, opcoes: OpcoesAdicaoGrupo) => Promise<{ chat_jid: string, nome_grupo: string, participantes: import("./grupoGestao").ResultadoParticipante[] }>,
+ *   resolverContatoParticipante: (chatJid: string, participanteJid: string, opcoes?: { msPrazoConsulta?: number }) => Promise<{ jid_privado: string, lid: string | null, telefone: string | null }>,
+ *   obterFotoPerfil: (jid: string, opcoes?: { grupoJid?: string, msPrazo?: number }) => Promise<import("./fotoPerfil").ResultadoFoto>,
  * }} BaileysAdapter
  */
 
@@ -816,7 +819,7 @@ function criarAdapter({
    * O que o `grupoGestao` usa do adapter (adicionar e criar grupo): socket atual, cache do grupo, marca de
    * envio do CRM e cache de reenvio.
    * @param {SocketBaileys} conectado socket que a operação começou usando (o cache do grupo consulta por ele)
-   * @returns {import("./grupoGestao").AdapterGrupo}
+   * @returns {import("./grupoGestao").AdapterContato}
    */
   function fachadaGrupo(conectado) {
     return {
@@ -824,6 +827,8 @@ function criarAdapter({
       obterParticipantesGrupo: (jid) => nomesGrupo.obterParticipantes(conectado, jid),
       obterNomeGrupo: (jid) => nomesGrupo.obterNome(conectado, jid),
       aprenderGrupo: (grupos) => nomesGrupo.aprender(grupos),
+      telefoneDoLid: (lid) => resolvedorLid.telefoneDoLid(lid),
+      aprenderPar: (lid, telefone) => void resolvedorLid.aprenderPar(lid, telefone),
       marcarEnviadaPeloCrm: (id) => {
         registroAparelho.marcarEnviada(id);
         recibos.adiarRecibos(id);
@@ -887,6 +892,29 @@ function criarAdapter({
       const conectado = socket && estado.status_conexao === "CONECTADO" ? socket : null;
       if (!conectado) throw new grupoGestao.ErroGrupo("DESCONECTADA");
       return grupoGestao.criarGrupo(fachadaGrupo(conectado), nome, telefones, opcoes);
+    },
+
+    // Para `POST /equipe/:cod_equipe/grupo/participante/contato` (Fase 32, D1): identifica o participante para a
+    // conversa privada. Não envia nada. Rejeita com ErroGrupo, ErroConsultaGrupo ou TimeoutError (sem JID/LID/telefone
+    // na mensagem).
+    async resolverContatoParticipante(chatJid, participanteJid, opcoes) {
+      const conectado = socket && estado.status_conexao === "CONECTADO" ? socket : null;
+      if (!conectado) throw new grupoGestao.ErroGrupo("DESCONECTADA");
+      return grupoGestao.resolverContatoParticipante(fachadaGrupo(conectado), chatJid, participanteJid, opcoes);
+    },
+
+    // Para `POST /equipe/:cod_equipe/foto-perfil` (Fase 32, D2): miniatura da foto, sem cache e sem disco. Com
+    // `grupoJid`, o jid precisa estar nos participantes do grupo (cache do nomeGrupo); fora dele, FORA_DO_GRUPO,
+    // sem IQ de foto. Rejeita com ErroGrupo, ErroConsultaGrupo ou ErroFoto.
+    async obterFotoPerfil(jid, { grupoJid, msPrazo } = {}) {
+      const conectado = socket && estado.status_conexao === "CONECTADO" ? socket : null;
+      if (!conectado) throw new grupoGestao.ErroGrupo("DESCONECTADA");
+      if (grupoJid) {
+        const participantes = await nomesGrupo.obterParticipantes(conectado, grupoJid);
+        const normalizado = normalizarJid(jid);
+        if (!normalizado || !grupoGestao.acharParticipante(participantes, normalizado)) throw new grupoGestao.ErroGrupo("FORA_DO_GRUPO");
+      }
+      return fotoPerfil.obterPreview(conectado, jid, { msPrazo });
     },
   };
 }
