@@ -205,3 +205,22 @@ test("pararSocket remove o listener de messages.upsert", async () => {
   await adapter.pararSocket();
   assert.ok(socket.removidos.includes("messages.upsert"));
 });
+
+test("Fase 40: o eco da edição do CRM (protocolMessage MESSAGE_EDIT com o id do envelope) não vai ao back; a edição real do aparelho continua indo", async () => {
+  const { adapter, registradas, receber } = await adapterConectado();
+  const protocolo = (/** @type {string} */ alvo) => ({
+    protocolMessage: { type: 14, key: { remoteJid: JID_CLIENTE, fromMe: true, id: alvo }, editedMessage: { conversation: "texto corrigido" } },
+  });
+  const ecoDoCrm = mensagemWa(protocolo("3EB0ORIGINAL1"), { key: { fromMe: true }, pushName: null });
+  const doAparelho = mensagemWa(protocolo("3EB0ORIGINAL2"), { key: { fromMe: true }, pushName: null });
+  adapter.marcarEnviadaPeloCrm(ecoDoCrm.key.id);
+
+  await receber([ecoDoCrm], "append");
+  assert.equal(registradas.length, 0, "o eco da edição do CRM não gera POST /interno/*");
+  await receber([doAparelho], "notify");
+
+  assert.equal(registradas.length, 1);
+  assert.equal(registradas[0].mensagem.tipo, "EDICAO");
+  assert.equal(registradas[0].mensagem.origem, "APARELHO");
+  assert.equal(registradas[0].mensagem.alvo.mensagem_wa_id, "3EB0ORIGINAL2");
+});

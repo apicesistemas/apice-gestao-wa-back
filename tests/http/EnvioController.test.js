@@ -358,3 +358,76 @@ test("o limite de tamanho vale depois da normalização (CRLF não conta em dobr
   const legendaLonga = await postEnviar("7", formulario({ ...BASE, tipo: "IMAGEM", legenda: "z".repeat(1025) }, { buffer: arquivos.jpeg(), mimetype: "image/jpeg", nome: "foto.jpg" }));
   assert.equal(legendaLonga.status, 400);
 });
+
+// ---- Fase 40: `POST /equipe/:cod_equipe/editar` (JSON) ----
+
+/**
+ * @param {string} cod
+ * @param {unknown} corpo
+ * @param {string | null} [token]
+ */
+function postEditar(cod, corpo, token = TOKEN) {
+  /** @type {Record<string, string>} */
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers["X-Internal-Token"] = token;
+  return fetch(`${baseUrl}/equipe/${cod}/editar`, { method: "POST", headers, body: JSON.stringify(corpo) });
+}
+
+const KEY_EDITAR = { remoteJid: JID_CLIENTE, fromMe: true, id: "3EB0ORIGINAL" };
+
+test("editar: 200 { mensagem_wa_id do envelope, timestamp_wa, status }, sendMessage com { text, edit: key } e jid do corpo", async () => {
+  const resposta = await postEditar("7", { ...BASE, key: KEY_EDITAR, texto: "*Ana*\ncorrigido" });
+  assert.equal(resposta.status, 200);
+  assert.equal(envios.length, 1);
+  assert.equal(envios[0].jid, JID_CLIENTE);
+  assert.deepEqual(envios[0].conteudo, { text: "*Ana*\ncorrigido", edit: KEY_EDITAR });
+  const id = envios[0].opcoes.messageId;
+  assert.ok(id && id !== KEY_EDITAR.id);
+  assert.deepEqual(marcadas, [id]);
+  assert.deepEqual(await resposta.json(), { mensagem_wa_id: id, timestamp_wa: 1760400500, status: "ENVIADA" });
+});
+
+test("editar em grupo leva as menções em mentions e a key com participant", async () => {
+  const key = { remoteJid: JID_GRUPO, fromMe: true, id: "3EB0ORIGINAL", participant: JID_PARTICIPANTE };
+  const resposta = await postEditar("7", { hash_empresa: "hash-a", chat_jid: JID_GRUPO, key, texto: "oi @fulano", mencoes: [JID_PARTICIPANTE] });
+  assert.equal(resposta.status, 200);
+  assert.deepEqual(envios[0].conteudo, { text: "oi @fulano", edit: key, mentions: [JID_PARTICIPANTE] });
+});
+
+test("editar: campos fora da allowlist (transcricao, nota_interna, explicacao, sugestao_ia, legenda, tipo) respondem 400 sem tocar o Baileys", async () => {
+  assert.deepEqual([...require("../../src/http/EnvioController").ALLOWLIST_EDICAO], ["hash_empresa", "chat_jid", "key", "texto", "mencoes"]);
+  for (const campo of ["transcricao", "nota_interna", "explicacao", "sugestao_ia", "legenda", "tipo", "contexto"]) {
+    await esperarErro(await postEditar("7", { ...BASE, key: KEY_EDITAR, texto: "novo", [campo]: "conteúdo interno" }), 400);
+  }
+  assert.equal(envios.length, 0);
+  assert.deepEqual(marcadas, []);
+});
+
+test("editar: fromMe false, remoteJid de outra conversa, id inválido, texto vazio e corpo inválido respondem 400 sem tocar o Baileys", async () => {
+  const msgFromMe = await esperarErro(await postEditar("7", { ...BASE, key: { ...KEY_EDITAR, fromMe: false }, texto: "novo" }), 400);
+  assert.equal(msgFromMe.msg, "Só mensagens enviadas pelo número da equipe podem ser editadas.");
+  await esperarErro(await postEditar("7", { ...BASE, key: { ...KEY_EDITAR, fromMe: "true" }, texto: "novo" }), 400);
+  await esperarErro(await postEditar("7", { ...BASE, key: { remoteJid: JID_GRUPO, fromMe: true, id: "3EB0X" }, texto: "novo" }), 400);
+  await esperarErro(await postEditar("7", { ...BASE, key: { ...KEY_EDITAR, id: "id inválido!" }, texto: "novo" }), 400);
+  await esperarErro(await postEditar("7", { ...BASE, key: KEY_EDITAR, texto: "" }), 400);
+  await esperarErro(await postEditar("7", { ...BASE, key: KEY_EDITAR }), 400);
+  await esperarErro(await postEditar("7", { ...BASE, texto: "novo" }), 400);
+  await esperarErro(await postEditar("7", { chat_jid: JID_CLIENTE, key: KEY_EDITAR, texto: "novo" }), 400);
+  await esperarErro(await postEditar("7", { ...BASE, key: KEY_EDITAR, texto: "a".repeat(65537) }), 400);
+  await esperarErro(await postEditar("7", ["lista"]), 400);
+  await esperarErro(await postEditar("abc!", { ...BASE, key: KEY_EDITAR, texto: "novo" }), 400);
+  assert.equal(envios.length, 0);
+});
+
+test("editar: 401 sem token, 404 de outro tenant, 409 desconectada e 502 em falha do sendMessage", async () => {
+  assert.equal((await postEditar("7", { ...BASE, key: KEY_EDITAR, texto: "novo" }, null)).status, 401);
+  assert.equal((await postEditar("7", { ...BASE, key: KEY_EDITAR, texto: "novo" }, "errado")).status, 401);
+  const outro = await esperarErro(await postEditar("7", { ...BASE, hash_empresa: "hash-b", key: KEY_EDITAR, texto: "novo" }), 404);
+  assert.equal(outro.msg, "Equipe não encontrada.");
+  estado.status = "ERRO";
+  await esperarErro(await postEditar("7", { ...BASE, key: KEY_EDITAR, texto: "novo" }), 409);
+  estado.status = "CONECTADO";
+  estado.falhar = true;
+  const falha = await esperarErro(await postEditar("7", { ...BASE, key: KEY_EDITAR, texto: "novo" }), 502);
+  assert.doesNotMatch(falha.msg, /@s\.whatsapp\.net/);
+});

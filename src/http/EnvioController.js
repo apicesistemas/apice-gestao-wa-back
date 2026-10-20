@@ -6,13 +6,15 @@
 //   `tipo` (TEXTO | IMAGEM | VIDEO | AUDIO | DOCUMENTO), `texto` (TEXTO), `legenda` (IMAGEM, VIDEO,
 //   DOCUMENTO), `nome_arquivo` (DOCUMENTO), `ptt` ("true" | "false", AUDIO), `citacao` (JSON
 //   `{ key, message }`) e `mencoes` (JSON array de JIDs), e o arquivo no campo `midia`;
-// - `POST /equipe/:cod_equipe/reagir` (JSON): `{ hash_empresa, chat_jid, key, emoji }`.
+// - `POST /equipe/:cod_equipe/reagir` (JSON): `{ hash_empresa, chat_jid, key, emoji }`;
+// - `POST /equipe/:cod_equipe/editar` (JSON, Fase 40): `{ hash_empresa, chat_jid, key (fromMe: true), texto
+//   (já com o cabeçalho), mencoes? }`. Responde 200 `{ mensagem_wa_id (do ENVELOPE), timestamp_wa, status }`.
 //
 // O contrato aceita SÓ o conteúdo destinado ao cliente: é uma allowlist, e qualquer outro campo
 // (transcrição, nota interna, explicação da resolução ou o que for) responde 400 sem tocar o
 // Baileys. A mídia é validada pelo conteúdo (magic bytes) e pelo teto do ambiente, tudo em memória.
 //
-// Respostas: 200 `{ mensagem_wa_id, key, timestamp_wa, status: "ENVIADA" }` (reagir: `{ status }`);
+// Respostas: 200 `{ mensagem_wa_id, key, timestamp_wa, status: "ENVIADA" }` (reagir: `{ status }`; editar: sem `key`);
 // 400 campo inválido, fora da allowlist ou tipo divergente; 401 sem token; 404 equipe de outra
 // empresa; 409 equipe desconectada ou sem instância (nunca 200); 502 falha no `sendMessage`;
 // 503 durante o desligamento gracioso (o pedido é recusado, nunca aceito e descartado: o back pode
@@ -22,6 +24,7 @@ const express = require("express");
 const exigirTokenServico = require("./exigirTokenServico");
 const { criarEnvio, ErroEnvio, EXTENSAO_DOCUMENTO } = require("../whatsapp/envio");
 const { criarReacao } = require("../whatsapp/reacao");
+const { criarEdicao } = require("../whatsapp/edicao");
 const { normalizarCodEquipe } = require("../whatsapp/BaileysAdapter");
 const { validarMidia } = require("../whatsapp/tipoMidia");
 const { obterLimitesMidia } = require("../whatsapp/midiaEntrada");
@@ -45,6 +48,8 @@ const CAMPOS_DO_TIPO = {
 };
 const ALLOWLIST_ENVIO = new Set([...CAMPOS_COMUNS, ...Object.values(CAMPOS_DO_TIPO).flat()]);
 const ALLOWLIST_REACAO = new Set(["hash_empresa", "chat_jid", "key", "emoji"]);
+/** Edição: só o que vai ao cliente (texto já com o cabeçalho). Campo interno novo NÃO entra aqui. */
+const ALLOWLIST_EDICAO = new Set(["hash_empresa", "chat_jid", "key", "texto", "mencoes"]);
 
 /** Tipos de conteúdo (detectados pelos magic bytes) aceitos em cada tipo de envio. */
 /** @type {Record<Exclude<TipoEnvio, "TEXTO">, Set<string>>} */
@@ -215,6 +220,7 @@ function responderErro(res, erro, cod) {
 function criarEnvioController(manager, { desligamento = desligamentoDoProcesso, prazoEnvioMs } = {}) {
   const { enviar } = criarEnvio({ manager, prazoMs: prazoEnvioMs });
   const { reagir } = criarReacao({ manager });
+  const { editar } = criarEdicao({ manager });
   /** 503 durante o desligamento; fora dele, a requisição é rastreada até responder. @type {import("express").RequestHandler} */
   const recusarDuranteEncerramento = (req, res, next) => desligamento.recusarDuranteEncerramento(req, res, next);
 
@@ -267,9 +273,27 @@ function criarEnvioController(manager, { desligamento = desligamentoDoProcesso, 
         responderErro(res, erro, cod);
       }
     });
+
+    server.post("/equipe/:cod_equipe/editar", exigirTokenServico, recusarDuranteEncerramento, async (req, res) => {
+      const cod = codEquipeValido(req.params.cod_equipe);
+      if (!cod) {
+        res.status(400).json({ msg: "Código da equipe inválido." });
+        return;
+      }
+      try {
+        const corpo = req.body;
+        if (!corpo || typeof corpo !== "object" || Array.isArray(corpo)) throw recusar("Corpo da requisição inválido.");
+        for (const nome of Object.keys(corpo)) {
+          if (!ALLOWLIST_EDICAO.has(nome)) throw recusar(`Campo não permitido na edição: ${nome.slice(0, 40)}.`);
+        }
+        res.status(200).json(await editar(cod, corpo.chat_jid, corpo.key, corpo.texto, corpo.mencoes, corpo.hash_empresa));
+      } catch (erro) {
+        responderErro(res, erro, cod);
+      }
+    });
   };
 }
 
 const EnvioController = criarEnvioController();
 
-module.exports = Object.assign(EnvioController, { criarEnvioController, ALLOWLIST_ENVIO, ALLOWLIST_REACAO });
+module.exports = Object.assign(EnvioController, { criarEnvioController, ALLOWLIST_ENVIO, ALLOWLIST_REACAO, ALLOWLIST_EDICAO });

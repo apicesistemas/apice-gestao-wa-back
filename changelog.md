@@ -3,6 +3,22 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.27.0] - 2026-10-20
+
+### Adicionado
+
+- Edição de mensagem enviada pelo atendente (Fase 40, Task 40.1, contrato D1): `POST /equipe/:cod_equipe/editar` (JSON) com `{ hash_empresa, chat_jid, key, texto, mencoes? }`, onde o `texto` já vem com o cabeçalho (1 a 65536 caracteres) e a `key` é de mensagem enviada pelo número da equipe (`fromMe: true`).
+  - `src/whatsapp/edicao.js` (novo): `criarEdicao({ manager, prazoMs })` → `editar(codEquipe, chat_jid, key, texto, mencoes, hashEmpresa)`. Usa `validarChatJid`, `validarKey`, `validarMencoes`, `montarConteudo`, `obterSocketDaEquipe` e `enviarPeloSocket`. O `sendMessage` recebe `{ text, edit: key, mentions? }`, montado campo a campo, com o id do ENVELOPE gerado e marcado em `marcarEnviadaPeloCrm` antes do envio (e guardado no cache de reenvio). Prazo técnico `PRAZO_EDICAO_MS` = 10 s (como a reação).
+  - `src/http/EnvioController.js`: a rota com `exigirTokenServico` + `recusarDuranteEncerramento` (503 + `Retry-After`) e a `ALLOWLIST_EDICAO` (`hash_empresa`, `chat_jid`, `key`, `texto`, `mencoes`) exportada. Qualquer outra chave (transcricao, nota_interna, explicacao, sugestao_ia, legenda, tipo...) responde 400 sem tocar o Baileys.
+  - Resposta 200 `{ mensagem_wa_id (id do ENVELOPE, nunca o da original), timestamp_wa, status: "ENVIADA" }`. Erros: 400 (inclui `fromMe` diferente de true: "Só mensagens enviadas pelo número da equipe podem ser editadas."), 401, 404 "Equipe não encontrada." (outro tenant), 409 (desconectada ou sem instância), 502, 503, 504 "Envio não confirmado.".
+  - O eco da edição (`messages.upsert` com `protocolMessage` MESSAGE_EDIT e o id do envelope) não vai ao back; a edição real feita no aparelho (id não marcado) continua indo por `/interno/mensagem-recebida` (teste de regressão novo).
+  - O log leva só ids e o nome do erro, nunca texto, JID nem LID.
+
+### Observações
+
+- Rota nova do canal D: publicar o wa-back 0.27.0 ANTES do back 0.57.0.
+- Contrato D1 (canal D, back → wa-back): `POST /equipe/:cod_equipe/editar`, entrada e saída conforme acima. Sem mudança no canal C nem em variável de ambiente.
+
 ## [0.26.0] - 2026-10-20
 
 ### Adicionado
