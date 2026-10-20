@@ -1,6 +1,6 @@
 # apice-gestao-wa-back — Motor de conversa WhatsApp
 
-> Runtime 24/7 do Baileys com uma instância por equipe. Recebe, normaliza e registra todas as mensagens de WhatsApp (grupos e conversas privadas, todas as mídias, inclusive as enviadas pelo aparelho), transcreve áudio e vídeo via MiniMax e envia as respostas do atendente. Assim, o histórico deixa de ficar preso ao WhatsApp Web de cada atendente.
+> Runtime 24/7 do Baileys com uma instância por equipe. Recebe, normaliza e registra todas as mensagens de WhatsApp (grupos e conversas privadas, todas as mídias, inclusive as enviadas pelo aparelho) e as chamadas recebidas, transcreve áudio e vídeo via MiniMax e envia as respostas do atendente. Assim, o histórico deixa de ficar preso ao WhatsApp Web de cada atendente.
 
 ## Stack
 
@@ -88,6 +88,7 @@ No servidor `192.168.1.167`, na pasta do submódulo: `bash deploy.sh`.
   - [ ] Depois de reiniciar, as instâncias reconectam sem novo QR Code, e as mensagens recebidas durante a reinicialização são recuperadas.
   - [ ] Um arquivo acima do tamanho máximo, ou com conteúdo diferente do tipo declarado, é recusado.
   - [ ] Uma falha na transcrição não impede o registro da mensagem.
+  - [ ] Cada chamada recebida é publicada uma única vez (perdida, atendida em outro aparelho, recusada ou, sem desfecho, encerrada), mesmo com eventos repetidos. O alerta de toque não passa pela `filaEntrada`, e a chamada offline não alerta. Nenhuma chamada gera `rejectCall` ou `sendMessage`, e nenhuma vai por `/interno/mensagem-recebida`.
 
 ## Nunca fazer
 
@@ -96,6 +97,7 @@ No servidor `192.168.1.167`, na pasta do submódulo: `bash deploy.sh`.
 - Nunca rodar mais de uma instância do processo nem encerrar sem desligamento gracioso, o que corromperia a sessão.
 - Nunca identificar o contato só pelo telefone. Guardar também o LID.
 - Nunca aceitar chamadas fora da rede interna ou sem o token de serviço, nem fazer envio em massa (risco de banimento do número).
+- Nunca chamar `rejectCall` nem enviar mensagem por causa de uma chamada de voz ou vídeo do WhatsApp (decisões D3 e D4 da Fase 34). O wa-back só consolida o evento `call` e avisa o back.
 - Nunca usar range de versão (`^`) no Baileys. A versão é fixa.
 
 ## Exceções aceitas

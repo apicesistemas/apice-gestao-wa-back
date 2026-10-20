@@ -76,6 +76,8 @@ const { criarCacheEnviadas } = require("./cacheEnviadas");
 const grupoGestao = require("./grupoGestao");
 const fotoPerfil = require("./fotoPerfil");
 const diagnosticoChamadas = require("./diagnosticoChamadas");
+const { criarConsolidadorChamadas } = require("./chamadas");
+const chamadaInternoClient = require("../services/chamadaInternoClient");
 
 /** Diretório base das sessões: `./sessoes-baileys/<cod_equipe>` na raiz do projeto. */
 const DIRETORIO_SESSOES = path.join(__dirname, "..", "..", "sessoes-baileys");
@@ -252,6 +254,9 @@ async function apagarSessaoEmDisco(codEquipe, diretorioSessoes = DIRETORIO_SESSO
  *   enfileirarTranscricao?: (tarefa: TarefaTranscricao) => Promise<unknown>,
  *   registrarStatusMensagem?: (mensagem_wa_id: string, status: StatusMensagem, contexto: ContextoInstancia) => Promise<unknown>,
  *   registrarPresenca?: (dados: DadosPresenca, contexto: ContextoInstancia) => Promise<unknown>,
+ *   registrarChamada?: (chamada: import("../services/chamadaInternoClient").RegistroChamadaCorpo, contexto: ContextoInstancia) => Promise<unknown>,
+ *   alertarChamada?: (alerta: import("../services/chamadaInternoClient").AlertaChamadaCorpo, contexto: ContextoInstancia) => Promise<unknown>,
+ *   opcoesChamadas?: Partial<Pick<import("./chamadas").OpcoesConsolidador, "agendar" | "agora" | "msTeto" | "msJanelaAccept" | "maxPendentes">>,
  *   armazemAtividade?: import("./recuperacao").ArmazemAtividade,
  *   janelaRecuperacaoMs?: number,
  * }} OpcoesAdapter
@@ -310,6 +315,9 @@ function criarAdapter({
   enfileirarTranscricao = filaTranscricao.enfileirarTranscricao,
   registrarStatusMensagem = mensagemStatusInternoClient.registrarStatusMensagem,
   registrarPresenca = presencaInternoClient.registrarPresenca,
+  registrarChamada = chamadaInternoClient.registrarChamada,
+  alertarChamada = chamadaInternoClient.alertarChamada,
+  opcoesChamadas = {},
   armazemAtividade,
   janelaRecuperacaoMs,
 }) {
@@ -345,6 +353,17 @@ function criarAdapter({
   // atividade vai ao armazém, que no processo grava só o instante em `.cache/`).
   const recuperacao = criarRecuperacao({ codEquipe: cod, armazem: armazemAtividade, janelaMs: janelaRecuperacaoMs });
   const cacheEnviadas = criarCacheEnviadas();
+  // Chamadas recebidas (Fase 34): o consolidador junta offer/ringing/accept/reject/terminate num registro
+  // por chamada. O registro (C1) vai pela fila serial da entrada; o alerta tocando/parou (C2) NÃO passa
+  // por ela (um download de mídia lento não pode atrasar o toque). Só memória; sem rejectCall nem sendMessage.
+  const consolidadorChamadas = criarConsolidadorChamadas({
+    ...opcoesChamadas,
+    eu: () => ({ jid: socket?.user?.id, lid: socket?.user?.lid }),
+    publicar: (registro) => enfileirarChamada(registro),
+    alertar: (alerta) => publicarAlertaChamada(alerta),
+    aoFalhar: (situacao, erro) => console.error(`[CHAMADA] Falha interna (${situacao}) da equipe ${cod}:`, nomeDoErro(erro)),
+    aoDescartar: (motivo) => console.log(`[CHAMADA] Equipe ${cod}: tabela de chamadas abertas cheia (${motivo}); a mais antiga foi encerrada.`),
+  });
   /** Gravações de credenciais em série; o desligamento espera a última terminar. */
   /** @type {Promise<void>} */
   let filaCredenciais = Promise.resolve();
@@ -394,6 +413,7 @@ function criarAdapter({
     nomesGrupo.limpar();
     cacheEnviadas.limpar();
     recuperacao.limpar();
+    consolidadorChamadas.limpar();
     // Um saveCreds pendurado não pode travar a equipe para sempre: passado o prazo, apaga mesmo assim.
     /** @type {ReturnType<typeof setTimeout> | undefined} */
     let timerCreds;
@@ -419,6 +439,7 @@ function criarAdapter({
   function fecharSocket(alvo) {
     if (!alvo) return;
     removerListeners(alvo);
+    consolidadorChamadas.limpar(); // nenhuma chamada pendente é publicada depois do socket fechado
     try {
       alvo.end(undefined);
     } catch (erro) {
@@ -613,6 +634,117 @@ function criarAdapter({
   }
 
   /**
+   * Identidade de quem liga a partir do `from` do evento, completada só pelo cache (LID ↔ telefone).
+   * @param {string} from
+   */
+  function identidadeDeQuemLiga(from) {
+    return resolvedorLid.completarIdentidade({ jid: normalizarJid(from), lid: lidDe(from), telefone: telefoneDe(from) });
+  }
+
+  /**
+   * Registro final de uma chamada (C1), já dentro da fila serial. Privado: a outra ponta é quem liga; o
+   * LID vem do cache ou de UM `onWhatsApp` com prazo (como na mensagem). Grupo: `chat_jid` do grupo,
+   * remetente = participante e `nome_chat`. Uma falha só vai ao log (sem JID, LID nem telefone).
+   * @param {SocketBaileys} s
+   * @param {import("./chamadas").RegistroChamada} registro
+   */
+  async function publicarChamada(s, registro) {
+    if (s !== socket) return;
+    const grupo = registro.group_jid ? normalizarJid(registro.group_jid) : null;
+    let identidade = identidadeDeQuemLiga(registro.from);
+    if (!grupo && identidade.telefone && !identidade.lid && typeof s.onWhatsApp === "function") {
+      const lid = await resolvedorLid.consultarLidDoTelefone(identidade.telefone, (jid) => s.onWhatsApp(jid));
+      if (lid) identidade = { ...identidade, lid };
+    }
+    /** @type {string | null} */
+    const nomeGrupo = grupo ? await nomesGrupo.obterNome(s, grupo) : null;
+    if (s !== socket) return;
+    /** @type {import("../services/chamadaInternoClient").RegistroChamadaCorpo} */
+    const corpo = {
+      chamada_wa_id: registro.chamada_wa_id,
+      origem: "CLIENTE",
+      tipo_chat: grupo ? "GRUPO" : "PRIVADO",
+      chat_jid: grupo ?? /** @type {string} */ (identidade.jid),
+      remetente: { ...identidade, nome: null },
+      contato: grupo ? null : identidade,
+      video: registro.video,
+      resultado: registro.resultado,
+      timestamp_wa: registro.timestamp_wa,
+    };
+    if (nomeGrupo) corpo.nome_chat = nomeGrupo;
+    try {
+      await registrarChamada(corpo, contexto);
+      console.log(`[CHAMADA] Equipe ${cod}: chamada ${registro.chamada_wa_id} registrada (${registro.origem} ${registro.resultado}; ${registro.sequencia.join(">")}).`);
+    } catch (erro) {
+      console.error(`[CHAMADA] Falha ao registrar a chamada ${registro.chamada_wa_id} da equipe ${cod}:`, resumoFalha(erro));
+    }
+  }
+
+  /**
+   * @param {import("./chamadas").RegistroChamada} registro
+   * @returns {Promise<void>}
+   */
+  function enfileirarChamada(registro) {
+    const s = socket;
+    if (!s) return filaEntrada;
+    filaEntrada = filaEntrada.then(() =>
+      publicarChamada(s, registro).catch((erro) =>
+        console.error(`[CHAMADA] Falha ao processar a chamada ${registro.chamada_wa_id} da equipe ${cod}:`, nomeDoErro(erro)),
+      ),
+    );
+    return filaEntrada;
+  }
+
+  /**
+   * Alerta TOCANDO/PAROU (C2), FORA da fila de entrada. Sem consulta ao WhatsApp: a identidade só vem do
+   * cache e o grupo vai sem `nome_chat`. Falha ou prazo só vão ao log; nunca atingem o registro.
+   * @param {import("./chamadas").AlertaChamada} alerta
+   * @returns {Promise<void>}
+   */
+  async function publicarAlertaChamada(alerta) {
+    if (!socket) return;
+    /** @type {import("../services/chamadaInternoClient").AlertaChamadaCorpo} */
+    let corpo = { chamada_wa_id: alerta.chamada_wa_id, situacao: "PAROU" };
+    if (alerta.situacao === "TOCANDO") {
+      const grupo = alerta.group_jid ? normalizarJid(alerta.group_jid) : null;
+      const identidade = identidadeDeQuemLiga(alerta.from);
+      corpo = {
+        chamada_wa_id: alerta.chamada_wa_id,
+        situacao: "TOCANDO",
+        tipo_chat: grupo ? "GRUPO" : "PRIVADO",
+        chat_jid: grupo ?? /** @type {string} */ (identidade.jid),
+        remetente: { ...identidade, nome: null },
+        contato: grupo ? null : identidade,
+        video: alerta.video,
+      };
+    }
+    try {
+      await alertarChamada(corpo, contexto);
+    } catch (erro) {
+      console.error(`[CHAMADA] Falha no alerta ${alerta.situacao} da chamada ${alerta.chamada_wa_id} da equipe ${cod}:`, resumoFalha(erro));
+    }
+  }
+
+  /**
+   * Evento `call` do Baileys: o chamado offline (entregue na reconexão) só vale dentro da janela de
+   * recuperação. O resto vai ao consolidador.
+   * @param {SocketBaileys} s
+   * @param {unknown} eventos
+   */
+  function tratarCall(s, eventos) {
+    if (s !== socket) return;
+    const lista = Array.isArray(eventos) ? eventos : [eventos];
+    const validos = lista.filter((e) => {
+      if (!e || typeof e !== "object") return false;
+      if (e.offline !== true) return true;
+      const ms = e.date instanceof Date ? e.date.getTime() : NaN;
+      // Offline sem data válida não dá para situar na janela: descarta.
+      return Number.isFinite(ms) && recuperacao.dentroDaJanela(Math.floor(ms / 1000), "append");
+    });
+    if (validos.length > 0) consolidadorChamadas.tratarEvento(validos);
+  }
+
+  /**
    * Põe um lote do `messages.upsert` na fila serial. `notify` (tempo real) e `append` (recuperadas
    * na reconexão e eco dos envios) são processados. A fila nunca fica rejeitada.
    * @param {SocketBaileys} s
@@ -706,8 +838,12 @@ function criarAdapter({
     s.ev.on("presence.update", (evento) => presenca.tratarAtualizacao(evento, { jid: s.user?.id, lid: s.user?.lid }));
     s.ev.on("groups.update", (grupos) => nomesGrupo.aprender(grupos));
     s.ev.on("group-participants.update", (evento) => nomesGrupo.esquecer(evento?.id));
-    // Task 34.0: só o diagnóstico da forma do evento (log com DIAGNOSTICO_CHAMADAS=S); nada é registrado nem recusado.
-    s.ev.on("call", (eventos) => diagnosticoChamadas.registrarFormaEventoCall(eventos, { jid: s.user?.id, lid: s.user?.lid }));
+    // Task 34.0: o diagnóstico da forma do evento (log com DIAGNOSTICO_CHAMADAS=S, desligado por padrão).
+    // Task 34.2/34.6: o consolidador registra a chamada recebida e alerta enquanto toca. Nunca recusa nem responde.
+    s.ev.on("call", (eventos) => {
+      diagnosticoChamadas.registrarFormaEventoCall(eventos, { jid: s.user?.id, lid: s.user?.lid });
+      tratarCall(s, eventos);
+    });
 
     return { ...estado };
   }

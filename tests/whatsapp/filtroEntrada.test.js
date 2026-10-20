@@ -403,3 +403,16 @@ test("normalizarMensagem é pura: não altera o payload recebido", () => {
   assert.equal(JSON.stringify(msg), antes);
   assert.deepEqual(normalizarMensagem(msg, { eu: EU }), normalizarMensagem(msg, { eu: EU }));
 });
+
+test("34.2 regressão: stub CALL_MISSED_*, message.call e registro de chamada (callLogMesssage, inclusive embrulhado) continuam fora do normalizarMensagem", () => {
+  const chave = { remoteJid: JID_CLIENTE, fromMe: false };
+  const casos = [
+    { key: { ...chave, id: "3EB0R00001" }, messageStubType: 40, messageTimestamp: TIMESTAMP },
+    { key: { ...chave, id: "3EB0R00002" }, messageStubType: 41, messageTimestamp: TIMESTAMP },
+    { key: { ...chave, id: "3EB0R00003" }, messageStubType: 45, messageTimestamp: TIMESTAMP },
+    { key: { ...chave, id: "3EB0R00004" }, message: { call: { callKey: Buffer.from("k") } }, messageTimestamp: TIMESTAMP },
+    { key: { ...chave, fromMe: true, id: "3EB0R00005" }, message: { callLogMesssage: { callOutcome: 0, isVideo: true, durationSecs: 3 } }, messageTimestamp: TIMESTAMP },
+    { key: { ...chave, fromMe: true, id: "3EB0R00006" }, message: { ephemeralMessage: { message: { callLogMesssage: { callOutcome: 1 } } } }, messageTimestamp: TIMESTAMP },
+  ];
+  for (const caso of casos) assert.equal(normalizarMensagem(caso, { eu: EU }), null, caso.key.id);
+});

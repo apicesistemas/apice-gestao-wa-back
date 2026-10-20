@@ -12,6 +12,7 @@ const fs = require("node:fs");
  *   removidos: string[],
  *   chamadasEnd: number,
  *   chamadasLogout: number,
+ *   registrosOn: Record<string, number>,
  *   emitir: (evento: string, dado: any) => Promise<void>,
  * }} SocketFalso
  */
@@ -65,6 +66,7 @@ function makeWASocket(config) {
   const socket = {
     config,
     listeners: {},
+    registrosOn: {},
     removidos: [],
     chamadasEnd: 0,
     chamadasLogout: 0,
@@ -77,6 +79,7 @@ function makeWASocket(config) {
     /** @param {string} evento @param {(dado: any) => any} handler */
     on(evento, handler) {
       socket.listeners[evento] = handler;
+      socket.registrosOn[evento] = (socket.registrosOn[evento] ?? 0) + 1;
     },
     /** @param {string} evento */
     removeAllListeners(evento) {

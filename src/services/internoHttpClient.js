@@ -69,12 +69,13 @@ function ehTimeout(erro) {
  * @template {{ hash_empresa: string }} C
  * @param {string} rota
  * @param {C} corpo precisa trazer o `hash_empresa` do tenant (escopo de toda escrita no back)
+ * @param {{ timeoutMs?: number }} [opcoes] `timeoutMs`: prazo próprio desta chamada (padrão: `CRM_BACK_TIMEOUT_MS`)
  * @returns {Promise<any>}
  * @throws {ErroRotaInterna}
  */
-async function chamarRotaInterna(rota, corpo) {
+async function chamarRotaInterna(rota, corpo, opcoes = {}) {
   exigirHashEmpresa(rota, corpo?.hash_empresa);
-  return enviarPost(rota, { "Content-Type": "application/json" }, JSON.stringify(corpo));
+  return enviarPost(rota, { "Content-Type": "application/json" }, JSON.stringify(corpo), opcoes.timeoutMs);
 }
 
 /**
@@ -107,9 +108,10 @@ function exigirHashEmpresa(rota, hashEmpresa) {
  * @param {string} rota
  * @param {Record<string, string>} headers
  * @param {string | FormData} body
+ * @param {number} [timeoutMs] prazo próprio; sem ele vale `obterTimeoutMs()`
  * @returns {Promise<any>}
  */
-async function enviarPost(rota, headers, body) {
+async function enviarPost(rota, headers, body, timeoutMs) {
   const url = montarUrl(rota);
 
   /** @type {Response} */
@@ -119,7 +121,7 @@ async function enviarPost(rota, headers, body) {
       method: "POST",
       headers: { ...headers, "X-Internal-Token": obterTokenServico() },
       body,
-      signal: AbortSignal.timeout(obterTimeoutMs()),
+      signal: AbortSignal.timeout(typeof timeoutMs === "number" && timeoutMs > 0 ? timeoutMs : obterTimeoutMs()),
     });
   } catch (erro) {
     if (ehTimeout(erro)) {
