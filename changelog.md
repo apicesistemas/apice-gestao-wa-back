@@ -3,6 +3,40 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.25.0] - 2026-10-20
+
+### Adicionado
+
+- Sugestão de texto do ticket pela IA (Fase 31, Task 31.1, contrato D1): `POST /ia/sugestao-ticket` (canal D, `X-Internal-Token`, 503 + `Retry-After` no desligamento). O back pede título, descrição, tipo de resolução e explicação a partir do contexto já mascarado; o wa-back chama o chat de texto da MiniMax e devolve só os campos pedidos. A rota não toca no `instanciaManager` nem no Baileys, não chama o back e não grava nada.
+- `src/ia/sugestaoTicketService.js`: `sugerir({ campos, contexto, tipos_resolucao, minimo_caracteres_explicacao, prazoMs, fetch? })` → `{ sugestao }` ou `{ erro }` (`SEM_CHAVE`, `MINIMAX_LIMITE`, `MINIMAX_INDISPONIVEL`, `MINIMAX_REDE`, `MINIMAX_TIMEOUT`, `MINIMAX_RECUSOU`, `RESPOSTA_INVALIDA`), nunca rejeita. Prompt de sistema fixo em pt-BR; a conversa vai entre delimitadores e os delimitadores dentro dela são neutralizados (injeção). Parse defensivo (bloco cercado por ```, texto em volta, `<think>`), título até 150 caracteres cortado na palavra, descrição e explicação até 5000, tipo fora da lista vira `null`, campo não pedido descartado, nenhum campo útil = `RESPOSTA_INVALIDA`. Sem nova tentativa.
+- `src/ia/portaoIa.js`: semáforo com `MINIMAX_IA_CONCORRENCIA` (padrão 1); a espera desconta do prazo (passou, 504 sem chamar a MiniMax) e a vez é liberada no `finally`.
+- `src/http/IaController.js` (registrado em `src/http/index.js`): allowlist estrita no corpo (`hash_empresa`, `transcricao`, `nota_interna`, `sugestao_ia` e qualquer chave desconhecida = 400 sem chamar a MiniMax), `express.json` próprio de 512 kb. Erros: 502 `RESPOSTA_INVALIDA` (inclui a recusa 4xx do provedor), 503 `IA_INDISPONIVEL` (sem chave, 429, 5xx, rede), 504 `PRAZO`, 500 genérico. O log leva só os campos pedidos, o código e os ms.
+- `.env.example`: `MINIMAX_MODELO_TEXTO` e `MINIMAX_IA_CONCORRENCIA` (comentados).
+
+### Alterado
+
+- `src/index.js`: o `express.json()` global (100 kb) passa a pular `/ia/`, porque o contexto chega a 200 000 caracteres; a rota lê o próprio corpo.
+- Lista de recusa do envio: o contrato "nada interno vai ao WhatsApp" ganhou o caso `contexto`, `sugestao_ia`, `uso_ia` e `cod_ia_sugestao` no `/enviar` e no `/reagir` (400 sem tocar no Baileys). A allowlist do envio já recusava esses nomes.
+- A fila de transcrição não mudou (regressão verde).
+
+### Ajustes da revisão (rodada 1)
+
+- `src/index.js`: o desvio do `express.json` global compara `req.path.toLowerCase()`, porque o Express roteia sem diferenciar maiúsculas (`POST /IA/sugestao-ticket` passava antes pelo parser global, que lia o corpo antes do token). Teste: 401 sem token na grafia em maiúsculas, com corpo malformado e grande, sem ler o corpo.
+- `sugestaoTicketService.js`: comentário limpo e `MAXIMO_TOKENS_RESPOSTA` documentado como constante técnica.
+
+### Testes
+
+- `tests/ia/sugestaoTicketService.test.js`, `tests/ia/portaoIa.test.js`, `tests/http/IaController.test.js` (fetch falso, console capturado, Baileys sem nenhum socket) e o caso novo em `tests/http/EnvioController.test.js`.
+
+### Para homologar com a chave real
+
+- O raciocínio `<think>` do M2 pode consumir o `max_tokens` (4096) e cortar o JSON, o que viraria `RESPOSTA_INVALIDA`: se acontecer, subir a constante ou limitar o raciocínio pelo parâmetro do provedor.
+- Confirmar a URL (`https://api.minimax.io/v1/text/chatcompletion_v2`), o modelo padrão (`MiniMax-M2`, ou definir `MINIMAX_MODELO_TEXTO`), o formato `choices[0].message.content`, os códigos de `base_resp` e se há 429 com transcrição e sugestão ao mesmo tempo (se houver, unificar o portão com a fila da transcrição, com prioridade à sugestão).
+
+### Ordem de deploy
+
+- Rota nova do canal D: publicar o wa-back 0.25.0 antes do back 0.48.0. Com o wa-back antigo, o back recebe 404 e mostra "IA indisponível". Sem SQL.
+
 ## [0.24.0] - 2026-10-20
 
 ### Alterado

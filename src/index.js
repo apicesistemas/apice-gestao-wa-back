@@ -41,7 +41,9 @@ function validarVariaveisDeAmbiente(env = process.env) {
 function criarApp() {
   const server = express();
   server.disable("x-powered-by");
-  server.use(express.json());
+  // As rotas de /ia/ (o Express roteia sem diferenciar maiúsculas, a comparação também) leem o próprio corpo (teto de 512 kb, o contexto passa dos 100 kb do padrão).
+  const jsonPadrao = express.json();
+  server.use((req, res, next) => (req.path.toLowerCase().startsWith("/ia/") ? next() : jsonPadrao(req, res, next)));
   registrarControllers(server);
   return server;
 }

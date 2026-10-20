@@ -220,6 +220,16 @@ test("payload com campos internos (transcricao, nota_interna, explicacao) é rej
   assert.deepEqual(marcadas, []);
 });
 
+test("envio e reação com campos da IA (contexto, sugestao_ia, uso_ia) responde 400 sem chamar o Baileys (teste de contrato, Fase 31)", async () => {
+  for (const campo of ["contexto", "sugestao_ia", "uso_ia", "cod_ia_sugestao"]) {
+    await esperarErro(await postEnviar("7", formulario({ ...BASE, tipo: "TEXTO", texto: "Oi", [campo]: "texto da IA" })), 400);
+    await esperarErro(await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO", [campo]: "texto da IA" }, { buffer: arquivos.pdf(), mimetype: "application/pdf", nome: "a.pdf" })), 400);
+    await esperarErro(await postReagir("7", { ...BASE, key: { remoteJid: JID_CLIENTE, fromMe: false, id: "3EB0A" }, emoji: "👍", [campo]: "texto da IA" }), 400);
+  }
+  assert.equal(envios.length, 0);
+  assert.deepEqual(marcadas, []);
+});
+
 test("envio TEXTO com campos da pesquisa de satisfação (comentario, nota, token, titulo_ticket) responde 400 sem chamar o Baileys (teste de contrato)", async () => {
   for (const campo of ["comentario", "nota", "token", "titulo_ticket"]) {
     await esperarErro(await postEnviar("7", formulario({ ...BASE, tipo: "TEXTO", texto: "Avalie nosso atendimento.", [campo]: "valor" })), 400);
