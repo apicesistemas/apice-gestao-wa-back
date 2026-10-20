@@ -1,6 +1,6 @@
 # apice-gestao-wa-back — Motor de conversa WhatsApp
 
-> Runtime 24/7 do Baileys com uma instância por equipe. Recebe, normaliza e registra todas as mensagens de WhatsApp (grupos e conversas privadas, todas as mídias, inclusive as enviadas pelo aparelho) e as chamadas recebidas, transcreve áudio e vídeo via MiniMax e envia as respostas do atendente. Assim, o histórico deixa de ficar preso ao WhatsApp Web de cada atendente.
+> Runtime 24/7 do Baileys com uma instância por equipe. Recebe, normaliza e registra todas as mensagens de WhatsApp (grupos e conversas privadas, todas as mídias, inclusive as enviadas pelo aparelho) e as chamadas recebidas, transcreve áudio e vídeo e gera as sugestões de texto do ticket via MiniMax, e envia as respostas do atendente. Assim, o histórico deixa de ficar preso ao WhatsApp Web de cada atendente.
 
 ## Stack
 
@@ -9,10 +9,10 @@
 | Runtime | Node.js, JavaScript CommonJS com JSDoc + `// @ts-check` |
 | WhatsApp | Baileys (`@whiskeysockets/baileys`, versão fixa como no comandax) |
 | HTTP | Express 5 (só chamadas internas do back) |
-| Transcrição | MiniMax M3 |
+| IA | MiniMax M3: transcrição e sugestões de texto (`MINIMAX_MODELO_TEXTO`, padrão `MiniMax-M3`) |
 | Comunicação com o back | HTTP interno com token de serviço (`/interno/*`) |
 | Testes | `node:test` |
-| Deploy | PM2 `instances: 1` no servidor `192.168.1.167`, porta 3501 (só rede interna) |
+| Deploy | PM2 `instances: 1` no servidor `192.168.1.167`, porta 3501, escutando só em `127.0.0.1` (`SERVER_HOST`) |
 | Gerenciador de pacotes | yarn |
 
 ## Estrutura de pastas
@@ -23,7 +23,8 @@ apice-gestao-wa-back/
 │   ├── index.js          # boot: TZ, Express, reconexão das instâncias, desligamento gracioso
 │   ├── whatsapp/         # adapter Baileys, instanciaManager (1 instância por equipe), entrada/saída
 │   ├── audio/            # transcrição MiniMax (fila de concorrência)
-│   ├── http/             # controllers internos (envio, QR/conexão, health) + exigência de token
+│   ├── ia/               # sugestão de texto do ticket pela MiniMax (sugestaoTicketService, portaoIa), rota interna POST /ia/sugestao-ticket
+│   ├── http/             # controllers internos (envio, QR/conexão, grupos, foto, IA, health) + exigência de token
 │   ├── services/         # clientes HTTP das rotas /interno/* do back
 │   ├── db/               # pool MySQL (fuso -03:00), se necessário
 │   └── utils/            # logs, helpers
@@ -46,7 +47,7 @@ apice-gestao-wa-back/
 ```bash
 cd apice-gestao-wa-back
 yarn install
-cp .env.example .env  # preencher (URL e token do back, chave MiniMax)
+cp .env.example .env  # preencher (URL e token do back, chave MiniMax); SERVER_HOST=127.0.0.1, MINIMAX_MODELO_TEXTO e MINIMAX_IA_CONCORRENCIA já vêm com o padrão
 yarn start:dev        # nodemon → node --env-file-if-exists=.env ./src/index.js (observa só src/)
 yarn test             # node scripts/run-tests.js → node --test tests/**/*.test.js
 ```
@@ -59,8 +60,9 @@ No servidor `192.168.1.167`, na pasta do submódulo: `bash deploy.sh`.
 
 - **Ordem:** `git pull --ff-only` → `yarn install` (`--frozen-lockfile` quando o `yarn.lock` é versionado) → `yarn test` → `pm2 reload ecosystem.config.cjs --update-env` (`pm2 start` se o app ainda não existe no PM2) → `GET http://127.0.0.1:3501/ping` com tentativas → `pm2 save`. Qualquer falha antes do PM2 aborta com código ≠ 0 e o processo em execução não é tocado. Teste vermelho nunca chega ao reload.
 - **Sessão sobrevive ao reload:** `instances: 1` + `exec_mode: "fork"` são obrigatórios (sessão do Baileys em disco, dois processos corrompem o pareamento), então o reload é stop gracioso + start. O PM2 manda SIGINT, o encerrador do `src/index.js` fecha tudo sem logout dentro do teto `MS_TETO_ENCERRAMENTO` (10 s), e o `kill_timeout` (12 s) fica acima dele. O `tests/ecosystem.config.test.js` garante isso. O boot seguinte reconecta sem QR e recupera as mensagens do intervalo.
-- **Porta:** `SERVER_PORT: "3501"` no `env` do ecosystem. O `--env-file=.env` não sobrescreve variável que já existe, então sob o PM2 a porta é sempre 3501. Ela fica só na rede interna.
+- **Porta e endereço:** `SERVER_PORT: "3501"` e `SERVER_HOST: "127.0.0.1"` no `env` do ecosystem. O `--env-file=.env` não sobrescreve variável que já existe, então sob o PM2 o wa-back escuta sempre em `127.0.0.1:3501` (só loopback, porque `/ping` e `/health` não têm token). O back o chama por `WA_BACK_BASE_URL=http://127.0.0.1:3501`, nunca `localhost`, que pode resolver para `::1`. Com `SERVER_HOST` em todas as interfaces (`0.0.0.0`, `::`), o boot avisa no log.
 - **`GET /ping` (sem token):** `{ status, versao, encerrando, equipes: [{ cod_equipe, status, desde? }] }`, 200 no ar e 503 durante o desligamento. Fica aberto para o PM2, o deploy e o monitor, por isso nunca pode levar JID, telefone, LID, nome do número, QR, texto de erro nem hash_empresa.
+- **Variáveis da IA de texto:** `MINIMAX_MODELO_TEXTO` (padrão `MiniMax-M3`, raciocínio desligado; `MiniMax-M3.1-Flash` usa `reasoning_effort: low`) e `MINIMAX_IA_CONCORRENCIA` (sugestões simultâneas na MiniMax, padrão 1; a espera conta no prazo). São configuração técnica, não parâmetro da empresa.
 - **Parâmetros do script (ambiente):** `DEPLOY_PORTA` (3501), `DEPLOY_TENTATIVAS_PING` (20) e `DEPLOY_INTERVALO_PING` (3 s).
 - **O script nunca** lê o `.env`, imprime segredo, apaga `sessoes-baileys/`, chama `pm2 delete`/`kill` ou faz `git reset`. O corpo fica numa função, então o `git pull` pode reescrever o próprio `deploy.sh` no meio da execução.
 - **Testes:** o `tests/deploy.test.js` roda o script com stubs de `git`, `yarn`, `pm2`, `curl` e `sleep`. No Windows precisa do bash do Git (`BASH_TESTE` aponta outro) e, sem bash, os casos são pulados com aviso.
@@ -83,7 +85,8 @@ No servidor `192.168.1.167`, na pasta do submódulo: `bash deploy.sh`.
 - Testes críticos deste projeto:
   - [ ] Cada tipo recebido (texto, foto, vídeo, áudio, documento, figurinha, localização, contato, reação, citação, edição, exclusão) é normalizado corretamente. Mensagens de grupo identificam o grupo e o participante.
   - [ ] A mesma mensagem recebida duas vezes gera um único registro.
-  - [ ] Nenhum payload enviado ao WhatsApp contém transcrição, explicação de resolução ou nota interna (teste de contrato).
+  - [ ] Nenhum payload enviado ao WhatsApp contém transcrição, explicação de resolução, nota interna ou sugestão da IA (teste de contrato).
+  - [ ] `POST /ia/sugestao-ticket` recusa com 400, sem chamar a MiniMax, qualquer chave fora da allowlist, e não grava, não chama o back nem toca no Baileys. O log nunca leva o contexto nem a resposta da IA.
   - [ ] Uma mensagem enviada pelo aparelho é registrada com origem "aparelho", e o eco de uma mensagem enviada pelo CRM não é registrado de novo.
   - [ ] Depois de reiniciar, as instâncias reconectam sem novo QR Code, e as mensagens recebidas durante a reinicialização são recuperadas.
   - [ ] Um arquivo acima do tamanho máximo, ou com conteúdo diferente do tipo declarado, é recusado.
@@ -92,11 +95,11 @@ No servidor `192.168.1.167`, na pasta do submódulo: `bash deploy.sh`.
 
 ## Nunca fazer
 
-- Nunca enviar ao WhatsApp transcrição, explicação da resolução ou nota interna. O adaptador de envio recebe só o conteúdo destinado ao cliente.
+- Nunca enviar ao WhatsApp transcrição, explicação da resolução, nota interna ou sugestão da IA. O adaptador de envio recebe só o conteúdo destinado ao cliente.
 - Nunca ler, listar ou versionar `sessoes-baileys/`, nem gravar mídia em disco (a única exceção é o temporário cifrado do upload do Baileys, ver "Exceções aceitas").
 - Nunca rodar mais de uma instância do processo nem encerrar sem desligamento gracioso, o que corromperia a sessão.
 - Nunca identificar o contato só pelo telefone. Guardar também o LID.
-- Nunca aceitar chamadas fora da rede interna ou sem o token de serviço, nem fazer envio em massa (risco de banimento do número).
+- Nunca escutar fora de `127.0.0.1` nem aceitar chamadas sem o token de serviço, nem fazer envio em massa (risco de banimento do número).
 - Nunca chamar `rejectCall` nem enviar mensagem por causa de uma chamada de voz ou vídeo do WhatsApp (decisões D3 e D4 da Fase 34). O wa-back só consolida o evento `call` e avisa o back.
 - Nunca usar range de versão (`^`) no Baileys. A versão é fixa.
 
