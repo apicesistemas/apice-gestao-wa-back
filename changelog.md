@@ -3,6 +3,15 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.25.1] - 2026-10-20
+
+### Alterado
+
+- Sugestão da IA ajustada à documentação oficial da MiniMax (API OpenAI-compatível): `URL_CHAT` passa a `https://api.minimax.io/v1/chat/completions` e o modelo padrão a `MiniMax-M3`, com `thinking: { type: "disabled" }`. O corpo usa `max_completion_tokens` (4096, constante técnica) no lugar de `max_tokens` e não envia mais `temperature`. Com `MINIMAX_MODELO_TEXTO=MiniMax-M3.1-Flash`, que dá 400 com `thinking: disabled`, vai `reasoning_effort: "low"` no lugar.
+- Leitura: `<think>` no conteúdo continua sendo removido, `reasoning_content` é ignorado (nunca vai a log) e `finish_reason: "length"` sem conteúdo útil vira `RESPOSTA_INVALIDA` (502). Erros pelo status HTTP (429 limite, 5xx indisponível, demais 4xx recusa); `base_resp` fica só por compatibilidade.
+- `.env.example`: `MINIMAX_MODELO_TEXTO=MiniMax-M3` e `MINIMAX_IA_CONCORRENCIA=1` descomentados e documentados. O README do wa-back não lista variáveis de ambiente, então não mudou.
+- Homologação: sobra só o teste com a chave real e a conferência do 429 cruzado com a transcrição. Sem contrato novo e sem mudança no back.
+
 ## [0.25.0] - 2026-10-20
 
 ### Adicionado

@@ -7,25 +7,31 @@
 // O contexto (conversa já mascarada pelo back) e a resposta da IA são conteúdo do cliente: nunca
 // vão a log nem a erro. A chave só vai no header `Authorization`. Este módulo não loga nada.
 //
-// Endpoint e formato abaixo seguem a API de chat da MiniMax (compatível com OpenAI,
-// `choices[0].message.content`, falhas lógicas em `base_resp` mesmo com HTTP 200). Sem acesso à
-// documentação nesta sessão: CONFIRMAR NA HOMOLOGAÇÃO com a chave real (URL, nome do modelo e os
-// códigos de `base_resp`). Os testes usam fetch falso e fixam o formato aqui descrito.
-//
-// Homologação: o raciocínio `<think>` do M2 pode consumir o `max_tokens` e cortar o JSON no meio (o resultado
-// seria RESPOSTA_INVALIDA). Sem a API confirmada não dá para desligar o raciocínio nem adivinhar o parâmetro;
-// por isso `MAXIMO_TOKENS_RESPOSTA` é uma constante técnica, com folga sobre o texto final. Se na homologação
-// houver corte, subir a constante ou usar o parâmetro do provedor que limita/desliga o raciocínio.
+// API: endpoint compatível com a OpenAI da MiniMax, confirmado na documentação oficial
+// (https://platform.minimax.io/docs/api-reference/text-openai-api): `POST /v1/chat/completions` com
+// `Authorization: Bearer`, resposta em `choices[0].message.content` e `finish_reason`.
+// - Modelo padrão `MiniMax-M3` com `thinking: { type: "disabled" }` (sem raciocínio, o JSON não é
+//   consumido por tokens de thinking). `MiniMax-M3.1-Flash` (via `MINIMAX_MODELO_TEXTO`) NÃO aceita
+//   desligar o thinking (400), então nele vai `reasoning_effort: "low"` no lugar.
+// - `max_completion_tokens` é o campo recomendado (`max_tokens` é legado); `temperature` e `top_p`
+//   são ignorados pela MiniMax e por isso não vão.
+// - Sem `reasoning_split`, o raciocínio pode vir em `<think>` dentro de `content`: é removido. O
+//   `reasoning_content` é ignorado e nunca vai a log. A documentação não fala de `response_format`
+//   nem de modo JSON: o JSON vem do prompt e da leitura defensiva.
+// - `base_resp` (formato antigo da MiniMax) só é lido por compatibilidade, se vier.
+// Na homologação fica só o teste com a chave real e a conferência do 429 cruzado com a transcrição.
 
-const URL_CHAT = "https://api.minimax.io/v1/text/chatcompletion_v2";
-/** Modelo padrão (teto técnico do provedor); `MINIMAX_MODELO_TEXTO` sobrescreve. Confirmar na homologação. */
-const MODELO_PADRAO = "MiniMax-M2";
+const URL_CHAT = "https://api.minimax.io/v1/chat/completions";
+/** Modelo padrão (teto técnico do provedor); `MINIMAX_MODELO_TEXTO` sobrescreve. */
+const MODELO_PADRAO = "MiniMax-M3";
+/** Os modelos Flash não aceitam `thinking: disabled` (400). */
+const ehFlash = (/** @type {string} */ modelo) => /flash/i.test(modelo);
 
 /** Limites de saída do contrato D1 (tamanho do formulário do CRM, não regra de negócio). */
 const MAXIMO_TITULO = 150;
 const MAXIMO_DESCRICAO = 5000;
 const MAXIMO_EXPLICACAO = 5000;
-/** Teto técnico de tokens da resposta (raciocínio `<think>` + JSON): cobre descrição e explicação de 5000 caracteres com folga. Confirmar na homologação. */
+/** Teto técnico de tokens da resposta (`max_completion_tokens`): cobre descrição e explicação de 5000 caracteres com folga. */
 const MAXIMO_TOKENS_RESPOSTA = 4096;
 
 const DELIMITADOR_INICIO = "<<<CONTEXTO_DO_TICKET";
@@ -226,8 +232,8 @@ async function sugerir(pedido) {
             { role: "system", content: PROMPT_SISTEMA },
             { role: "user", content: montarPedidoUsuario(pedido) },
           ],
-          temperature: 0.3,
-          max_tokens: MAXIMO_TOKENS_RESPOSTA,
+          max_completion_tokens: MAXIMO_TOKENS_RESPOSTA,
+          ...(ehFlash(modelo) ? { reasoning_effort: "low" } : { thinking: { type: "disabled" } }),
           stream: false,
         }),
         signal: AbortSignal.timeout(prazoMs),
@@ -252,8 +258,10 @@ async function sugerir(pedido) {
     const codigoBase = json?.base_resp?.status_code;
     if (typeof codigoBase === "number" && codigoBase !== 0) return falha(erroDoCodigoBase(codigoBase));
 
+    // `reasoning_content` é ignorado de propósito. Cortada por tamanho sem conteúdo útil = inválida.
     const conteudo = json?.choices?.[0]?.message?.content;
     if (typeof conteudo !== "string") return falha("RESPOSTA_INVALIDA");
+    if (json.choices[0].finish_reason === "length" && !conteudo.replace(/<think>[\s\S]*?<\/think>/gi, "").trim()) return falha("RESPOSTA_INVALIDA");
     const objeto = extrairObjeto(conteudo);
     if (!objeto) return falha("RESPOSTA_INVALIDA");
     const sugestao = validarSugestao(objeto, pedido);

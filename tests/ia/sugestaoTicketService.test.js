@@ -63,6 +63,12 @@ test("monta o pedido: URL, Bearer, modelo padrão, prompt fixo, contexto delimit
   assert.ok(init.signal instanceof AbortSignal);
   const corpo = JSON.parse(init.body);
   assert.equal(corpo.model, MODELO_PADRAO);
+  assert.equal(MODELO_PADRAO, "MiniMax-M3");
+  assert.equal(URL_CHAT, "https://api.minimax.io/v1/chat/completions");
+  assert.deepEqual(corpo.thinking, { type: "disabled" });
+  assert.equal(corpo.reasoning_effort, undefined);
+  assert.equal(typeof corpo.max_completion_tokens, "number");
+  for (const legado of ["max_tokens", "temperature", "top_p"]) assert.equal(Object.hasOwn(corpo, legado), false, legado);
   assert.equal(corpo.stream, false);
   assert.equal(corpo.messages[0].role, "system");
   assert.match(corpo.messages[0].content, /SOMENTE com um objeto JSON/);
@@ -231,4 +237,40 @@ test("nunca rejeita com entrada inválida ou imprevisto", async () => {
   assert.deepEqual(await sugerir(/** @type {any} */ (null)), { erro: "RESPOSTA_INVALIDA" });
   // Prazo inválido: o AbortSignal.timeout lança dentro da chamada e ainda assim não rejeita.
   assert.deepEqual(await sugerir({ ...base, prazoMs: -5, fetch: fetchFalso(chat('{"titulo":"x"}')).fetch }), { erro: "MINIMAX_REDE" });
+});
+
+test("modelo Flash não manda thinking (dá 400) e usa reasoning_effort low", async () => {
+  process.env.MINIMAX_MODELO_TEXTO = "MiniMax-M3.1-Flash";
+  const f = fetchFalso(chat('{"titulo":"x"}'));
+  await sugerir({ ...base, fetch: f.fetch });
+  const corpo = JSON.parse(f.chamadas[0].init.body);
+  assert.equal(corpo.model, "MiniMax-M3.1-Flash");
+  assert.equal(corpo.reasoning_effort, "low");
+  assert.equal(Object.hasOwn(corpo, "thinking"), false);
+  assert.equal(typeof corpo.max_completion_tokens, "number");
+});
+
+test("<think> no conteúdo é removido e reasoning_content é ignorado", async () => {
+  const resposta = Response.json({ choices: [{ finish_reason: "stop", message: { content: '<think>talvez {"titulo":"errado"}</think>{"titulo":"Certo"}', reasoning_content: '{"titulo":"do raciocínio"}' } }] });
+  assert.deepEqual(await sugerir({ ...base, campos: ["titulo"], fetch: fetchFalso(resposta).fetch }), { sugestao: { titulo: "Certo" } });
+  const soRaciocinio = Response.json({ choices: [{ finish_reason: "stop", message: { content: "", reasoning_content: '{"titulo":"do raciocínio"}' } }] });
+  assert.deepEqual(await sugerir({ ...base, campos: ["titulo"], fetch: fetchFalso(soRaciocinio).fetch }), { erro: "RESPOSTA_INVALIDA" });
+});
+
+test("finish_reason length: sem conteúdo útil (vazio ou só <think>) é RESPOSTA_INVALIDA; JSON completo ainda vale", async () => {
+  for (const content of ["", "   ", "<think>x</think>", "<think>pensando sem parar"]) {
+    const r = Response.json({ choices: [{ finish_reason: "length", message: { content } }] });
+    assert.deepEqual(await sugerir({ ...base, fetch: fetchFalso(r).fetch }), { erro: "RESPOSTA_INVALIDA" }, content);
+  }
+  const completo = Response.json({ choices: [{ finish_reason: "length", message: { content: '{"titulo":"Inteiro"}' } }] });
+  assert.deepEqual(await sugerir({ ...base, campos: ["titulo"], fetch: fetchFalso(completo).fetch }), { sugestao: { titulo: "Inteiro" } });
+});
+
+test("status HTTP no formato OpenAI: 429 limite, 5xx indisponível, 401/403/400/404/422 recusa", async () => {
+  /** @type {[number, string][]} */
+  const casos = [[429, "MINIMAX_LIMITE"], [500, "MINIMAX_INDISPONIVEL"], [502, "MINIMAX_INDISPONIVEL"], [503, "MINIMAX_INDISPONIVEL"], [401, "MINIMAX_RECUSOU"], [403, "MINIMAX_RECUSOU"], [400, "MINIMAX_RECUSOU"], [404, "MINIMAX_RECUSOU"], [422, "MINIMAX_RECUSOU"]];
+  for (const [status, erro] of casos) {
+    const r = await sugerir({ ...base, fetch: fetchFalso(Response.json({ error: { message: "texto do provedor", type: "x" } }, { status })).fetch });
+    assert.deepEqual(r, { erro }, String(status));
+  }
 });
