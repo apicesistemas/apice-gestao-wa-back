@@ -87,6 +87,7 @@ No servidor `192.168.1.167`, na pasta do submódulo: `bash deploy.sh`.
   - [ ] A mesma mensagem recebida duas vezes gera um único registro.
   - [ ] Nenhum payload enviado ao WhatsApp contém transcrição, explicação de resolução, nota interna ou sugestão da IA (teste de contrato).
   - [ ] `POST /ia/sugestao-ticket` recusa com 400, sem chamar a MiniMax, qualquer chave fora da allowlist, e não grava, não chama o back nem toca no Baileys. O log nunca leva o contexto nem a resposta da IA.
+  - [ ] `/editar` e `/apagar` recusam com 400, sem tocar no Baileys, campo fora da allowlist e key que não é `fromMe`. O eco da edição e da exclusão feitas pelo CRM não volta ao back.
   - [ ] Uma mensagem enviada pelo aparelho é registrada com origem "aparelho", e o eco de uma mensagem enviada pelo CRM não é registrado de novo.
   - [ ] Depois de reiniciar, as instâncias reconectam sem novo QR Code, e as mensagens recebidas durante a reinicialização são recuperadas.
   - [ ] Um arquivo acima do tamanho máximo, ou com conteúdo diferente do tipo declarado, é recusado.

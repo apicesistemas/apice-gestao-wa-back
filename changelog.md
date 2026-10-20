@@ -3,6 +3,38 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.26.0] - 2026-10-20
+
+### Adicionado
+
+- Recibo por destinatário em lotes (Fase 38, Task 38.4, contrato C1): além do status agregado (maior status, `POST /interno/mensagem-status`, que NÃO mudou), cada recibo de entrega e leitura gera um item `{ mensagem_wa_id, destinatario, entregue_em, lida_em }` enviado ao back em `POST /interno/mensagem-recibos`, em lotes de até 200 itens.
+  - Conversa individual (`messages.update`): `destinatario: null` e o horário é o instante em que o wa-back extraiu o evento (D3), capturado na extração (nunca na liberação do lote nem da retenção). SERVER_ACK não gera item. PLAYED conta como lida (D2).
+  - Grupo (`message-receipt.update`): `destinatario: { lid, telefone }` do participante, com o par completado pelo resolvedor LID ↔ telefone (um dos dois basta), nunca JID nem nome. `receiptTimestamp` vira `entregue_em` e `readTimestamp`/`playedTimestamp` vira `lida_em`; o recibo unido pelo buffer do Baileys gera um item com os dois horários. O próprio número da equipe (JID, LID ou par do resolvedor) nunca entra.
+  - `src/whatsapp/loteRecibos.js` (novo): lote por equipe que sai `RECIBO_LOTE_MS` (padrão técnico 2000 ms) depois do primeiro recibo ou na hora com 200 itens (mais que isso sai em chamadas de 200, em série). O despacho passa pela fila serial da entrada (um recibo nunca passa na frente do registro da mensagem), mas o POST corre fora dela: um back lento não atrasa o registro nem o status agregado. Deduplicação em memória por mensagem e destinatário com TTL de 24 h (só passa horário novo; no mesmo lote vale o menor horário). Uma nova tentativa em rede, timeout ou 5xx, depois o lote é descartado só com log. Um 404 (back sem a rota) descarta o lote, suspende o envio por 10 min (intervalo técnico) e loga uma vez.
+  - `src/services/mensagemReciboInternoClient.js` (novo): `registrarRecibos(recibos, contexto, { timeoutMs })`, com o corpo do C1 validado (1 a 200 itens, destinatário com LID `<dígitos>@lid` e/ou telefone só com dígitos, pelo menos um horário).
+  - `src/whatsapp/recibos.js`: `extrairDeAtualizacoes` e `extrairDeRecibos` devolvem também o item por destinatário (`extrairDeRecibos` recebe o resolvedor LID); `processar` separa o agregado (inalterado) do item por destinatário, e os dois respeitam a retenção `adiarRecibos` do envio do CRM (o item retido preserva o horário original).
+  - `src/whatsapp/BaileysAdapter.js`: liga o lote e o resolvedor; o `userReceipt` que o Baileys junta numa mensagem enviada pela equipe (`messages.upsert` notify ou append) sai DEPOIS do registro dela (no eco de um envio do CRM, segue a retenção); `pararSocket` esvazia o lote (prazo técnico de 4 s, sem nova tentativa, menor que o teto de encerramento de 10 s); a sessão apagada limpa o lote.
+  - `.env.example`: `RECIBO_LOTE_MS` (padrão técnico, não é parâmetro da empresa).
+- O log leva só o `cod_equipe` e contagens (nunca LID, telefone, JID nem id de mensagem).
+- Exceção à D3: na conversa individual que chega por `extrairDeRecibos` (o `userReceipt` de uma mensagem enviada pela equipe, `destinatario: null`) o horário é o do próprio WhatsApp, não o da extração. O horário de extração vale só para o `messages.update`, que não traz horário.
+- Deduplicação só depois do 2xx: o recibo entra na deduplicação quando o back confirma (o pendente e o a caminho também contam, para não sair duas vezes). Lote descartado por falha não entra, então o recibo repetido pode voltar. A espera da nova tentativa não segura o processo (`unref`) e é cancelada pela sessão apagada.
+- Item inválido não derruba o lote: `adicionar` recusa e o cliente descarta os inválidos e envia os válidos (só rejeita quando não sobra nenhum).
+- Compatível com o back 0.53.0: equipe inválida, de outro tenant ou em exclusão responde 200 com tudo em `ignorados` (o wa-back não usa a resposta e só trata o 404 como rota ausente); a tolerância de horário futuro do back é de 300 s e o wa-back não envia horário futuro.
+
+### Alterado
+
+- `extrairDeAtualizacoes` e `extrairDeRecibos` passam a devolver itens de dois tipos (`StatusRecebido` e `ReciboPorDestinatario`); quem consome separa por `ehPorDestinatario`. O status agregado enviado ao back é o mesmo de antes (teste de regressão).
+
+### Observações
+
+- Contrato C1 (canal C, wa-back → back): `POST /interno/mensagem-recibos` com `{ hash_empresa, cod_equipe, recibos: [1..200] { mensagem_wa_id, destinatario: { lid, telefone } | null, entregue_em, lida_em } }`. Resposta 200 `{ msg, gravados, ignorados }`.
+- **Ordem de deploy: publicar o back 0.53.0 primeiro** (e o SQL manual da Fase 38 antes dele), depois este wa-back. Com o back antigo o wa-back novo recebe 404, loga uma vez e suspende o envio dos recibos por destinatário por 10 min, sem afetar o status agregado nem o registro das mensagens.
+- Sem variável nova obrigatória: `RECIBO_LOTE_MS` tem padrão.
+
+### Testes
+
+- `tests/whatsapp/recibos.destinatario.test.js`, `tests/whatsapp/loteRecibos.test.js`, `tests/whatsapp/BaileysAdapter.recibos.test.js` e `tests/services/mensagemReciboInternoClient.test.js` (novos). `tests/whatsapp/recibos.test.js` agora confere o status agregado filtrando os itens por destinatário (o comportamento agregado não mudou).
+
 ## [0.25.1] - 2026-10-20
 
 ### Alterado

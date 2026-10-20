@@ -20,8 +20,21 @@
 //   um ENTREGUE/LIDA que chegasse antes cairia num id ainda desconhecido e se perderia. Os recibos de
 //   um id marcado com `adiarRecibos` ficam retidos por `RECIBO_ATRASO_ENVIO_MS` (padrão 3000 ms, 0
 //   desliga) e depois saem na ordem em que chegaram, pela mesma regra do maior status.
+//
+// Recibo por destinatário (Fase 38, contrato C1): além do status agregado acima (que NÃO muda), cada
+// recibo gera um item por destinatário `{ mensagem_wa_id, destinatario, entregue_em, lida_em }`, que vai ao
+// `loteRecibos` (lotes em `POST /interno/mensagem-recibos`). D2: PLAYED conta como lida. D3: na conversa
+// individual (`messages.update`, sem horário) o horário é o instante em que o wa-back extraiu o evento,
+// capturado em `extrairDeAtualizacoes` (nunca na liberação do lote nem da retenção). No grupo
+// (`message-receipt.update`) vale `receiptTimestamp`/`readTimestamp`/`playedTimestamp`, e o destinatário é
+// o participante `{ lid, telefone }` (nunca JID nem nome). O próprio número da equipe nunca entra. A
+// retenção do envio do CRM vale também para o item por destinatário.
+// Exceção à D3: na conversa individual que chega por `extrairDeRecibos` (o `userReceipt` que o Baileys
+// junta numa mensagem enviada pela equipe) o horário é o do próprio WhatsApp (`receiptTimestamp` /
+// `readTimestamp`), não o da extração, porque esse recibo traz horário. O horário de extração só vale
+// para o `messages.update`, que não traz horário.
 const NodeCache = require("node-cache");
-const { mensagemWaIdValido, normalizarJid } = require("./filtroEntrada");
+const { mensagemWaIdValido, normalizarJid, lidDe, telefoneDe } = require("./filtroEntrada");
 const mensagemStatusInternoClient = require("../services/mensagemStatusInternoClient");
 
 /** WAMessageStatus (proto.WebMessageInfo.Status) do Baileys 6.7.24 → status no CRM. */
@@ -42,6 +55,10 @@ const MS_ATRASO_ENVIO_PADRAO = 3000;
 /** @typedef {import("../services/mensagemInternoClient").ContextoInstancia} ContextoInstancia */
 /** @typedef {import("./filtroEntrada").IdentidadePropria} IdentidadePropria */
 /** @typedef {{ mensagem_wa_id: string, status: StatusMensagem }} StatusRecebido */
+/** @typedef {import("../services/mensagemReciboInternoClient").ReciboPorDestinatario} ReciboPorDestinatario */
+/** @typedef {StatusRecebido | ReciboPorDestinatario} ItemRecibo status agregado ou recibo por destinatário */
+/** @typedef {{ adicionar: (item: ReciboPorDestinatario) => unknown, limpar?: () => unknown }} LoteRecibos */
+/** @typedef {{ completarIdentidade: (identidade: import("./filtroEntrada").Identidade) => import("./filtroEntrada").Identidade }} ResolvedorIdentidade */
 
 /**
  * @param {unknown} codigo
@@ -83,33 +100,85 @@ function idDaEnviada(item) {
 }
 
 /**
- * `messages.update` → status das mensagens enviadas pela equipe. Nunca lança.
- * @param {unknown} atualizacoes `WAMessageUpdate[]`
- * @returns {StatusRecebido[]}
+ * @param {unknown} item
+ * @returns {item is ReciboPorDestinatario}
  */
-function extrairDeAtualizacoes(atualizacoes) {
+function ehPorDestinatario(item) {
+  return Boolean(item) && typeof item === "object" && "destinatario" in /** @type {object} */ (item);
+}
+
+/**
+ * Timestamp do Baileys (number ou Long do protobufjs) em epoch de segundos, ou null.
+ * @param {unknown} valor
+ * @returns {number | null}
+ */
+function paraEpoch(valor) {
+  /** @type {unknown} */
+  let n = valor;
+  if (valor && typeof valor === "object" && typeof (/** @type {{ toNumber?: unknown }} */ (valor).toNumber) === "function") {
+    n = /** @type {{ toNumber: () => number }} */ (valor).toNumber();
+  }
+  return typeof n === "number" && Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+}
+
+/**
+ * @param {number | null} a
+ * @param {number | null} b
+ * @returns {number | null}
+ */
+function menorEpoch(a, b) {
+  if (a === null) return b;
+  if (b === null) return a;
+  return Math.min(a, b);
+}
+
+/**
+ * `messages.update` → status das mensagens enviadas pela equipe e, na conversa individual, o recibo por
+ * destinatário (`destinatario: null`) com o horário desta extração (D3). Nunca lança.
+ * @param {unknown} atualizacoes `WAMessageUpdate[]`
+ * @param {() => number} [agora] relógio em ms (o horário do recibo individual é o instante da extração)
+ * @returns {ItemRecibo[]}
+ */
+function extrairDeAtualizacoes(atualizacoes, agora = Date.now) {
   if (!Array.isArray(atualizacoes)) return [];
-  /** @type {StatusRecebido[]} */
+  /** @type {ItemRecibo[]} */
   const itens = [];
+  const instante = Math.floor(agora() / 1000);
   for (const item of atualizacoes) {
     const id = idDaEnviada(item);
     const status = id ? statusDoCodigo(item.update?.status) : null;
-    if (id && status) itens.push({ mensagem_wa_id: id, status });
+    if (!id || !status) continue;
+    itens.push({ mensagem_wa_id: id, status });
+    // Só conversa individual: no grupo o recibo vem por participante (`message-receipt.update`).
+    const privado = Boolean(lidDe(item.key.remoteJid) || telefoneDe(item.key.remoteJid));
+    if (privado && status !== "ENVIADA") {
+      itens.push({
+        mensagem_wa_id: id,
+        destinatario: null,
+        entregue_em: status === "ENTREGUE" ? instante : null,
+        lida_em: status === "LIDA" ? instante : null,
+      });
+    }
   }
   return itens;
 }
 
 /**
- * `message-receipt.update` (grupo) → status das mensagens enviadas pela equipe, sem os recibos da
- * própria equipe. Nunca lança.
+ * `message-receipt.update` (grupo) e o `userReceipt` de uma mensagem enviada pela equipe → status
+ * agregado e recibo por destinatário (o participante `{ lid, telefone }`, com o par completado pelo
+ * `resolvedor`; um recibo unido vira um item com os dois horários). Sem os recibos da própria equipe.
+ * Fora de grupo (recibo trazido por uma mensagem de conversa individual) o destinatário é `null`. Nunca lança.
  * @param {unknown} recibos `MessageUserReceiptUpdate[]`
  * @param {IdentidadePropria} eu `sock.user` (`id` e `lid`) da equipe
- * @returns {StatusRecebido[]}
+ * @param {ResolvedorIdentidade} [resolvedor] pares LID ↔ telefone da equipe
+ * @returns {ItemRecibo[]}
  */
-function extrairDeRecibos(recibos, eu) {
+function extrairDeRecibos(recibos, eu, resolvedor) {
   if (!Array.isArray(recibos)) return [];
+  const proprioLid = lidDe(eu?.lid) ?? lidDe(eu?.jid);
+  const proprioTelefone = telefoneDe(eu?.jid) ?? telefoneDe(eu?.lid);
   const proprios = new Set([normalizarJid(eu?.jid), normalizarJid(eu?.lid)].filter(Boolean));
-  /** @type {StatusRecebido[]} */
+  /** @type {ItemRecibo[]} */
   const itens = [];
   for (const item of recibos) {
     const id = idDaEnviada(item);
@@ -117,7 +186,24 @@ function extrairDeRecibos(recibos, eu) {
     const quem = normalizarJid(item.receipt?.userJid);
     if (quem && proprios.has(quem)) continue;
     const status = statusDoRecibo(item.receipt);
-    if (status) itens.push({ mensagem_wa_id: id, status });
+    if (!status) continue;
+    itens.push({ mensagem_wa_id: id, status });
+
+    const entregue = paraEpoch(item.receipt.receiptTimestamp);
+    const lida = menorEpoch(paraEpoch(item.receipt.readTimestamp), paraEpoch(item.receipt.playedTimestamp)); // PLAYED = lida (D2)
+    if (entregue === null && lida === null) continue;
+    const grupo = typeof item.key.remoteJid === "string" && item.key.remoteJid.endsWith("@g.us");
+    if (!grupo) {
+      itens.push({ mensagem_wa_id: id, destinatario: null, entregue_em: entregue, lida_em: lida });
+      continue;
+    }
+    const base = { jid: quem, lid: lidDe(quem), telefone: telefoneDe(quem) };
+    const completa = resolvedor ? resolvedor.completarIdentidade(base) : base;
+    const lid = completa.lid ?? null;
+    const telefone = completa.telefone ?? null;
+    if (!lid && !telefone) continue;
+    if ((lid && lid === proprioLid) || (telefone && telefone === proprioTelefone)) continue;
+    itens.push({ mensagem_wa_id: id, destinatario: { lid, telefone }, entregue_em: entregue, lida_em: lida });
   }
   return itens;
 }
@@ -140,10 +226,12 @@ function obterAtrasoReciboEnvio() {
  *   registrarStatusMensagem?: (mensagem_wa_id: string, status: StatusMensagem, contexto: ContextoInstancia) => Promise<unknown>,
  *   msTtl?: number,
  *   msAtrasoEnvio?: number,
- *   liberar?: (itens: StatusRecebido[]) => unknown,
+ *   liberar?: (itens: ItemRecibo[]) => unknown,
+ *   lote?: LoteRecibos,
  * }} opcoes `msAtrasoEnvio`: retenção dos recibos de um envio do CRM (padrão: `obterAtrasoReciboEnvio()`
  *   a cada envio); `liberar`: para onde vão os recibos retidos ao fim da retenção (o adapter usa a fila
- *   serial da entrada; padrão: `processar`)
+ *   serial da entrada; padrão: `processar`); `lote`: para onde vão os recibos por destinatário (sem ele, só
+ *   o status agregado é enviado)
  */
 function criarRecibos({
   contexto,
@@ -151,10 +239,11 @@ function criarRecibos({
   msTtl = MS_TTL_STATUS,
   msAtrasoEnvio,
   liberar,
+  lote,
 }) {
   const enviados = new NodeCache({ stdTTL: Math.ceil(msTtl / 1000), checkperiod: 600, useClones: false });
   /** Recibos retidos dos envios do CRM: id → itens na ordem de chegada e o timer da liberação. */
-  /** @type {Map<string, { itens: StatusRecebido[], timer: ReturnType<typeof setTimeout> }>} */
+  /** @type {Map<string, { itens: ItemRecibo[], timer: ReturnType<typeof setTimeout> }>} */
   const retidos = new Map();
 
   /**
@@ -181,17 +270,28 @@ function criarRecibos({
   }
 
   /**
-   * Envia os status em ordem, um por vez (o ENTREGUE nunca chega ao back depois do LIDA). Nunca rejeita.
-   * @param {StatusRecebido[]} itens
+   * Envia os status em ordem, um por vez (o ENTREGUE nunca chega ao back depois do LIDA). O recibo por
+   * destinatário vai ao lote (sem esperar o back). Os dois respeitam a retenção do envio do CRM, que guarda
+   * o item como chegou (com o horário original). Nunca rejeita.
+   * @param {ItemRecibo[]} itens
    * @returns {Promise<void>}
    */
   async function processar(itens) {
-    for (const { mensagem_wa_id, status } of itens) {
-      const retido = retidos.get(mensagem_wa_id);
+    for (const item of itens) {
+      const retido = retidos.get(item.mensagem_wa_id);
       if (retido) {
-        retido.itens.push({ mensagem_wa_id, status });
+        retido.itens.push(item);
         continue;
       }
+      if (ehPorDestinatario(item)) {
+        try {
+          lote?.adicionar(item);
+        } catch (erro) {
+          console.error(`[RECIBOS] Falha ao juntar um recibo por destinatário da equipe ${contexto.cod_equipe}:`, erro instanceof Error ? erro.name : "erro");
+        }
+        continue;
+      }
+      const { mensagem_wa_id, status } = item;
       const anterior = /** @type {number | undefined} */ (enviados.get(mensagem_wa_id)) ?? 0;
       if (ORDEM[status] <= anterior) continue;
       try {
@@ -211,6 +311,7 @@ function criarRecibos({
     for (const { timer } of retidos.values()) clearTimeout(timer);
     retidos.clear();
     enviados.flushAll();
+    lote?.limpar?.();
   }
 
   return { processar, adiarRecibos, limpar };
@@ -222,6 +323,7 @@ module.exports = {
   extrairDeRecibos,
   statusDoCodigo,
   statusDoRecibo,
+  ehPorDestinatario,
   obterAtrasoReciboEnvio,
   MS_ATRASO_ENVIO_PADRAO,
 };

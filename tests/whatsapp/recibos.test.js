@@ -3,7 +3,7 @@
 // ENTREGUE ou LIDA no back. O envio ao back é uma função falsa injetada.
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { extrairDeAtualizacoes, extrairDeRecibos, statusDoCodigo, criarRecibos } = require("../../src/whatsapp/recibos");
+const { extrairDeAtualizacoes: extrairTudoDeAtualizacoes, extrairDeRecibos: extrairTudoDeRecibos, statusDoCodigo, criarRecibos, ehPorDestinatario } = require("../../src/whatsapp/recibos");
 const { JID_CLIENTE, JID_GRUPO, JID_PARTICIPANTE, EU } = require("../helpers/mensagensWa");
 
 // WAMessageStatus do Baileys 6.7.24 (proto.WebMessageInfo.Status).
@@ -15,6 +15,12 @@ const READ = 4;
 const PLAYED = 5;
 
 const CONTEXTO = { hash_empresa: "hash-a", cod_equipe: "21" };
+
+// Estes testes cobrem o status AGREGADO (inalterado pela Fase 38): os itens por destinatário ficam de fora.
+/** @param {any} atualizacoes */
+const extrairDeAtualizacoes = (atualizacoes) => extrairTudoDeAtualizacoes(atualizacoes).filter((i) => !ehPorDestinatario(i));
+/** @param {any} recibos @param {any} eu */
+const extrairDeRecibos = (recibos, eu) => extrairTudoDeRecibos(recibos, eu).filter((i) => !ehPorDestinatario(i));
 
 /** @param {string} id @param {number} status @param {Record<string, any>} [key] */
 const atualizacao = (id, status, key = {}) => ({ key: { remoteJid: JID_CLIENTE, fromMe: true, id, ...key }, update: { status } });

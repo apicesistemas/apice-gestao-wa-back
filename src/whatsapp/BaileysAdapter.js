@@ -36,6 +36,11 @@
 // com `presenceSubscribe` na primeira mensagem de cada chat; mensagem de grupo leva o `nome_chat`
 // (subject do `groupMetadata`, com cache e prazo curto; falha → sem `nome_chat`).
 //
+// Recibos por destinatário (Fase 38, C1): os mesmos eventos geram também um item por destinatário, que o
+// loteRecibos junta e envia em `POST /interno/mensagem-recibos`. O despacho do lote passa pela fila serial
+// (nunca na frente do registro da mensagem); o POST corre fora dela. O `userReceipt` de uma mensagem enviada
+// pela equipe que chega no `messages.upsert` sai DEPOIS do registro dela. O `pararSocket` esvazia o lote.
+//
 // Saída (Task 7.2): o pipeline de saída (envio.js/reacao.js) usa `socketConectado()` e chama
 // `marcarEnviadaPeloCrm(id)` ANTES do `sendMessage`: o id entra no cache de eco (o eco não vira
 // "aparelho") e os recibos dele ficam retidos por alguns segundos (o back só grava a mensagem enviada
@@ -65,11 +70,13 @@ const midiaEntrada = require("./midiaEntrada");
 const mensagemInternoClient = require("../services/mensagemInternoClient");
 const midiaInternoClient = require("../services/midiaInternoClient");
 const filaTranscricao = require("../audio/filaTranscricao");
-const { criarRecibos, extrairDeAtualizacoes, extrairDeRecibos } = require("./recibos");
+const { criarRecibos, extrairDeAtualizacoes, extrairDeRecibos, ehPorDestinatario } = require("./recibos");
+const { criarLoteRecibos } = require("./loteRecibos");
 const { criarPresenca } = require("./presenca");
 const { criarCacheNomeGrupo, ErroConsultaGrupo } = require("./nomeGrupo");
 const { detalharMencoes } = require("./mencoesEntrada");
 const mensagemStatusInternoClient = require("../services/mensagemStatusInternoClient");
+const mensagemReciboInternoClient = require("../services/mensagemReciboInternoClient");
 const presencaInternoClient = require("../services/presencaInternoClient");
 const { criarRecuperacao } = require("./recuperacao");
 const { criarCacheEnviadas } = require("./cacheEnviadas");
@@ -253,6 +260,8 @@ async function apagarSessaoEmDisco(codEquipe, diretorioSessoes = DIRETORIO_SESSO
  *   obterLimitesMidia?: () => LimitesMidia,
  *   enfileirarTranscricao?: (tarefa: TarefaTranscricao) => Promise<unknown>,
  *   registrarStatusMensagem?: (mensagem_wa_id: string, status: StatusMensagem, contexto: ContextoInstancia) => Promise<unknown>,
+ *   registrarRecibos?: (recibos: import("../services/mensagemReciboInternoClient").ReciboPorDestinatario[], contexto: ContextoInstancia, opcoes?: { timeoutMs?: number }) => Promise<unknown>,
+ *   opcoesLoteRecibos?: Partial<Pick<Parameters<typeof criarLoteRecibos>[0], "msLote" | "maxItens" | "msTtlDedup" | "msSuspensao" | "msEntreTentativas" | "msTetoEsvaziar" | "agora">>,
  *   registrarPresenca?: (dados: DadosPresenca, contexto: ContextoInstancia) => Promise<unknown>,
  *   registrarChamada?: (chamada: import("../services/chamadaInternoClient").RegistroChamadaCorpo, contexto: ContextoInstancia) => Promise<unknown>,
  *   alertarChamada?: (alerta: import("../services/chamadaInternoClient").AlertaChamadaCorpo, contexto: ContextoInstancia) => Promise<unknown>,
@@ -314,6 +323,8 @@ function criarAdapter({
   obterLimitesMidia = midiaEntrada.obterLimitesMidia,
   enfileirarTranscricao = filaTranscricao.enfileirarTranscricao,
   registrarStatusMensagem = mensagemStatusInternoClient.registrarStatusMensagem,
+  registrarRecibos = mensagemReciboInternoClient.registrarRecibos,
+  opcoesLoteRecibos = {},
   registrarPresenca = presencaInternoClient.registrarPresenca,
   registrarChamada = chamadaInternoClient.registrarChamada,
   alertarChamada = chamadaInternoClient.alertarChamada,
@@ -346,7 +357,9 @@ function criarAdapter({
   /** @type {ContextoInstancia} */
   const contexto = { hash_empresa: hashEmpresa, cod_equipe: cod };
   // Recibos retidos de um envio do CRM voltam pela fila serial (nunca em paralelo com outros recibos).
-  const recibos = criarRecibos({ contexto, registrarStatusMensagem, liberar: (itens) => enfileirarRecibos(itens) });
+  // O lote dos recibos por destinatário despacha pela fila serial da entrada (`enfileirarTarefa`).
+  const loteRecibos = criarLoteRecibos({ ...opcoesLoteRecibos, contexto, registrarRecibos, enfileirar: (tarefa) => enfileirarTarefa(tarefa) });
+  const recibos = criarRecibos({ contexto, registrarStatusMensagem, liberar: (itens) => enfileirarRecibos(itens), lote: loteRecibos });
   const presenca = criarPresenca({ contexto, registrarPresenca });
   const nomesGrupo = criarCacheNomeGrupo();
   // Recuperação (dedup + janela do `append`) e cache de reenvio: por equipe, só em memória (a
@@ -519,6 +532,29 @@ function criarAdapter({
   }
 
   /**
+   * Os recibos que o Baileys já juntou na própria mensagem enviada pela equipe (`userReceipt`, quando o
+   * recibo chega antes do `messages.upsert`) viram recibos por destinatário. Só o item por destinatário
+   * sai daqui (o status agregado segue como hoje). Passa por `recibos.processar`, então a retenção do envio
+   * do CRM vale. Chamar só DEPOIS do registro da mensagem. Nunca rejeita.
+   * @param {SocketBaileys} s
+   * @param {any} waMessage
+   */
+  async function liberarRecibosDaMensagem(s, waMessage) {
+    const lista = waMessage?.key?.fromMe === true ? waMessage.userReceipt : null;
+    if (!Array.isArray(lista) || lista.length === 0) return;
+    try {
+      const itens = extrairDeRecibos(
+        lista.map((receipt) => ({ key: waMessage.key, receipt })),
+        { jid: s.user?.id, lid: s.user?.lid },
+        resolvedorLid
+      ).filter(ehPorDestinatario);
+      await recibos.processar(itens);
+    } catch (erro) {
+      console.error(`[RECIBOS] Falha ao tratar os recibos de uma mensagem enviada da equipe ${cod}:`, nomeDoErro(erro));
+    }
+  }
+
+  /**
    * Normaliza, filtra e registra uma mensagem recebida. Uma falha no back só loga.
    * @param {SocketBaileys} s socket que recebeu (identidade da equipe e `onWhatsApp`)
    * @param {any} waMessage
@@ -530,9 +566,17 @@ function criarAdapter({
     if (STUBS_PARTICIPANTES_GRUPO.has(Number(waMessage?.messageStubType))) nomesGrupo.esquecer(waMessage?.key?.remoteJid);
     resolvedorLid.aprenderDaMensagem(waMessage);
     const normalizada = normalizarMensagem(waMessage, { eu: { jid: s.user?.id, lid: s.user?.lid } });
-    if (!normalizada || !registroAparelho.deveRegistrar(normalizada)) return;
+    if (!normalizada) return;
+    if (!registroAparelho.deveRegistrar(normalizada)) {
+      // Eco de um envio do CRM: já registrado pelo envio. Os recibos que vieram junto seguem a retenção do envio.
+      await liberarRecibosDaMensagem(s, waMessage);
+      return;
+    }
     // Já registrada (reentrega na reconexão ou repetida no lote): nada de baixar a mídia de novo.
-    if (recuperacao.jaProcessada(normalizada.mensagem_wa_id)) return;
+    if (recuperacao.jaProcessada(normalizada.mensagem_wa_id)) {
+      await liberarRecibosDaMensagem(s, waMessage);
+      return;
+    }
     if (!recuperacao.dentroDaJanela(normalizada.timestamp_wa, tipoLote)) {
       console.log(`[RECUPERACAO] Mensagem ${normalizada.mensagem_wa_id} da equipe ${cod} fora da janela de recuperação, ignorada.`);
       return;
@@ -601,6 +645,7 @@ function criarAdapter({
     }
     recuperacao.marcarProcessada(id);
     recuperacao.registrarAtividade();
+    await liberarRecibosDaMensagem(s, waMessage); // depois do registro: o back já conhece a mensagem
 
     if (!midia?.ok) return;
     try {
@@ -770,13 +815,30 @@ function criarAdapter({
   /**
    * Põe os status de um recibo na fila serial da entrada, atrás do registro das mensagens já
    * recebidas. Itens sem id ou sem status mapeável não chegam aqui. A fila nunca fica rejeitada.
-   * @param {import("./recibos").StatusRecebido[]} itens
+   * @param {import("./recibos").ItemRecibo[]} itens
    * @returns {Promise<void>}
    */
   function enfileirarRecibos(itens) {
     if (itens.length === 0) return filaEntrada;
     filaEntrada = filaEntrada.then(() =>
       recibos.processar(itens).catch((erro) => console.error(`[RECIBOS] Falha ao processar recibos da equipe ${cod}:`, nomeDoErro(erro)))
+    );
+    return filaEntrada;
+  }
+
+  /**
+   * Põe uma tarefa curta na fila serial da entrada (o despacho do lote de recibos). A fila nunca fica rejeitada.
+   * @param {() => unknown} tarefa
+   * @returns {Promise<void>}
+   */
+  function enfileirarTarefa(tarefa) {
+    filaEntrada = filaEntrada.then(() =>
+      Promise.resolve()
+        .then(tarefa)
+        .then(
+          () => {},
+          (erro) => console.error(`[RECIBOS] Falha ao despachar o lote de recibos da equipe ${cod}:`, nomeDoErro(erro))
+        )
     );
     return filaEntrada;
   }
@@ -834,7 +896,7 @@ function criarAdapter({
     s.ev.on("contacts.upsert", (contatos) => resolvedorLid.aprenderContatos(contatos));
     s.ev.on("contacts.update", (contatos) => resolvedorLid.aprenderContatos(contatos));
     s.ev.on("messages.update", (atualizacoes) => enfileirarRecibos(extrairDeAtualizacoes(atualizacoes)));
-    s.ev.on("message-receipt.update", (lista) => enfileirarRecibos(extrairDeRecibos(lista, { jid: s.user?.id, lid: s.user?.lid })));
+    s.ev.on("message-receipt.update", (lista) => enfileirarRecibos(extrairDeRecibos(lista, { jid: s.user?.id, lid: s.user?.lid }, resolvedorLid)));
     s.ev.on("presence.update", (evento) => presenca.tratarAtualizacao(evento, { jid: s.user?.id, lid: s.user?.lid }));
     s.ev.on("groups.update", (grupos) => nomesGrupo.aprender(grupos));
     s.ev.on("group-participants.update", (evento) => nomesGrupo.esquecer(evento?.id));
@@ -883,6 +945,7 @@ function criarAdapter({
     if (estavaConectado) recuperacao.registrarAtividade({ forcar: true });
     await filaCredenciais;
     await filaEntrada; // nunca rejeita
+    await loteRecibos.esvaziar(); // recibos por destinatário pendentes saem antes de fechar (prazo técnico, nunca rejeita)
     atualizarStatus({ status_conexao: "DESCONECTADO", ultimo_erro_conexao: null });
   }
 
