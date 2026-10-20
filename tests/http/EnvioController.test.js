@@ -137,6 +137,15 @@ test("sem o token de serviço as rotas respondem 401 sem tocar o socket", async 
   assert.equal(envios.length, 0);
 });
 
+test("TEXTO com emoji de 4 bytes chega intacto ao sendMessage, caractere por caractere", async () => {
+  const texto = "Oi \u{1F600} ok \u{1F44D}\u{1F3FD} fam\u{1F468}‍\u{1F469}‍\u{1F467}‍\u{1F466} fim";
+  const resposta = await postEnviar("7", formulario({ ...BASE, tipo: "TEXTO", texto }));
+  assert.equal(resposta.status, 200);
+  assert.equal(envios.length, 1);
+  assert.deepEqual(envios[0].conteudo, { text: texto });
+  assert.deepEqual(Array.from(envios[0].conteudo.text), Array.from(texto));
+});
+
 test("TEXTO: 200 { mensagem_wa_id, key, timestamp_wa, status: ENVIADA }, com o id marcado no cache de eco", async () => {
   const resposta = await postEnviar("7", formulario({ ...BASE, tipo: "TEXTO", texto: "Olá, tudo certo?" }));
   assert.equal(resposta.status, 200);

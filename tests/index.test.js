@@ -7,7 +7,7 @@ const path = require("node:path");
 const baileysFalso = require("./helpers/baileysFalso");
 
 baileysFalso.instalarBaileysFalso();
-const { validarVariaveisDeAmbiente, criarEncerrador } = require("../src/index");
+const { validarVariaveisDeAmbiente, criarEncerrador, hostDeEscuta, registrarEscuta, HOST_PADRAO } = require("../src/index");
 const { criarInstanciaManager } = require("../src/whatsapp/instanciaManager");
 const { criarDesligamento } = require("../src/utils/desligamento");
 const { EU } = require("./helpers/mensagensWa");
@@ -40,6 +40,36 @@ test("validarVariaveisDeAmbiente lista as variáveis obrigatórias ausentes", ()
     }),
     []
   );
+});
+
+test("hostDeEscuta: padrão 127.0.0.1 quando vazio ou ausente; senão o valor aparado", () => {
+  assert.equal(HOST_PADRAO, "127.0.0.1");
+  assert.equal(hostDeEscuta({}), "127.0.0.1");
+  assert.equal(hostDeEscuta({ SERVER_HOST: "" }), "127.0.0.1");
+  assert.equal(hostDeEscuta({ SERVER_HOST: "  " }), "127.0.0.1");
+  assert.equal(hostDeEscuta({ SERVER_HOST: " 192.168.1.167 " }), "192.168.1.167");
+});
+
+test("registrarEscuta loga host e porta; 0.0.0.0 e :: geram aviso, sem segredo", () => {
+  /** @type {string[]} */
+  const infos = [];
+  /** @type {string[]} */
+  const avisos = [];
+  const log = { log: (/** @type {string} */ m) => infos.push(m), warn: (/** @type {string} */ m) => avisos.push(m) };
+
+  registrarEscuta("127.0.0.1", 3501, log);
+  assert.equal(infos.length, 1);
+  assert.match(infos[0], /127\.0\.0\.1/);
+  assert.match(infos[0], /3501/);
+  assert.equal(avisos.length, 0);
+
+  for (const host of ["0.0.0.0", "::"]) {
+    avisos.length = 0;
+    registrarEscuta(host, 3501, log);
+    assert.equal(avisos.length, 1, host);
+    assert.match(avisos[0], /rede/i);
+    assert.doesNotMatch(avisos[0], /CRM_BACK_SERVICE_TOKEN|WA_BACK_ADMIN_TOKEN|MINIMAX/);
+  }
 });
 
 test("importar src/index.js não valida env nem sobe servidor (só o boot real faz isso)", () => {

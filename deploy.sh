@@ -12,7 +12,8 @@
 #    10 s, antes do kill_timeout de 12 s. A sessão fica em disco e o processo novo reconecta sem QR,
 #    recuperando as mensagens que chegaram no intervalo;
 # 5. confere o GET http://127.0.0.1:3501/ping com tentativas (503 durante o encerramento conta como
-#    "ainda não") e só então grava a lista do PM2 (pm2 save).
+#    "ainda não") e só então grava a lista do PM2 (pm2 save). O ping em 127.0.0.1 é de propósito: o
+#    wa-back escuta só no loopback (SERVER_HOST=127.0.0.1 no ecosystem.config.cjs).
 #
 # Não lê o .env, não imprime segredo e não apaga nada. Parâmetros opcionais por ambiente:
 # DEPLOY_PORTA (3501), DEPLOY_TENTATIVAS_PING (20), DEPLOY_INTERVALO_PING (3 s).

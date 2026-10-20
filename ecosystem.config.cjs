@@ -29,6 +29,9 @@ module.exports = {
         // Igual ao .env.example. O --env-file não sobrescreve variável que já existe no ambiente,
         // então sob o PM2 a porta é sempre esta (só rede interna, nunca publicada pelo proxy (Apache)).
         SERVER_PORT: "3501",
+        // Só o loopback: o back chama por http://127.0.0.1:3501 e /ping e /health não têm token.
+        // Fixo aqui pelo mesmo motivo da porta (o --env-file não sobrescreve).
+        SERVER_HOST: "127.0.0.1",
       },
     },
   ],

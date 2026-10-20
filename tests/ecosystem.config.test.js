@@ -34,6 +34,13 @@ test("a porta do PM2 é 3501, a mesma do .env.example", () => {
   assert.equal(app.env.SERVER_PORT, porta);
 });
 
+test("o host de escuta do PM2 é 127.0.0.1, o mesmo do .env.example", () => {
+  const exemplo = fs.readFileSync(path.join(raiz, ".env.example"), "utf8");
+  const host = /^SERVER_HOST=(\S+)\s*$/m.exec(exemplo)?.[1];
+  assert.equal(host, "127.0.0.1");
+  assert.equal(app.env.SERVER_HOST, "127.0.0.1");
+});
+
 test("sem watch, com autorestart limitado, listen_timeout e fuso de São Paulo", () => {
   assert.equal(app.watch, false);
   assert.equal(app.autorestart, true);

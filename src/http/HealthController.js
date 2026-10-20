@@ -1,7 +1,8 @@
 // @ts-check
-// Rotas de saúde do processo, sem token (Task 15.3). O wa-back escuta apenas na rede interna e as
-// rotas de negócio exigem `exigirTokenServico`; estas ficam abertas para o PM2, o deploy.sh e o
-// monitor consultarem sem segredo, por isso não levam dado sensível algum.
+// Rotas de saúde do processo, sem token (Task 15.3). O wa-back escuta apenas no loopback
+// (`SERVER_HOST`, padrão 127.0.0.1; src/index.js) e as rotas de negócio exigem `exigirTokenServico`;
+// estas ficam abertas para o PM2, o deploy.sh e o monitor da própria máquina consultarem sem
+// segredo, por isso não levam dado sensível algum.
 //
 // `GET /ping`: `{ status, versao, encerrando, equipes: [{ cod_equipe, status, desde? }] }`. Nunca
 // JID, telefone, LID, nome do número, QR, texto de erro nem hash_empresa. Durante o desligamento

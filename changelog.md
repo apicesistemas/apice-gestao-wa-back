@@ -3,6 +3,22 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.24.0] - 2026-10-20
+
+### Alterado
+
+- Escuta só no endereço local (Fase 30, Task 30.3, decisão F8). Antes o `listen(porta)` sem host abria o wa-back em todas as interfaces, e o `/ping` e o `/health` (sem token) respondiam a qualquer IP da rede. Agora `src/index.js` tem `HOST_PADRAO = "127.0.0.1"`, `hostDeEscuta(env)` (`SERVER_HOST` aparado, ou o padrão quando vazio) e `iniciarServidor(porta, host = HOST_PADRAO)`. O log do boot mostra host e porta e, com `0.0.0.0` ou `::`, avisa que a rede inteira alcança o `/ping` (sem nenhum segredo na linha).
+- `ecosystem.config.cjs`: `SERVER_HOST: "127.0.0.1"` fixo no `env`, como o `SERVER_PORT` (o `--env-file` não sobrescreve). `.env.example` documenta `SERVER_HOST=127.0.0.1`. O `deploy.sh` continua pingando em 127.0.0.1 (só o comentário mudou). Comentários do `HealthController` e `README` corrigidos.
+- Nenhum contrato entre camadas muda. A Fase 34 não criou outro servidor ou listener: o `src/index.js` segue como o único `listen`.
+
+### Testes
+
+- `tests/index.test.js` (`hostDeEscuta`, aviso do `0.0.0.0` e `::`), `tests/http/health.test.js` (escuta em 127.0.0.1, /health e /ping por ele, conexão recusada pelo IPv4 não loopback, com skip quando não há outra interface), `tests/ecosystem.config.test.js` (`SERVER_HOST` igual ao `.env.example`) e `tests/http/EnvioController.test.js` (emoji de 4 bytes, incluindo tom de pele e sequência ZWJ, chega intacto ao `sendMessage`).
+
+### Antes do deploy
+
+- Conferir no servidor que o `WA_BACK_BASE_URL` do `.env` do back é `http://127.0.0.1:3501` (não `localhost`, que o Node pode resolver para `::1`, nem o IP da rede `192.168.1.167`). Com outro valor, o back perde o wa-back assim que este sobe. Independente do resto da Fase 30; sem SQL.
+
 ## [0.23.0] - 2026-10-19
 
 ### Adicionado

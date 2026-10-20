@@ -15,6 +15,8 @@ const tmpMidia = require("./whatsapp/tmpMidia");
 const heartbeat = criarInstanciaHealth();
 
 const PORTA_PADRAO = 3501;
+const HOST_PADRAO = "127.0.0.1";
+const HOSTS_TODAS_INTERFACES = ["0.0.0.0", "::"];
 const INTERVALO_LIMPEZA_LOGS_MS = 24 * 60 * 60 * 1000;
 // Teto do desligamento gracioso (SIGINT/SIGTERM): se encerrar as instâncias Baileys ou fechar o HTTP
 // travar, o processo sai assim mesmo, antes do kill_timeout do PM2 (12 s, em ecosystem.config.cjs;
@@ -45,15 +47,41 @@ function criarApp() {
 }
 
 /**
- * Sobe o servidor HTTP na porta informada (0 = porta livre, usado nos testes).
+ * Host de escuta: `SERVER_HOST` aparado, ou o loopback quando vazio. O wa-back só recebe chamadas do
+ * back na mesma máquina; `/ping` e `/health` não têm token, então nada de escutar em toda interface.
+ * @param {Record<string, string | undefined>} [env]
+ * @returns {string}
+ */
+function hostDeEscuta(env = process.env) {
+  return (env.SERVER_HOST ?? "").trim() || HOST_PADRAO;
+}
+
+/**
+ * Registra no log onde o processo escuta e avisa quando o host abre todas as interfaces.
+ * @param {string} host
  * @param {number} porta
+ * @param {{ log: (m: string) => void, warn: (m: string) => void }} [saida]
+ */
+function registrarEscuta(host, porta, saida = console) {
+  saida.log(`[BOOT] apice-gestao-wa-back ouvindo em ${host}:${porta}`);
+  if (HOSTS_TODAS_INTERFACES.includes(host)) {
+    saida.warn(
+      `[BOOT] ATENÇÃO: SERVER_HOST=${host} abre o wa-back a toda a rede, e /ping e /health não têm token. Use 127.0.0.1.`
+    );
+  }
+}
+
+/**
+ * Sobe o servidor HTTP na porta informada (0 = porta livre, usado nos testes), por padrão só no loopback.
+ * @param {number} porta
+ * @param {string} [host]
  * @returns {Promise<import("node:http").Server>}
  */
-function iniciarServidor(porta) {
+function iniciarServidor(porta, host = HOST_PADRAO) {
   const httpServer = http.createServer(criarApp());
   return new Promise((resolve, reject) => {
     httpServer.once("error", reject);
-    httpServer.listen(porta, () => resolve(httpServer));
+    httpServer.listen(porta, host, () => resolve(httpServer));
   });
 }
 
@@ -146,8 +174,9 @@ async function iniciar() {
   if (removidos > 0) console.log(`[BOOT] Temporários de mídia de uma execução anterior apagados: ${removidos}`);
 
   const porta = Number(process.env.SERVER_PORT) || PORTA_PADRAO;
-  const httpServer = await iniciarServidor(porta);
-  console.log(`[BOOT] apice-gestao-wa-back ouvindo na porta ${porta}`);
+  const host = hostDeEscuta();
+  const httpServer = await iniciarServidor(porta, host);
+  registrarEscuta(host, porta);
 
   // Só as equipes já pareadas e com sessão em disco; nenhuma gera QR sozinha no boot.
   instanciaManager
@@ -169,4 +198,13 @@ if (require.main === module) {
   });
 }
 
-module.exports = { criarApp, iniciarServidor, validarVariaveisDeAmbiente, criarEncerrador, MS_TETO_ENCERRAMENTO };
+module.exports = {
+  criarApp,
+  iniciarServidor,
+  hostDeEscuta,
+  registrarEscuta,
+  validarVariaveisDeAmbiente,
+  criarEncerrador,
+  MS_TETO_ENCERRAMENTO,
+  HOST_PADRAO,
+};
