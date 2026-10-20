@@ -3,6 +3,23 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.28.0] - 2026-10-20
+
+### Adicionado
+
+- Apagar para todos a mensagem enviada pelo atendente (Fase 41, Task 41.1, contrato D2): `POST /equipe/:cod_equipe/apagar` (JSON) com `{ hash_empresa, chat_jid, key }`, onde a `key` é de mensagem enviada pelo número da equipe (`fromMe: true`).
+  - `src/whatsapp/exclusao.js` (novo): `criarExclusao({ manager, prazoMs })` → `apagar(codEquipe, chat_jid, key, hashEmpresa)`. O `sendMessage` recebe só `{ delete: key }` (key montada campo a campo), com o id do ENVELOPE gerado e marcado em `marcarEnviadaPeloCrm` antes do envio. Prazo técnico `PRAZO_EXCLUSAO_MS` = 10 s. Nunca apaga como administrador (`edit: '8'`).
+  - `src/http/EnvioController.js`: a rota com `exigirTokenServico` + `recusarDuranteEncerramento` (503 + `Retry-After`) e a `ALLOWLIST_EXCLUSAO` (`hash_empresa`, `chat_jid`, `key`) exportada. Qualquer outra chave (texto, transcricao, nota_interna, explicacao, sugestao_ia, edit...) responde 400 sem tocar o Baileys.
+  - Resposta 200 `{ mensagem_wa_id (id do ENVELOPE, nunca o da original), timestamp_wa, status: "ENVIADA" }`. Erros: 400 (inclui `fromMe: false`: "Só mensagens enviadas pelo número da equipe podem ser apagadas."), 401, 404 "Equipe não encontrada.", 409, 502, 503, 504 "Envio não confirmado.".
+  - O eco do REVOKE (`protocolMessage` com o id do envelope) não vai ao back; o REVOKE real do aparelho (id não marcado) continua indo por `/interno/mensagem-recebida` (teste de regressão novo).
+  - `criarEnvioController` aceita `prazoEdicaoMs` e `prazoExclusaoMs` nas opções (os testes de 504 da edição e da exclusão não esperam mais 10 s reais).
+  - O log leva só ids e o nome do erro, nunca JID nem LID.
+
+### Observações
+
+- Rota nova do canal D: publicar o wa-back 0.28.0 ANTES do back 0.58.0.
+- Contrato D2 (canal D, back → wa-back): `POST /equipe/:cod_equipe/apagar`, entrada e saída conforme acima. Sem mudança no canal C nem em variável de ambiente.
+
 ## [0.27.0] - 2026-10-20
 
 ### Adicionado

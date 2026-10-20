@@ -77,7 +77,7 @@ before(async () => {
     recusarDuranteEncerramento: (req, res, next) => desligamento.recusarDuranteEncerramento(req, res, next),
   };
   registrarControllers(app, [
-    criarEnvioController(/** @type {any} */ (manager), { desligamento: /** @type {any} */ (proxy), prazoEnvioMs: 50 }),
+    criarEnvioController(/** @type {any} */ (manager), { desligamento: /** @type {any} */ (proxy), prazoEnvioMs: 50, prazoEdicaoMs: 50, prazoExclusaoMs: 50 }),
     criarConexaoController(/** @type {any} */ (manager), { desligamento: /** @type {any} */ (proxy) }),
   ]);
   servidor = http.createServer(app);
@@ -206,6 +206,24 @@ test("Fase 40: sendMessage da edição que passa do prazo responde 504 { msg: \"
   estado.modo = "travar";
   const key = { remoteJid: JID_CLIENTE, fromMe: true, id: "3EB0ORIG1" };
   const resposta = await postJson("/equipe/7/editar", { hash_empresa: "hash-a", chat_jid: JID_CLIENTE, key, texto: "novo" });
+  assert.equal(resposta.status, 504);
+  assert.deepEqual(await resposta.json(), { msg: "Envio não confirmado." });
+});
+
+test("Fase 41: apagar durante o desligamento responde 503 com Retry-After, sem chamar o sendMessage", async () => {
+  desligamento.marcarEncerrando();
+  const key = { remoteJid: JID_CLIENTE, fromMe: true, id: "3EB0ORIG1" };
+  const resposta = await postJson("/equipe/7/apagar", { hash_empresa: "hash-a", chat_jid: JID_CLIENTE, key });
+  assert.equal(resposta.status, 503);
+  assert.deepEqual(await resposta.json(), { msg: MSG_REINICIANDO });
+  assert.ok(Number(resposta.headers.get("retry-after")) > 0);
+  assert.equal(envios.length, 0);
+});
+
+test("Fase 41: sendMessage da exclusão que passa do prazo responde 504 { msg: \"Envio não confirmado.\" }", async () => {
+  estado.modo = "travar";
+  const key = { remoteJid: JID_CLIENTE, fromMe: true, id: "3EB0ORIG1" };
+  const resposta = await postJson("/equipe/7/apagar", { hash_empresa: "hash-a", chat_jid: JID_CLIENTE, key });
   assert.equal(resposta.status, 504);
   assert.deepEqual(await resposta.json(), { msg: "Envio não confirmado." });
 });

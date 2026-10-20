@@ -431,3 +431,71 @@ test("editar: 401 sem token, 404 de outro tenant, 409 desconectada e 502 em falh
   const falha = await esperarErro(await postEditar("7", { ...BASE, key: KEY_EDITAR, texto: "novo" }), 502);
   assert.doesNotMatch(falha.msg, /@s\.whatsapp\.net/);
 });
+
+// ---- Fase 41: `POST /equipe/:cod_equipe/apagar` (JSON) ----
+
+/**
+ * @param {string} cod
+ * @param {unknown} corpo
+ * @param {string | null} [token]
+ */
+function postApagar(cod, corpo, token = TOKEN) {
+  /** @type {Record<string, string>} */
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers["X-Internal-Token"] = token;
+  return fetch(`${baseUrl}/equipe/${cod}/apagar`, { method: "POST", headers, body: JSON.stringify(corpo) });
+}
+
+test("apagar: 200 { mensagem_wa_id do envelope, timestamp_wa, status }, sendMessage com só { delete: key }", async () => {
+  const resposta = await postApagar("7", { ...BASE, key: KEY_EDITAR });
+  assert.equal(resposta.status, 200);
+  assert.equal(envios.length, 1);
+  assert.equal(envios[0].jid, JID_CLIENTE);
+  assert.deepEqual(envios[0].conteudo, { delete: KEY_EDITAR });
+  const id = envios[0].opcoes.messageId;
+  assert.ok(id && id !== KEY_EDITAR.id);
+  assert.deepEqual(marcadas, [id]);
+  assert.deepEqual(await resposta.json(), { mensagem_wa_id: id, timestamp_wa: 1760400500, status: "ENVIADA" });
+});
+
+test("apagar em grupo leva a key com participant", async () => {
+  const key = { remoteJid: JID_GRUPO, fromMe: true, id: "3EB0ORIGINAL", participant: JID_PARTICIPANTE };
+  const resposta = await postApagar("7", { hash_empresa: "hash-a", chat_jid: JID_GRUPO, key });
+  assert.equal(resposta.status, 200);
+  assert.deepEqual(envios[0].conteudo, { delete: key });
+});
+
+test("apagar: campos fora da allowlist respondem 400 sem tocar o Baileys", async () => {
+  assert.deepEqual([...require("../../src/http/EnvioController").ALLOWLIST_EXCLUSAO], ["hash_empresa", "chat_jid", "key"]);
+  for (const campo of ["texto", "transcricao", "nota_interna", "explicacao", "sugestao_ia", "edit", "mencoes", "tipo", "contexto"]) {
+    await esperarErro(await postApagar("7", { ...BASE, key: KEY_EDITAR, [campo]: "conteúdo interno" }), 400);
+  }
+  assert.equal(envios.length, 0);
+  assert.deepEqual(marcadas, []);
+});
+
+test("apagar: fromMe false (nunca como administrador), key de outra conversa, id inválido e corpo inválido respondem 400 sem tocar o Baileys", async () => {
+  const msgFromMe = await esperarErro(await postApagar("7", { ...BASE, key: { ...KEY_EDITAR, fromMe: false } }), 400);
+  assert.equal(msgFromMe.msg, "Só mensagens enviadas pelo número da equipe podem ser apagadas.");
+  await esperarErro(await postApagar("7", { ...BASE, key: { ...KEY_EDITAR, fromMe: "true" } }), 400);
+  await esperarErro(await postApagar("7", { ...BASE, key: { remoteJid: JID_GRUPO, fromMe: true, id: "3EB0X" } }), 400);
+  await esperarErro(await postApagar("7", { ...BASE, key: { ...KEY_EDITAR, id: "id inválido!" } }), 400);
+  await esperarErro(await postApagar("7", { ...BASE }), 400);
+  await esperarErro(await postApagar("7", { chat_jid: JID_CLIENTE, key: KEY_EDITAR }), 400);
+  await esperarErro(await postApagar("7", ["lista"]), 400);
+  await esperarErro(await postApagar("abc!", { ...BASE, key: KEY_EDITAR }), 400);
+  assert.equal(envios.length, 0);
+});
+
+test("apagar: 401 sem token, 404 de outro tenant, 409 desconectada e 502 em falha do sendMessage", async () => {
+  assert.equal((await postApagar("7", { ...BASE, key: KEY_EDITAR }, null)).status, 401);
+  assert.equal((await postApagar("7", { ...BASE, key: KEY_EDITAR }, "errado")).status, 401);
+  const outro = await esperarErro(await postApagar("7", { ...BASE, hash_empresa: "hash-b", key: KEY_EDITAR }), 404);
+  assert.equal(outro.msg, "Equipe não encontrada.");
+  estado.status = "ERRO";
+  await esperarErro(await postApagar("7", { ...BASE, key: KEY_EDITAR }), 409);
+  estado.status = "CONECTADO";
+  estado.falhar = true;
+  const falha = await esperarErro(await postApagar("7", { ...BASE, key: KEY_EDITAR }), 502);
+  assert.doesNotMatch(falha.msg, /@s\.whatsapp\.net/);
+});
