@@ -300,6 +300,7 @@ async function apagarSessaoEmDisco(codEquipe, diretorioSessoes = DIRETORIO_SESSO
  *   adicionarParticipantesGrupo: (chatJid: string, opcoes: OpcoesAdicaoGrupo) => Promise<import("./grupoGestao").ResultadoParticipante[]>,
  *   criarGrupo: (nome: string, opcoes: OpcoesAdicaoGrupo) => Promise<{ chat_jid: string, nome_grupo: string, participantes: import("./grupoGestao").ResultadoParticipante[] }>,
  *   resolverContatoParticipante: (chatJid: string, participanteJid: string, opcoes?: { msPrazoConsulta?: number }) => Promise<{ jid_privado: string, lid: string | null, telefone: string | null }>,
+ *   resolverContatoTelefone: (telefone: string, opcoes?: { msPrazoConsulta?: number }) => Promise<{ jid_privado: string, lid: string | null, telefone: string }>,
  *   obterFotoPerfil: (jid: string, opcoes?: { grupoJid?: string, msPrazo?: number }) => Promise<import("./fotoPerfil").ResultadoFoto>,
  * }} BaileysAdapter
  */
@@ -1033,6 +1034,7 @@ function criarAdapter({
       aprenderGrupo: (grupos) => nomesGrupo.aprender(grupos),
       telefoneDoLid: (lid) => resolvedorLid.telefoneDoLid(lid),
       aprenderPar: (lid, telefone) => void resolvedorLid.aprenderPar(lid, telefone),
+      lidDoTelefone: (telefone) => resolvedorLid.lidDoTelefone(telefone),
       marcarEnviadaPeloCrm: (id) => {
         registroAparelho.marcarEnviada(id);
         recibos.adiarRecibos(id);
@@ -1105,6 +1107,14 @@ function criarAdapter({
       const conectado = socket && estado.status_conexao === "CONECTADO" ? socket : null;
       if (!conectado) throw new grupoGestao.ErroGrupo("DESCONECTADA");
       return grupoGestao.resolverContatoParticipante(fachadaGrupo(conectado), chatJid, participanteJid, opcoes);
+    },
+
+    // Para `POST /equipe/:cod_equipe/contato/consultar` (Fase 44, D1): identifica UM telefone, sem grupo. Não envia
+    // nada. Rejeita com ErroGrupo, ErroConsultaGrupo (sem JID/LID/telefone na mensagem).
+    async resolverContatoTelefone(telefone, opcoes) {
+      const conectado = socket && estado.status_conexao === "CONECTADO" ? socket : null;
+      if (!conectado) throw new grupoGestao.ErroGrupo("DESCONECTADA");
+      return grupoGestao.resolverContatoTelefone(fachadaGrupo(conectado), telefone, opcoes);
     },
 
     // Para `POST /equipe/:cod_equipe/foto-perfil` (Fase 32, D2): miniatura da foto, sem cache e sem disco. Com

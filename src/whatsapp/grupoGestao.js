@@ -18,6 +18,8 @@
 //   `sendMessage`, então o eco não vira `/interno/mensagem-recebida`.
 // - `resolverContatoParticipante` (Fase 32, contrato D1): identifica UM participante do grupo para a conversa
 //   privada. Não envia nada: só o índice de participantes do grupo, o par LID <-> telefone e um `onWhatsApp`.
+// - `resolverContatoTelefone` (Fase 44, contrato D1): o mesmo para UM telefone digitado ou clicado, sem grupo:
+//   um `onWhatsApp`, jid devolvido (9º dígito), LID da consulta ou do resolvedor, par aprendido, sem envio.
 //
 // Nunca JID, LID, telefone ou código de convite em log: só códigos e contagens.
 const { normalizarJid, lidDe, telefoneDe } = require("./filtroEntrada");
@@ -268,6 +270,7 @@ function indexarParticipantes(participantes) {
  * @typedef {AdapterGrupo & {
  *   telefoneDoLid: (lid: string) => string | null,
  *   aprenderPar: (lid: string, telefone: string) => void,
+ *   lidDoTelefone?: (telefone: string) => string | null,
  * }} AdapterContato
  */
 
@@ -330,6 +333,40 @@ async function resolverContatoParticipante(adapter, chatJid, participanteJid, { 
   }
   if (!p.lid) throw new ErroGrupo("FORA_DO_GRUPO");
   return { jid_privado: p.lid, lid: p.lid, telefone: null };
+}
+
+/**
+ * Identifica UM telefone para a conversa privada, sem grupo (Fase 44, contrato D1). NÃO envia nada: faz exatamente
+ * UM `onWhatsApp`. O `jid_privado` é o jid DEVOLVIDO (9º dígito), nunca o pedido; o LID vem da consulta ou do
+ * resolvedor, e o par (LID, telefone) é aprendido. O número da própria equipe (também pela variante devolvida)
+ * é PROPRIO_NUMERO.
+ * @param {AdapterContato} adapter
+ * @param {string} telefone só dígitos, com DDI (55 + DDD + número)
+ * @param {{ msPrazoConsulta?: number }} [opcoes]
+ * @returns {Promise<{ jid_privado: string, lid: string | null, telefone: string }>}
+ * @throws {ErroGrupo} DESCONECTADA, PROPRIO_NUMERO, SEM_WHATSAPP
+ * @throws {import("./nomeGrupo").ErroConsultaGrupo} PRAZO_ESGOTADO ou FALHA da consulta do número
+ */
+async function resolverContatoTelefone(adapter, telefone, { msPrazoConsulta } = {}) {
+  const socket = adapter.socketConectado();
+  if (!socket) throw new ErroGrupo("DESCONECTADA");
+  const eu = { jid: socket.user?.id, lid: socket.user?.lid };
+  if (ehProprio({ lid: null, telefone }, eu)) throw new ErroGrupo("PROPRIO_NUMERO");
+  /** @type {NumeroResolvido | null} */
+  let numero;
+  try {
+    numero = await consultarNumero(socket, telefone, { msPrazo: msPrazoConsulta });
+  } catch (erro) {
+    // A mensagem original pode ter o número: só o código sobe.
+    throw new ErroConsultaGrupo(erro instanceof Error && erro.name === "TimeoutError" ? "PRAZO_ESGOTADO" : "FALHA");
+  }
+  if (!numero) throw new ErroGrupo("SEM_WHATSAPP");
+  const devolvido = /** @type {string} */ (telefoneDe(numero.jid));
+  const lid = numero.lid ?? adapter.lidDoTelefone?.(devolvido) ?? adapter.lidDoTelefone?.(telefone) ?? null;
+  // A variante do 9º dígito devolvida (ou o LID do par) pode ser o número da própria equipe.
+  if (ehProprio({ lid, telefone: devolvido }, eu)) throw new ErroGrupo("PROPRIO_NUMERO");
+  if (lid) adapter.aprenderPar(lid, devolvido);
+  return { jid_privado: numero.jid, lid, telefone: devolvido };
 }
 
 /**
@@ -531,6 +568,7 @@ module.exports = {
   criarGrupo,
   consultarNumero,
   resolverContatoParticipante,
+  resolverContatoTelefone,
   acharParticipante,
   comPrazo,
   statusDoErro,

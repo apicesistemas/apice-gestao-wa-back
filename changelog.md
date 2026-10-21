@@ -3,6 +3,21 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.29.0] - 2026-10-20
+
+### Adicionado
+
+- Consulta de um telefone sem grupo, para iniciar conversa privada (Fase 44, Task 44.1, contrato D1): `POST /equipe/:cod_equipe/contato/consultar` (JSON) com `{ hash_empresa, telefone }`, onde `telefone` casa `/^55\d{10,11}$/`.
+  - `src/http/ContatoController.js` (novo, `criarContatoController(manager, { desligamento, msPrazoConsulta })`), registrado em `src/http/index.js`. `exigirTokenServico` + `recusarDuranteEncerramento` (503 + `Retry-After`). A `ALLOWLIST_CONSULTA` aceita só `hash_empresa` e `telefone`: qualquer outra chave (transcricao, nota_interna, explicacao, sugestao_ia...) responde 400 sem tocar o Baileys.
+  - `src/whatsapp/grupoGestao.js`: `resolverContatoTelefone(adapter, telefone, { msPrazoConsulta })`, com UM `onWhatsApp` (reaproveita `consultarNumero`). O `jid_privado` é o jid DEVOLVIDO pelo WhatsApp (sem ou com o 9º dígito), nunca o pedido. O LID vem da consulta ou do resolvedor (`lidDoTelefone`, agora também na fachada do adapter), e o par LID <-> telefone é aprendido. O número da própria equipe (pedido, variante devolvida ou LID) é `PROPRIO_NUMERO`.
+  - `src/whatsapp/BaileysAdapter.js`: método `resolverContatoTelefone` na fachada.
+  - Resposta 200 `{ jid_privado, lid, telefone }`. Erros: 400 (inclui `codigo: "PROPRIO_NUMERO"`), 401, 404 "Equipe não encontrada.", 409 `DESCONECTADA` | `SEM_WHATSAPP`, 502 "Não foi possível consultar o número.", 503, 504 "A consulta do número não respondeu.", 500 sem vazar o erro.
+  - Nenhum `sendMessage` e nenhuma chamada a `/interno/*`. O log leva só `cod_equipe` e o código, nunca telefone, JID nem LID.
+
+### Observações
+
+- Rota nova do canal D: publicar o wa-back 0.29.0 ANTES do back 0.60.0.
+
 ## [0.28.0] - 2026-10-20
 
 ### Adicionado
