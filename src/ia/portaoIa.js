@@ -12,13 +12,30 @@
 const CONCORRENCIA_PADRAO = 1;
 
 /**
- * Lê `MINIMAX_IA_CONCORRENCIA`: inteiro ≥ 1; ausente ou inválido volta ao padrão.
- * @param {Record<string, string | undefined>} [env]
+ * Lê uma variável de concorrência: inteiro ≥ 1; ausente ou inválida volta ao padrão.
+ * @param {Record<string, string | undefined>} env
+ * @param {string} nome
  * @returns {number}
  */
-function concorrenciaDoAmbiente(env = process.env) {
-  const n = Number((env.MINIMAX_IA_CONCORRENCIA ?? "").trim());
+function lerConcorrencia(env, nome) {
+  const n = Number((env[nome] ?? "").trim());
   return Number.isInteger(n) && n >= 1 ? n : CONCORRENCIA_PADRAO;
+}
+
+/**
+ * `MINIMAX_IA_CONCORRENCIA`: sugestões interativas do ticket.
+ * @param {Record<string, string | undefined>} [env]
+ */
+function concorrenciaDoAmbiente(env = process.env) {
+  return lerConcorrencia(env, "MINIMAX_IA_CONCORRENCIA");
+}
+
+/**
+ * `MINIMAX_IA_CONCORRENCIA_LOTE`: avaliação diária dos atendimentos (Fase 55), separada das sugestões.
+ * @param {Record<string, string | undefined>} [env]
+ */
+function concorrenciaLoteDoAmbiente(env = process.env) {
+  return lerConcorrencia(env, "MINIMAX_IA_CONCORRENCIA_LOTE");
 }
 
 /**
@@ -103,4 +120,15 @@ function portaoPadrao() {
   return padrao;
 }
 
-module.exports = { criarPortaoIa, concorrenciaDoAmbiente, portaoPadrao, CONCORRENCIA_PADRAO };
+/** @type {ReturnType<typeof criarPortaoIa> | undefined} */
+let lote;
+/**
+ * Portão do LOTE (avaliação diária): vagas próprias, para uma rodada longa nunca atrasar a sugestão
+ * interativa do atendente. A MiniMax limita as conexões por chave, então o padrão também é 1.
+ */
+function portaoLote() {
+  lote ??= criarPortaoIa(concorrenciaLoteDoAmbiente());
+  return lote;
+}
+
+module.exports = { criarPortaoIa, concorrenciaDoAmbiente, concorrenciaLoteDoAmbiente, portaoPadrao, portaoLote, CONCORRENCIA_PADRAO };

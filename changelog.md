@@ -3,6 +3,27 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.30.0] - 2026-10-22
+
+### Adicionado
+
+- Avaliação da qualidade do atendimento pela IA (Fase 55, Task 55.1, contratos D1 e D2). Só o back chama, com `X-Internal-Token` conferido antes do corpo e 503 + `Retry-After` no desligamento.
+  - `POST /ia/avaliacao-atendimento` (JSON, teto técnico de 512 kb): `{ criterios: [{ codigo, tipo, nome, instrucao, restrito }] (1..20, códigos únicos), contexto (1..200000), total_linhas (1..5000), prazo_ms (1000..120000) }`. `ALLOWLIST_AVALIACAO` e `ALLOWLIST_CRITERIO`: chave desconhecida, no topo ou no critério (hash_empresa, cod_*, nome_usuario, nota_interna, explicacao, titulo, descricao, sugestao_ia...), responde 400 sem chamar a MiniMax. Código `/^[A-Z][A-Z0-9_]{1,29}$/`, nome 2..60, instrução 10..500.
+  - Resposta 200 `{ notas: { [codigo]: 1..5 | null }, alertas: { [codigo]: { disparado, linhas (≤ 10, únicas, 1..total_linhas), motivo? (≤ 300) } }, recomendacao? (≤ 600) }`. Descartes: código não pedido ou com o tipo trocado, valor de outro tipo, chave extra e linha fora da faixa; nota fora de 1..5 vira `null`; textos numa linha só, cortados na palavra. Sem nenhum critério válido: 502 `RESPOSTA_INVALIDA`. Também 503 `IA_INDISPONIVEL`, 504 `PRAZO` e 500 sem vazar o erro.
+  - `POST /ia/avaliacao-atendimento/previa` (D2): `{ criterios }` (mesma validação, qualquer outra chave é 400) devolve `{ sistema, usuario }`, o prompt exato do D1 com a conversa trocada por "(aqui entra a conversa do ticket, mascarada e numerada)" e `total_linhas` = "N". Não chama a MiniMax.
+  - `src/ia/avaliacaoAtendimentoService.js` (novo): `PROMPT_SISTEMA` (com a regra 6a), `montarPedido`, `validarAvaliacao`, `previa` e `avaliar`. Os delimitadores `<<<CONVERSA_DO_ATENDIMENTO` e `FIM_CONVERSA_DO_ATENDIMENTO>>>` são neutralizados no contexto, no nome e na instrução, e o critério restrito aparece como `[RESTRITO]`. Os critérios padrão ficam no back. O wa-back não mascara nomes: quem filtra a saída é o back.
+  - `src/ia/portaoIa.js`: `portaoLote()` e `concorrenciaLoteDoAmbiente()`, com `MINIMAX_IA_CONCORRENCIA_LOTE` (padrão 1, `.env.example`), separado do portão das sugestões: uma avaliação em curso não atrasa a sugestão interativa.
+  - O log leva só o número de critérios, o código e os ms: nunca o contexto, as instruções, a resposta da IA nem a chave. Nada grava, toca no Baileys ou chama o back.
+  - Teste de contrato novo no `EnvioController`: `recomendacao`, `motivo` e `avaliacao_ia` no envio, na reação, na edição e na exclusão respondem 400 sem tocar o Baileys.
+
+### Alterado
+
+- `sugestaoTicketService.js`: a chamada ao chat da MiniMax virou `conversarJson` (exportada), compartilhada com a avaliação. Comportamento da sugestão inalterado.
+
+### Observações
+
+- Rotas novas do canal D: publicar o wa-back 0.30.0 ANTES do back 0.67.0. Com um wa-back antigo, o 404 vira indisponível no back e a tentativa fica para a próxima vez.
+
 ## [0.29.0] - 2026-10-20
 
 ### Adicionado

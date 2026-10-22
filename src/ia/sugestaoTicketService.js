@@ -205,66 +205,78 @@ function erroDoCodigoBase(codigo) {
 }
 
 /**
+ * Uma chamada ao chat da MiniMax que devolve um objeto JSON (sem nova tentativa, falha fechada). Serve à
+ * sugestão do ticket e à avaliação do atendimento (`avaliacaoAtendimentoService`). Nunca rejeita por
+ * erro do provedor e nunca loga: prompt e resposta são conteúdo do cliente.
+ * @param {{ sistema: string, usuario: string, prazoMs: number, fetch?: typeof fetch, maxTokens?: number }} pedido
+ * @returns {Promise<{ objeto: Record<string, unknown> } | { erro: CodigoErroSugestao }>}
+ */
+async function conversarJson({ sistema, usuario, prazoMs, fetch = globalThis.fetch, maxTokens = MAXIMO_TOKENS_RESPOSTA }) {
+  const chave = process.env.MINIMAX_API_KEY || "";
+  if (!chave) return { erro: "SEM_CHAVE" };
+  const modelo = (process.env.MINIMAX_MODELO_TEXTO ?? "").trim() || MODELO_PADRAO;
+
+  /** @type {Response} */
+  let resposta;
+  /** @type {string} */
+  let corpo;
+  try {
+    resposta = await fetch(URL_CHAT, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: modelo,
+        messages: [
+          { role: "system", content: sistema },
+          { role: "user", content: usuario },
+        ],
+        max_completion_tokens: maxTokens,
+        ...(ehFlash(modelo) ? { reasoning_effort: "low" } : { thinking: { type: "disabled" } }),
+        stream: false,
+      }),
+      signal: AbortSignal.timeout(prazoMs),
+    });
+    // O corpo é lido aqui dentro: a conexão só é liberada no fim dele (limite de conexões por chave).
+    corpo = await resposta.text();
+  } catch (erro) {
+    return { erro: ehTimeout(erro) ? "MINIMAX_TIMEOUT" : "MINIMAX_REDE" };
+  }
+
+  if (resposta.status === 429) return { erro: "MINIMAX_LIMITE" };
+  if (resposta.status >= 500) return { erro: "MINIMAX_INDISPONIVEL" };
+  if (!resposta.ok) return { erro: "MINIMAX_RECUSOU" };
+
+  /** @type {any} */
+  let json;
+  try {
+    json = JSON.parse(corpo);
+  } catch {
+    return { erro: "RESPOSTA_INVALIDA" };
+  }
+  const codigoBase = json?.base_resp?.status_code;
+  if (typeof codigoBase === "number" && codigoBase !== 0) return { erro: erroDoCodigoBase(codigoBase) };
+
+  // `reasoning_content` é ignorado de propósito. Cortada por tamanho sem conteúdo útil = inválida.
+  const conteudo = json?.choices?.[0]?.message?.content;
+  if (typeof conteudo !== "string") return { erro: "RESPOSTA_INVALIDA" };
+  if (json.choices[0].finish_reason === "length" && !conteudo.replace(/<think>[\s\S]*?<\/think>/gi, "").trim()) return { erro: "RESPOSTA_INVALIDA" };
+  const objeto = extrairObjeto(conteudo);
+  return objeto ? { objeto } : { erro: "RESPOSTA_INVALIDA" };
+}
+
+/**
  * Pede à MiniMax a sugestão dos campos. Uma chamada, sem nova tentativa; falha fechada.
  * @param {PedidoSugestao} pedido `prazoMs` já desconta a espera do portão
  * @returns {Promise<ResultadoSugestao>} nunca rejeita
  */
 async function sugerir(pedido) {
   try {
-    const { campos, contexto, prazoMs, fetch = globalThis.fetch } = pedido;
+    const { campos, contexto, prazoMs, fetch } = pedido;
     if (!Array.isArray(campos) || campos.length === 0 || !campos.every((c) => CAMPOS_VALIDOS.includes(c))) return falha("RESPOSTA_INVALIDA");
     if (typeof contexto !== "string" || !contexto) return falha("RESPOSTA_INVALIDA");
-    const chave = process.env.MINIMAX_API_KEY || "";
-    if (!chave) return falha("SEM_CHAVE");
-    const modelo = (process.env.MINIMAX_MODELO_TEXTO ?? "").trim() || MODELO_PADRAO;
-
-    /** @type {Response} */
-    let resposta;
-    /** @type {string} */
-    let corpo;
-    try {
-      resposta = await fetch(URL_CHAT, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: modelo,
-          messages: [
-            { role: "system", content: PROMPT_SISTEMA },
-            { role: "user", content: montarPedidoUsuario(pedido) },
-          ],
-          max_completion_tokens: MAXIMO_TOKENS_RESPOSTA,
-          ...(ehFlash(modelo) ? { reasoning_effort: "low" } : { thinking: { type: "disabled" } }),
-          stream: false,
-        }),
-        signal: AbortSignal.timeout(prazoMs),
-      });
-      // O corpo é lido aqui dentro: a conexão só é liberada no fim dele (limite de conexões por chave).
-      corpo = await resposta.text();
-    } catch (erro) {
-      return falha(ehTimeout(erro) ? "MINIMAX_TIMEOUT" : "MINIMAX_REDE");
-    }
-
-    if (resposta.status === 429) return falha("MINIMAX_LIMITE");
-    if (resposta.status >= 500) return falha("MINIMAX_INDISPONIVEL");
-    if (!resposta.ok) return falha("MINIMAX_RECUSOU");
-
-    /** @type {any} */
-    let json;
-    try {
-      json = JSON.parse(corpo);
-    } catch {
-      return falha("RESPOSTA_INVALIDA");
-    }
-    const codigoBase = json?.base_resp?.status_code;
-    if (typeof codigoBase === "number" && codigoBase !== 0) return falha(erroDoCodigoBase(codigoBase));
-
-    // `reasoning_content` é ignorado de propósito. Cortada por tamanho sem conteúdo útil = inválida.
-    const conteudo = json?.choices?.[0]?.message?.content;
-    if (typeof conteudo !== "string") return falha("RESPOSTA_INVALIDA");
-    if (json.choices[0].finish_reason === "length" && !conteudo.replace(/<think>[\s\S]*?<\/think>/gi, "").trim()) return falha("RESPOSTA_INVALIDA");
-    const objeto = extrairObjeto(conteudo);
-    if (!objeto) return falha("RESPOSTA_INVALIDA");
-    const sugestao = validarSugestao(objeto, pedido);
+    const r = await conversarJson({ sistema: PROMPT_SISTEMA, usuario: montarPedidoUsuario(pedido), prazoMs, fetch });
+    if ("erro" in r) return r;
+    const sugestao = validarSugestao(r.objeto, pedido);
     return sugestao ? { sugestao } : falha("RESPOSTA_INVALIDA");
   } catch {
     // Contrato "nunca rejeita": qualquer imprevisto vira resposta inválida, sem detalhe (pode ter conteúdo).
@@ -272,4 +284,4 @@ async function sugerir(pedido) {
   }
 }
 
-module.exports = { sugerir, URL_CHAT, MODELO_PADRAO, PROMPT_SISTEMA, MAXIMO_TITULO, MAXIMO_DESCRICAO, MAXIMO_EXPLICACAO, CAMPOS_VALIDOS };
+module.exports = { sugerir, conversarJson, cortarNaPalavra, URL_CHAT, MODELO_PADRAO, PROMPT_SISTEMA, MAXIMO_TITULO, MAXIMO_DESCRICAO, MAXIMO_EXPLICACAO, CAMPOS_VALIDOS };

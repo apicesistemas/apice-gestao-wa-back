@@ -3,7 +3,7 @@
 // vez liberada no finally e leitura do ambiente.
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { criarPortaoIa, concorrenciaDoAmbiente, portaoPadrao, CONCORRENCIA_PADRAO } = require("../../src/ia/portaoIa");
+const { criarPortaoIa, concorrenciaDoAmbiente, concorrenciaLoteDoAmbiente, portaoPadrao, portaoLote, CONCORRENCIA_PADRAO } = require("../../src/ia/portaoIa");
 
 /** @param {number} ms */
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -17,6 +17,32 @@ test("concorrenciaDoAmbiente: padrão 1, aceita inteiro ≥ 1 e ignora lixo", ()
 
 test("portaoPadrao devolve sempre o mesmo portão do processo", () => {
   assert.equal(portaoPadrao(), portaoPadrao());
+});
+
+test("concorrenciaLoteDoAmbiente lê MINIMAX_IA_CONCORRENCIA_LOTE (padrão 1) e não depende de MINIMAX_IA_CONCORRENCIA", () => {
+  assert.equal(concorrenciaLoteDoAmbiente({}), 1);
+  assert.equal(concorrenciaLoteDoAmbiente({ MINIMAX_IA_CONCORRENCIA_LOTE: " 2 " }), 2);
+  assert.equal(concorrenciaLoteDoAmbiente({ MINIMAX_IA_CONCORRENCIA: "5" }), 1, "a chave das sugestões não vale para o lote");
+  assert.equal(concorrenciaDoAmbiente({ MINIMAX_IA_CONCORRENCIA_LOTE: "5" }), 1, "a chave do lote não vale para as sugestões");
+  for (const ruim of ["0", "-1", "1.5", "abc", ""]) assert.equal(concorrenciaLoteDoAmbiente({ MINIMAX_IA_CONCORRENCIA_LOTE: ruim }), 1);
+});
+
+test("portaoLote é um portão do processo separado do portaoPadrao", () => {
+  assert.equal(portaoLote(), portaoLote());
+  assert.notEqual(portaoLote(), portaoPadrao());
+});
+
+test("tarefa longa no portão de lote não atrasa o portão das sugestões", async () => {
+  const lote = criarPortaoIa(1);
+  const sugestoes = criarPortaoIa(1);
+  /** @type {(() => void)} */
+  let soltar = () => {};
+  const emCurso = lote.executar(5000, () => new Promise((r) => (soltar = () => r("avaliada"))));
+  await esperar(5);
+  const rapida = await sugestoes.executar(1000, async () => "sugerida");
+  assert.deepEqual(rapida, { prazoEsgotado: false, valor: "sugerida" });
+  soltar();
+  assert.deepEqual(await emCurso, { prazoEsgotado: false, valor: "avaliada" });
 });
 
 test("concorrência 1: a 2ª espera a 1ª terminar e a espera é descontada do prazo", async () => {

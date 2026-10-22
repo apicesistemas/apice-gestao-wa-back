@@ -22,10 +22,41 @@
 // Efeitos: nenhum. Não toca no instanciaManager nem no Baileys e não chama o back. O log leva só os campos pedidos, o
 //   código e os milissegundos: nunca o contexto, a resposta da IA nem a chave.
 // Compatibilidade: rota nova; publicar o wa-back antes do back.
+//
+// Avaliação diária da qualidade do atendimento (Fase 55, Task 55.1), contratos D1 e D2. Só o back chama (mesmo token,
+// mesmo desligamento, mesmo teto de corpo). Nenhuma das duas rotas grava, toca no Baileys ou chama o back.
+//
+// Canal: D
+// Método e caminho: POST /ia/avaliacao-atendimento
+// Quem chama / quem expõe: back waIaService.avaliarAtendimento (job) → wa-back IaController
+// Entrada JSON (allowlist; chave desconhecida, no topo ou no critério → 400 sem chamar a MiniMax):
+//   { criterios: [{ codigo: /^[A-Z][A-Z0-9_]{1,29}$/, tipo: "NOTA" | "ALERTA", nome: 2..60, instrucao: 10..500, restrito: boolean }]
+//       (1..20 itens, códigos únicos),
+//     contexto: string 1..200000 (já mascarado, numerado [Ln] e cortado pelo back),
+//     total_linhas: inteiro 1..5000,
+//     prazo_ms: inteiro 1000..120000 }
+// Fluxo: portão de LOTE (MINIMAX_IA_CONCORRENCIA_LOTE, nunca o das sugestões; a espera conta no prazo) → chat da MiniMax →
+//   validação (código não pedido ou com o tipo trocado descartado, nota fora de 1..5 → null, linha fora da faixa descartada,
+//   motivo ≤ 300 e recomendacao ≤ 600 cortados na palavra, nenhum critério válido → 502).
+// Saída 2xx: 200 { notas: { [codigo]: 1..5 | null }, alertas: { [codigo]: { disparado, linhas, motivo? } }, recomendacao? }
+// Erros: 400 { msg } · 401 · 502 RESPOSTA_INVALIDA · 503 IA_INDISPONIVEL · 503 + Retry-After sem codigo (desligamento) ·
+//   504 PRAZO · 500 sem vazar o erro.
+// Efeitos: nenhum. O log leva só o número de critérios, o código e os ms: nunca o contexto, as instruções nem a resposta da IA.
+//   O wa-back NÃO mascara nomes (não os conhece): quem filtra a saída é o back.
+// Compatibilidade: rota nova; publicar o wa-back antes do back.
+//
+// Canal: D
+// Método e caminho: POST /ia/avaliacao-atendimento/previa
+// Quem chama / quem expõe: back AvaliacaoIaCriterio.previa → wa-back IaController
+// Entrada: { criterios } (a mesma validação do D1; qualquer outra chave → 400)
+// Saída 2xx: 200 { sistema, usuario } (o prompt exato do D1, com a conversa trocada por um marcador e total_linhas = "N")
+// Erros: 400 { msg } · 401 · 503 + Retry-After
+// Efeitos: nenhum; não chama a MiniMax.
 const express = require("express");
 const exigirTokenServico = require("./exigirTokenServico");
 const sugestaoTicketService = require("../ia/sugestaoTicketService");
-const { portaoPadrao } = require("../ia/portaoIa");
+const avaliacaoAtendimentoService = require("../ia/avaliacaoAtendimentoService");
+const { portaoPadrao, portaoLote: portaoLoteDoProcesso } = require("../ia/portaoIa");
 const desligamentoDoProcesso = require("../utils/desligamento").padrao;
 
 /** Teto técnico do corpo JSON (o contexto vai até 200 000 caracteres, com UTF-8 e folga). */
@@ -37,9 +68,18 @@ const MAXIMO_NOME_TIPO = 100;
 const MAXIMO_MINIMO_EXPLICACAO = 5000;
 const PRAZO_MINIMO_MS = 1000;
 const PRAZO_MAXIMO_MS = 120000;
+/** Limites do contrato D1 da avaliação (Fase 55). */
+const MAXIMO_CRITERIOS = 20;
+const MAXIMO_LINHAS = 5000;
+const REGEX_CODIGO_CRITERIO = /^[A-Z][A-Z0-9_]{1,29}$/;
+const LIMITE_NOME_CRITERIO = [2, 60];
+const LIMITE_INSTRUCAO_CRITERIO = [10, 500];
 
 const ALLOWLIST_IA = new Set(["campos", "contexto", "tipos_resolucao", "minimo_caracteres_explicacao", "prazo_ms"]);
 const ALLOWLIST_TIPO = new Set(["cod_tipo_resolucao", "nome"]);
+const ALLOWLIST_AVALIACAO = new Set(["criterios", "contexto", "total_linhas", "prazo_ms"]);
+const ALLOWLIST_CRITERIO = new Set(["codigo", "tipo", "nome", "instrucao", "restrito"]);
+const ALLOWLIST_PREVIA = new Set(["criterios"]);
 
 const MSG_INDISPONIVEL = "IA indisponível no momento.";
 const MSG_INVALIDA = "A resposta da IA não pôde ser usada.";
@@ -106,6 +146,85 @@ function validarCorpo(corpo) {
 }
 
 /**
+ * Confere as chaves do objeto contra a allowlist.
+ * @param {unknown} corpo
+ * @param {Set<string>} permitidas
+ * @param {string} contexto trecho da mensagem ("na avaliação", "no critério")
+ * @returns {Record<string, unknown>}
+ * @throws {ErroRequisicao}
+ */
+function exigirChavesPermitidas(corpo, permitidas, contexto) {
+  if (!corpo || typeof corpo !== "object" || Array.isArray(corpo)) throw recusar("Corpo da requisição inválido.");
+  const c = /** @type {Record<string, unknown>} */ (corpo);
+  for (const nome of Object.keys(c)) {
+    if (!permitidas.has(nome)) throw recusar(`Campo não permitido ${contexto}: ${nome.slice(0, 40)}.`);
+  }
+  return c;
+}
+
+/**
+ * Texto de critério como ele vai ao prompt (uma linha, aparado): confere o tamanho.
+ * @param {unknown} valor
+ * @param {number[]} limite [mínimo, máximo]
+ */
+const textoNoLimite = (valor, [minimo, maximo]) => {
+  if (typeof valor !== "string") return false;
+  const tamanho = valor.replace(/\s+/g, " ").trim().length;
+  return tamanho >= minimo && tamanho <= maximo;
+};
+
+/**
+ * Valida a lista de critérios (D1 e D2).
+ * @param {unknown} lista
+ * @returns {import("../ia/avaliacaoAtendimentoService").CriterioAvaliacao[]}
+ * @throws {ErroRequisicao}
+ */
+function validarCriterios(lista) {
+  if (!Array.isArray(lista) || lista.length < 1 || lista.length > MAXIMO_CRITERIOS) throw recusar(`Informe de 1 a ${MAXIMO_CRITERIOS} critérios.`);
+  /** @type {Set<string>} */
+  const codigos = new Set();
+  return lista.map((item) => {
+    const c = exigirChavesPermitidas(item, ALLOWLIST_CRITERIO, "no critério");
+    if (typeof c.codigo !== "string" || !REGEX_CODIGO_CRITERIO.test(c.codigo)) throw recusar("Código do critério inválido.");
+    if (codigos.has(c.codigo)) throw recusar("Código do critério repetido.");
+    codigos.add(c.codigo);
+    if (c.tipo !== "NOTA" && c.tipo !== "ALERTA") throw recusar("Tipo do critério inválido.");
+    if (!textoNoLimite(c.nome, LIMITE_NOME_CRITERIO)) throw recusar("O nome do critério tem de 2 a 60 caracteres.");
+    if (!textoNoLimite(c.instrucao, LIMITE_INSTRUCAO_CRITERIO)) throw recusar("A instrução do critério tem de 10 a 500 caracteres.");
+    if (typeof c.restrito !== "boolean") throw recusar("Informe se o critério é restrito.");
+    return { codigo: c.codigo, tipo: c.tipo, nome: /** @type {string} */ (c.nome), instrucao: /** @type {string} */ (c.instrucao), restrito: c.restrito };
+  });
+}
+
+/**
+ * Valida o corpo contra a allowlist do contrato D1 da avaliação.
+ * @param {unknown} corpo
+ * @returns {{ criterios: import("../ia/avaliacaoAtendimentoService").CriterioAvaliacao[], contexto: string, total_linhas: number, prazo_ms: number }}
+ * @throws {ErroRequisicao}
+ */
+function validarCorpoAvaliacao(corpo) {
+  const c = exigirChavesPermitidas(corpo, ALLOWLIST_AVALIACAO, "na avaliação");
+  const criterios = validarCriterios(c.criterios);
+  if (typeof c.contexto !== "string" || c.contexto.length < 1 || c.contexto.length > MAXIMO_CONTEXTO) throw recusar("Contexto inválido.");
+  const linhas = c.total_linhas;
+  if (!ehInteiro(linhas) || /** @type {number} */ (linhas) < 1 || /** @type {number} */ (linhas) > MAXIMO_LINHAS) throw recusar("Total de linhas inválido.");
+  const prazo = c.prazo_ms;
+  if (!ehInteiro(prazo) || /** @type {number} */ (prazo) < PRAZO_MINIMO_MS || /** @type {number} */ (prazo) > PRAZO_MAXIMO_MS) throw recusar("Prazo inválido.");
+  return { criterios, contexto: c.contexto, total_linhas: /** @type {number} */ (linhas), prazo_ms: /** @type {number} */ (prazo) };
+}
+
+/**
+ * Responde o erro tipado da MiniMax (comum às duas IAs): 504 prazo, 502 resposta inutilizável, 503 indisponível.
+ * @param {import("express").Response} res
+ * @param {string} erro
+ */
+function responderErroIa(res, erro) {
+  if (erro === "MINIMAX_TIMEOUT") res.status(504).json({ msg: MSG_PRAZO, codigo: "PRAZO" });
+  else if (erro === "MINIMAX_RECUSOU" || erro === "RESPOSTA_INVALIDA") res.status(502).json({ msg: MSG_INVALIDA, codigo: "RESPOSTA_INVALIDA" });
+  else res.status(503).json({ msg: MSG_INDISPONIVEL, codigo: "IA_INDISPONIVEL" });
+}
+
+/**
  * Lê o corpo JSON com o teto técnico da rota (o express.json global pula as rotas de ia).
  * @type {import("express").RequestHandler}
  */
@@ -125,13 +244,15 @@ function lerJson(req, res, next) {
  * @param {{
  *   desligamento?: Pick<import("../utils/desligamento").Desligamento, "recusarDuranteEncerramento">,
  *   sugerir?: typeof sugestaoTicketService.sugerir,
+ *   avaliar?: typeof avaliacaoAtendimentoService.avaliar,
  *   portao?: Pick<ReturnType<typeof import("../ia/portaoIa").criarPortaoIa>, "executar">,
+ *   portaoLote?: Pick<ReturnType<typeof import("../ia/portaoIa").criarPortaoIa>, "executar">,
  *   fetch?: typeof fetch,
  *   agora?: () => number,
  * }} [opcoes] dependências (os testes injetam)
  * @returns {(server: import("express").Express) => void}
  */
-function criarIaController({ desligamento = desligamentoDoProcesso, sugerir = sugestaoTicketService.sugerir, portao, fetch, agora = Date.now } = {}) {
+function criarIaController({ desligamento = desligamentoDoProcesso, sugerir = sugestaoTicketService.sugerir, avaliar = avaliacaoAtendimentoService.avaliar, portao, portaoLote, fetch, agora = Date.now } = {}) {
   /** @type {import("express").RequestHandler} */
   const recusarDuranteEncerramento = (req, res, next) => desligamento.recusarDuranteEncerramento(req, res, next);
 
@@ -174,13 +295,60 @@ function criarIaController({ desligamento = desligamentoDoProcesso, sugerir = su
           return;
         }
         registrar(resultado.erro);
-        if (resultado.erro === "MINIMAX_TIMEOUT") res.status(504).json({ msg: MSG_PRAZO, codigo: "PRAZO" });
-        else if (resultado.erro === "MINIMAX_RECUSOU" || resultado.erro === "RESPOSTA_INVALIDA") res.status(502).json({ msg: MSG_INVALIDA, codigo: "RESPOSTA_INVALIDA" });
-        else res.status(503).json({ msg: MSG_INDISPONIVEL, codigo: "IA_INDISPONIVEL" });
+        responderErroIa(res, resultado.erro);
       } catch (erro) {
         // Só o nome do erro: a mensagem poderia carregar trecho do contexto.
         console.error("[IA] Erro inesperado na sugestão do ticket:", erro instanceof Error ? erro.name : "erro");
         res.status(500).json({ msg: "Erro interno ao gerar a sugestão." });
+      }
+    });
+
+    server.post("/ia/avaliacao-atendimento", exigirTokenServico, recusarDuranteEncerramento, lerJson, async (req, res) => {
+      let dados;
+      try {
+        dados = validarCorpoAvaliacao(req.body);
+      } catch (erro) {
+        // Só lança ErroRequisicao (mensagens fixas, sem eco do conteúdo).
+        res.status(400).json({ msg: /** @type {Error} */ (erro).message });
+        return;
+      }
+
+      const inicio = agora();
+      const { criterios, contexto, total_linhas: totalLinhas, prazo_ms: prazoMs } = dados;
+      /** @param {string} codigo */
+      const registrar = (codigo) => console.log(`[IA] Avaliação do atendimento: criterios=${criterios.length} codigo=${codigo} ms=${agora() - inicio}`);
+      try {
+        const vez = await (portaoLote ?? portaoLoteDoProcesso()).executar(prazoMs, (restanteMs) =>
+          avaliar({ criterios, contexto, total_linhas: totalLinhas, prazoMs: restanteMs, ...(fetch ? { fetch } : {}) }),
+        );
+        if (vez.prazoEsgotado) {
+          registrar("PRAZO");
+          res.status(504).json({ msg: MSG_PRAZO, codigo: "PRAZO" });
+          return;
+        }
+        /** @type {import("../ia/avaliacaoAtendimentoService").ResultadoAvaliacao} */
+        const resultado = vez.valor;
+        if ("avaliacao" in resultado) {
+          registrar("OK");
+          res.status(200).json(resultado.avaliacao);
+          return;
+        }
+        registrar(resultado.erro);
+        responderErroIa(res, resultado.erro);
+      } catch (erro) {
+        // Só o nome do erro: a mensagem poderia carregar trecho do contexto.
+        console.error("[IA] Erro inesperado na avaliação do atendimento:", erro instanceof Error ? erro.name : "erro");
+        res.status(500).json({ msg: "Erro interno ao avaliar o atendimento." });
+      }
+    });
+
+    server.post("/ia/avaliacao-atendimento/previa", exigirTokenServico, recusarDuranteEncerramento, lerJson, (req, res) => {
+      try {
+        const c = exigirChavesPermitidas(req.body, ALLOWLIST_PREVIA, "na prévia");
+        res.status(200).json(avaliacaoAtendimentoService.previa(validarCriterios(c.criterios)));
+      } catch (erro) {
+        // validarCriterios e exigirChavesPermitidas só lançam ErroRequisicao.
+        res.status(400).json({ msg: /** @type {Error} */ (erro).message });
       }
     });
   };
@@ -188,4 +356,4 @@ function criarIaController({ desligamento = desligamentoDoProcesso, sugerir = su
 
 const IaController = criarIaController();
 
-module.exports = Object.assign(IaController, { criarIaController, ALLOWLIST_IA });
+module.exports = Object.assign(IaController, { criarIaController, ALLOWLIST_IA, ALLOWLIST_AVALIACAO, ALLOWLIST_CRITERIO });
