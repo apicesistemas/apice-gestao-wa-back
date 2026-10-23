@@ -178,6 +178,21 @@ test("DOCUMENTO PDF vira { document, mimetype, fileName } com a legenda; a cita�
   assert.deepEqual(opcoes.quoted.message, { conversation: "Manda o boleto?" });
 });
 
+test("DOCUMENTO PFX (application/x-pkcs12) é aceito e sai como document com a extensão pfx; X.509 .cer é recusado com 400", async () => {
+  const pfx = arquivos.pfx();
+  const resposta = await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO", nome_arquivo: "certificado" }, { buffer: pfx, mimetype: "application/x-pkcs12", nome: "certificado" }));
+  assert.equal(resposta.status, 200);
+  const { conteudo } = envios[0];
+  assert.ok(conteudo.document.equals(pfx));
+  assert.equal(conteudo.mimetype, "application/x-pkcs12");
+  assert.equal(conteudo.fileName, "certificado.pfx");
+
+  const antes = envios.length;
+  await esperarErro(await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO" }, { buffer: arquivos.x509(), mimetype: "application/x-pkcs12", nome: "a.cer" })), 400);
+  await esperarErro(await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO" }, { buffer: pfx, mimetype: "application/pdf", nome: "a.pfx" })), 400);
+  assert.equal(envios.length, antes);
+});
+
 test("AUDIO gravado (ptt=true) vira { audio, ptt: true } em ogg/opus com seconds", async () => {
   const resposta = await postEnviar("7", formulario({ ...BASE, tipo: "AUDIO", ptt: "true" }, { buffer: arquivos.oggOpus(3), mimetype: "audio/ogg; codecs=opus", nome: "voz.ogg" }));
   assert.equal(resposta.status, 200);

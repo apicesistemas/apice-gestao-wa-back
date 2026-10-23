@@ -81,3 +81,42 @@ test("duração real do OGG/Opus vem do granule da última página, não do decl
   assert.equal(duracaoOggOpusSegundos(arquivos.oggOpus(7)), 7);
   assert.equal(duracaoOggOpusSegundos(arquivos.pdf()), null);
 });
+
+test("PKCS#12 (PFX) é detectado pelo conteúdo, com comprimento DER longo, curto ou BER indefinido", () => {
+  for (const buffer of [arquivos.pfx(), arquivos.pfxCurto(), arquivos.pfxBer()]) {
+    assert.equal(detectarTipoPorConteudo(buffer), "application/x-pkcs12");
+  }
+});
+
+test("PKCS#12 é aceito com o declarado canônico, o alternativo e os genéricos, e recusado com o de outro tipo", () => {
+  const buffer = arquivos.pfx();
+  for (const declarado of ["application/x-pkcs12", "application/pkcs12", "application/octet-stream", "binary/octet-stream", ""]) {
+    assert.deepEqual(validarMidia(buffer, declarado, TETO), { ok: true, mimetype: "application/x-pkcs12", tamanho_bytes: buffer.length }, declarado);
+  }
+  assert.deepEqual(validarMidia(buffer, "application/pdf", TETO), { ok: false, motivo: "TIPO_DIVERGENTE" });
+});
+
+test("certificado X.509 DER (.cer) e ASN.1 que não é PKCS#12 continuam recusados", () => {
+  assert.equal(detectarTipoPorConteudo(arquivos.x509()), null);
+  assert.deepEqual(validarMidia(arquivos.x509(), "application/x-pkcs12", TETO), { ok: false, motivo: "TIPO_NAO_RECONHECIDO" });
+  const semOid = Buffer.from([0x30, 0x82, 0x01, 0x00, 0x02, 0x01, 0x03, 0x30, 0x82, 0x00, 0xf0, ...Array(80).fill(0x2a)]);
+  assert.equal(detectarTipoPorConteudo(semOid), null, "versão 3 sem o OID PKCS#7");
+  assert.equal(detectarTipoPorConteudo(Buffer.from([0x30, 0x85, 0x02, 0x01, 0x03, 0x30])), null, "comprimento longo além de 4 bytes");
+  assert.equal(detectarTipoPorConteudo(Buffer.from([0x30, 0x82, 0x01])), null, "truncado");
+  assert.equal(detectarTipoPorConteudo(Buffer.from([0x30])), null, "só o byte inicial");
+});
+
+test("PKCS#12: a janela do OID é [p+3, p+67), igual à do back (último offset aceito p+57, primeiro fora p+58)", () => {
+  const OID = [0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x07];
+  const p = 2; // comprimento curto: `30 LL` e o INTEGER versão 3 começa no byte 2
+  /** @param {number} offsetOid offset absoluto onde o OID começa */
+  const comOidEm = (offsetOid) => {
+    const b = Buffer.alloc(p + 3 + 64 + 16, 0x2a);
+    b.set([0x30, 0x7a, 0x02, 0x01, 0x03, 0x30], 0);
+    b.set(OID, offsetOid);
+    return b;
+  };
+  assert.equal(detectarTipoPorConteudo(comOidEm(p + 57)), "application/x-pkcs12", "OID terminando na última posição da janela");
+  assert.equal(detectarTipoPorConteudo(comOidEm(p + 58)), null, "OID que ultrapassa a janela em 1 byte");
+  assert.equal(detectarTipoPorConteudo(comOidEm(p + 4)), "application/x-pkcs12", "OID logo depois do `30` do ContentInfo");
+});

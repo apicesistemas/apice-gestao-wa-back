@@ -125,8 +125,26 @@ function tipoOle(b) {
   return null;
 }
 
+const MIME_PKCS12 = "application/x-pkcs12";
+const OID_PKCS7 = Buffer.from([0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x07]);
+/** Janela de 64 bytes que começa no `30` do ContentInfo (a mesma do back), onde o OID PKCS#7 inteiro precisa caber. */
+const JANELA_OID_PKCS7 = 64;
+
+/**
+ * PKCS#12 (PFX) pelo conteúdo: SEQUENCE (`30`) com comprimento curto, longo (`81`..`84`) ou BER
+ * indefinido (`80`), INTEGER versão 3 (`02 01 03`), ContentInfo (`30`) e o OID PKCS#7 logo adiante.
+ * Um ASN.1/DER qualquer (X.509 `.cer`) não casa.
+ * @param {Buffer} b
+ */
+function ehPkcs12(b) {
+  if (b.length < 2 || b[0] !== 0x30 || b[1] > 0x84) return false;
+  const inicio = 2 + (b[1] > 0x80 ? b[1] - 0x80 : 0);
+  return inicia(b, [0x02, 0x01, 0x03, 0x30], inicio) && b.subarray(inicio + 3, inicio + 3 + JANELA_OID_PKCS7).includes(OID_PKCS7);
+}
+
 /** @type {[string, (b: Buffer) => boolean][]} */
 const ASSINATURAS = [
+  [MIME_PKCS12, ehPkcs12],
   ["image/jpeg", (b) => inicia(b, [0xff, 0xd8, 0xff])],
   ["image/png", (b) => inicia(b, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
   ["image/webp", (b) => inicia(b, ascii("RIFF")) && inicia(b, ascii("WEBP"), 8)],
@@ -179,6 +197,7 @@ const DECLARADOS_ACEITOS = {
   [MIME_XLSX]: [MIME_XLSX],
   [MIME_DOC]: [MIME_DOC],
   [MIME_XLS]: [MIME_XLS],
+  [MIME_PKCS12]: [MIME_PKCS12, "application/pkcs12"],
 };
 
 /** Declarações que não dizem o tipo: valem pelo conteúdo detectado. */
@@ -238,4 +257,4 @@ function duracaoOggOpusSegundos(buffer) {
   return amostras < 0n ? null : Number(amostras) / 48000;
 }
 
-module.exports = { detectarTipoPorConteudo, validarMidia, duracaoOggOpusSegundos, normalizarMimetype, MIME_DOCX, MIME_XLSX, MIME_DOC, MIME_XLS };
+module.exports = { detectarTipoPorConteudo, validarMidia, duracaoOggOpusSegundos, normalizarMimetype, MIME_DOCX, MIME_XLSX, MIME_DOC, MIME_XLS, MIME_PKCS12 };

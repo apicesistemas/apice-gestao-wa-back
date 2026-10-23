@@ -3,6 +3,22 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.33.0] - 2026-10-23
+
+### Adicionado
+
+- Certificado digital PKCS#12 (`.pfx`/`.p12`) recebido e enviado como DOCUMENTO.
+  - `tipoMidia.js`: `detectarTipoPorConteudo` reconhece o PKCS#12 pelo conteúdo (nunca pela extensão): `30` com comprimento curto, longo (`81`..`84`) ou BER indefinido (`80`), `02 01 03`, um `30` (ContentInfo) e o OID PKCS#7 (`06 09 2A 86 48 86 F7 0D 01 07`) inteiro dentro da janela de 64 bytes `[p+3, p+67)`, em que `p` é o início do `02 01 03` e `p+3` é o `30` do ContentInfo (idêntica à do back em `utils/tipoMidia.js`: o último início de OID aceito é `p+57` e o primeiro fora é `p+58`). Mimetype canônico `application/x-pkcs12` (novo `MIME_PKCS12`). Declarados aceitos: `application/x-pkcs12`, `application/pkcs12` e os genéricos (`""`, `application/octet-stream`, `binary/octet-stream`). Outro tipo declarado (ex.: `application/pdf`) é `TIPO_DIVERGENTE`. Um ASN.1/DER qualquer (X.509 `.cer`) continua `TIPO_NAO_RECONHECIDO`.
+  - Antes, o PFX recebido caía em `TIPO_NAO_RECONHECIDO`, a mensagem seguia com `midia_pendente` e o binário era descartado. Agora o binário vai a `/interno/midia` com `mimetype: "application/x-pkcs12"`.
+  - `envio.js`: `EXTENSAO_DOCUMENTO` ganha `"application/x-pkcs12": "pfx"`, e com isso o `EnvioController` aceita o mime em `DOCUMENTO` (a lista vem das chaves dessa tabela). O PFX vai como documento, com o nome do arquivo e a extensão `pfx`.
+  - Nome do documento PKCS#12: terminado em `.p12` ou `.pfx` (qualquer caixa) fica como veio; sem extensão ou com outra, ganha `.pfx` (`EXTENSOES_EXTRAS` em `envio.js`; os outros tipos não mudam).
+  - O PFX é DOCUMENTO e nunca entra na fila de transcrição (teste novo no `BaileysAdapter.midia`). Nenhum log novo: nada do conteúdo nem do nome do arquivo.
+
+### Observações
+
+- Contrato do canal C: o back passa a receber `mimetype: "application/x-pkcs12"` em `/interno/midia` (a mensagem já vem como `DOCUMENTO`); o back precisa aceitá-lo. Canal D: o `/enviar` passa a aceitar `application/x-pkcs12` em `DOCUMENTO`; o back passa a enviá-lo em `MIMES_ENVIO.DOCUMENTO`.
+- Ordem de deploy: back, depois wa-back, depois front. Com o back antigo, o `/interno/midia` responde 415 ao mime novo, o `BaileysAdapter` (linhas 654-664) só registra a falha no log e descarta o binário, e a mensagem fica com a mídia indisponível. O back antigo não envia o mime novo ao `/enviar`, então o envio não muda.
+
 ## [0.32.0] - 2026-10-22
 
 ### Adicionado

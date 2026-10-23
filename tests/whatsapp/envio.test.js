@@ -67,6 +67,28 @@ test("um PDF vira { document, mimetype, fileName } com a legenda em caption", ()
   assert.deepEqual(conteudo, { document: buffer, mimetype: "application/pdf", fileName: "boleto.pdf", caption: "Segue o boleto" });
 });
 
+test("um documento PKCS#12 sai como document com a extensão pfx", () => {
+  const buffer = arquivos.pfx();
+  assert.deepEqual(montarConteudo({ midia: { buffer, mimetype: "application/x-pkcs12", nome: "certificado" } }), {
+    document: buffer,
+    mimetype: "application/x-pkcs12",
+    fileName: "certificado.pfx",
+  });
+  assert.equal(montarConteudo({ midia: { buffer, mimetype: "application/x-pkcs12" } }).fileName, "documento.pfx");
+  assert.equal(montarConteudo({ midia: { buffer, mimetype: "application/x-pkcs12", nome: "Empresa.PFX" } }).fileName, "Empresa.PFX");
+});
+
+test("PKCS#12: .p12 e .pfx (qualquer caixa) não recebem extensão a mais; sem extensão ou com outra ganha .pfx", () => {
+  const buffer = arquivos.pfx();
+  /** @param {string} nome */
+  const nomeDe = (nome) => montarConteudo({ midia: { buffer, mimetype: "application/x-pkcs12", nome } }).fileName;
+  assert.equal(nomeDe("cert.p12"), "cert.p12");
+  assert.equal(nomeDe("cert.P12"), "cert.P12");
+  assert.equal(nomeDe("cert.PFX"), "cert.PFX");
+  assert.equal(nomeDe("cert"), "cert.pfx");
+  assert.equal(nomeDe("cert.txt"), "cert.txt.pfx");
+});
+
 test("um documento sem nome recebe um nome com a extensão do tipo, e um nome com caminho fica só com o arquivo", () => {
   assert.equal(montarConteudo({ midia: { buffer: arquivos.pdf(), mimetype: "application/pdf" } }).fileName, "documento.pdf");
   assert.equal(montarConteudo({ midia: { buffer: arquivos.pdf(), mimetype: "application/pdf", nome: "..\\..\\pasta/relatorio" } }).fileName, "relatorio.pdf");

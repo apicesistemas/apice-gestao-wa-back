@@ -252,6 +252,15 @@ test("documento, imagem, mídia pendente ou mensagem não registrada não entram
   await doc.receber([documentoWa()]);
   assert.equal(doc.transcricoes.length, 0);
 
+  // PFX (certificado digital) nunca vai à MiniMax: é DOCUMENTO e fica fora da fila de transcrição.
+  definirDownload(async () => streamDe(arquivos.pfx()));
+  const pfx = await adapterConectado();
+  await pfx.receber([documentoWa("application/x-pkcs12")]);
+  assert.equal(pfx.registradas.length, 1);
+  assert.equal(pfx.midiasEnviadas.length, 1);
+  assert.equal(pfx.midiasEnviadas[0].metadados.mimetype, "application/x-pkcs12");
+  assert.equal(pfx.transcricoes.length, 0);
+
   definirDownload(async () => {
     throw new Error("falha de rede do WhatsApp");
   });

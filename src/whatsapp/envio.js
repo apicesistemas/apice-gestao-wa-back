@@ -29,7 +29,7 @@
 // - uma mensagem por chamada (nada de envio em massa). Erros saem como `ErroEnvio` com mensagem
 //   genérica em pt-BR (o erro do Baileys pode trazer JID ou telefone e só vai ao log pelo nome).
 const { normalizarJid, lidDe, telefoneDe, mensagemWaIdValido } = require("./filtroEntrada");
-const { duracaoOggOpusSegundos, normalizarMimetype, MIME_DOCX, MIME_XLSX, MIME_DOC, MIME_XLS } = require("./tipoMidia");
+const { duracaoOggOpusSegundos, normalizarMimetype, MIME_DOCX, MIME_XLSX, MIME_DOC, MIME_XLS, MIME_PKCS12 } = require("./tipoMidia");
 const { normalizarCodEquipe } = require("./BaileysAdapter");
 const tmpMidia = require("./tmpMidia");
 
@@ -53,7 +53,12 @@ const EXTENSAO_DOCUMENTO = {
   [MIME_XLSX]: "xlsx",
   [MIME_DOC]: "doc",
   [MIME_XLS]: "xls",
+  [MIME_PKCS12]: "pfx",
 };
+
+/** Outras extensões que já valem para o mimetype (não recebem a extensão padrão no fim). */
+/** @type {Record<string, string[]>} */
+const EXTENSOES_EXTRAS = { [MIME_PKCS12]: ["p12"] };
 
 /** @typedef {"CONTEUDO_INVALIDO" | "EQUIPE_NAO_ENCONTRADA" | "EQUIPE_DESCONECTADA" | "FALHA_ENVIO" | "ENVIO_NAO_CONFIRMADO"} CodigoErroEnvio */
 
@@ -148,7 +153,8 @@ function nomeDocumento(nome, mimetype) {
       : "";
   const semPontos = base.replace(/^\.+/, "");
   if (!semPontos) return `documento.${extensao}`;
-  return semPontos.toLowerCase().endsWith(`.${extensao}`) ? semPontos : `${semPontos}.${extensao}`;
+  const validas = [extensao, ...(EXTENSOES_EXTRAS[mimetype] ?? [])];
+  return validas.some((e) => semPontos.toLowerCase().endsWith(`.${e}`)) ? semPontos : `${semPontos}.${extensao}`;
 }
 
 /**

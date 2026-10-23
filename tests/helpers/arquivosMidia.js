@@ -113,6 +113,16 @@ const ole = (stream) => Buffer.concat([Buffer.from(CABECALHO_OLE), enchimento(64
 const doc = () => ole("WordDocument");
 const xls = () => ole("Workbook");
 
+const OID_PKCS7 = [0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x07];
+/** PKCS#12 (PFX) de comprimento DER longo: 30 82 LL LL | 02 01 03 | 30 82 LL LL | OID PKCS#7 data. */
+const pfx = () =>
+  Buffer.concat([Buffer.from([0x30, 0x82, 0x0b, 0xb8, 0x02, 0x01, 0x03, 0x30, 0x82, 0x0b, 0x40, ...OID_PKCS7, 0x01, 0xa0, 0x80]), enchimento(64)]);
+/** PKCS#12 com comprimento curto (30 LL) e outro BER de comprimento indefinido (30 80 ... 30 80). */
+const pfxCurto = () => Buffer.concat([Buffer.from([0x30, 0x7a, 0x02, 0x01, 0x03, 0x30, 0x40, ...OID_PKCS7, 0x01]), enchimento(32)]);
+const pfxBer = () => Buffer.concat([Buffer.from([0x30, 0x80, 0x02, 0x01, 0x03, 0x30, 0x80, ...OID_PKCS7, 0x01]), enchimento(32)]);
+/** Certificado X.509 DER (.cer): 30 82 .. .. 30 82 .. .. a0 03 02 01 02 ..., sem a versão 3 do PKCS#12 nem o OID PKCS#7. */
+const x509 = () => Buffer.concat([Buffer.from([0x30, 0x82, 0x03, 0x10, 0x30, 0x82, 0x02, 0xf8, 0xa0, 0x03, 0x02, 0x01, 0x02]), enchimento(64)]);
+
 const MIME_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
@@ -133,6 +143,10 @@ module.exports = {
   ole,
   doc,
   xls,
+  pfx,
+  pfxCurto,
+  pfxBer,
+  x509,
   MIME_DOCX,
   MIME_XLSX,
 };
