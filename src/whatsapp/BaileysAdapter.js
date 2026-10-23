@@ -83,6 +83,7 @@ const { criarCacheEnviadas } = require("./cacheEnviadas");
 const grupoGestao = require("./grupoGestao");
 const fotoPerfil = require("./fotoPerfil");
 const diagnosticoChamadas = require("./diagnosticoChamadas");
+const diagnosticoPresenca = require("./diagnosticoPresenca"); // TEMPORÁRIO (Fase 56, Task 56.0)
 const { criarConsolidadorChamadas } = require("./chamadas");
 const chamadaInternoClient = require("../services/chamadaInternoClient");
 
@@ -491,6 +492,7 @@ function criarAdapter({
       qrAtual = null;
       recuperacao.iniciarSessao(); // corte do `append` pela atividade anterior, antes da nova
       presenca.limparInscricoes(); // sessão nova no WhatsApp: as inscrições de presença não valem mais
+      void diagnosticoPresenca.aoAbrir(cod, s); // só log/online de teste (DIAGNOSTICO_PRESENCA*=S, desligado por padrão)
       atualizarStatus({ status_conexao: "CONECTADO", ultimo_erro_conexao: null });
     }
 

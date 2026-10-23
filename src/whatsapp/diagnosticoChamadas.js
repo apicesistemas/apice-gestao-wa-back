@@ -137,4 +137,4 @@ function registrarFormaMensagem(waMessage, eu) {
   }
 }
 
-module.exports = { registrarFormaEventoCall, registrarFormaMensagem, diagnosticoLigado, PREFIXO };
+module.exports = { registrarFormaEventoCall, registrarFormaMensagem, diagnosticoLigado, PREFIXO, dominioDe, sn };

@@ -3,6 +3,26 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.31.0] - 2026-10-22
+
+### Adicionado
+
+- Diagnóstico TEMPORÁRIO da presença "digitando..." em runtime (Fase 56, Task 56.0), para confirmar as hipóteses H1 a H4 antes de corrigir. Sai na Task 56.1.
+  - `src/whatsapp/diagnosticoPresenca.js` (novo), no padrão do `diagnosticoChamadas.js`: DESLIGADO por padrão, lido a cada chamada. Liga só com `DIAGNOSTICO_PRESENCA=S` e só para os `cod_equipe` de `DIAGNOSTICO_PRESENCA_EQUIPES` (lista por vírgula).
+  - Uma linha `[DIAG_PRESENCA]` por participante de cada `presence.update`: equipe, domínio do chat (`lid` / `s.whatsapp.net` / `g.us` / `outro`), chat com sufixo de aparelho, domínio do participante, participante igual ao chat, `lastKnownPresence` bruto, chat inscrito, descartado como próprio, descartado por estado repetido, intervalo entre as CHEGADAS de dois eventos iguais do mesmo chat (medido na chegada, então a latência do back não o altera; ms até 9999, depois s) e a resposta do back (`repassada`, `ignorada` ou o código do erro). Também loga a inscrição (domínio e resultado) e o `open`, com `baileys_padrao=unavailable` (presumido pelo código, não medido) e `nome_no_socket=S/N` (o Baileys ignora o `available` em silêncio sem nome no socket).
+  - `DIAGNOSTICO_PRESENCA_ONLINE=S` (mesmas equipes): depois do `open`, `sendPresenceUpdate("available")`. Erro só loga.
+  - Nunca grava JID, LID, telefone, nome ou texto (só flags, domínios e nomes de erro; qualquer sequência de 5 ou mais dígitos vira `#`). O mapa de intervalos fica só em memória. Nenhuma função do diagnóstico lança: tudo roda em try/catch e nunca rejeita a fila de envio da presença.
+  - `.env.example` com as três variáveis comentadas.
+
+### Alterado
+
+- `presenca.js` e `BaileysAdapter.js` ganham ganchos mínimos do diagnóstico (descarte e motivo, inscrição e `open`). Sem as flags nada muda, e o corpo enviado a `/interno/presenca` é o mesmo de antes.
+- `diagnosticoChamadas.js` passa a exportar `dominioDe` e `sn`, reaproveitados pelo novo diagnóstico.
+
+### Observações
+
+- Sem mudança de contrato no canal C (`/interno/presenca` recebe o mesmo corpo de antes). Deploy independente, sem ordem.
+
 ## [0.30.0] - 2026-10-22
 
 ### Adicionado

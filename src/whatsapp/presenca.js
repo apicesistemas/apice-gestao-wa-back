@@ -18,6 +18,7 @@
 const NodeCache = require("node-cache");
 const { normalizarJid } = require("./filtroEntrada");
 const presencaInternoClient = require("../services/presencaInternoClient");
+const diagnostico = require("./diagnosticoPresenca"); // TEMPORÁRIO (Fase 56, Task 56.0): só log, sai na 56.1
 
 /** `lastKnownPresence` (WAPresence) → estado no CRM. O Baileys já converte `paused` em `available`. */
 const ESTADO_DA_PRESENCA = new Map([
@@ -56,6 +57,13 @@ function resumoErro(erro) {
 }
 
 /**
+ * Como o back respondeu, para o diagnóstico temporário.
+ * @param {any} resposta
+ * @returns {string}
+ */
+const respostaDoBack = (resposta) => (typeof resposta?.msg === "string" && /ignorada/i.test(resposta.msg) ? "ignorada" : "repassada");
+
+/**
  * Presença de uma equipe.
  * @param {{
  *   contexto: ContextoInstancia,
@@ -81,8 +89,10 @@ function criarPresenca({ contexto, registrarPresenca = presencaInternoClient.reg
     inscritos.set(chatJid, true);
     try {
       await socket.presenceSubscribe(chatJid);
+      diagnostico.registrarInscricao(contexto.cod_equipe, chatJid, "ok");
     } catch (erro) {
       inscritos.del(chatJid);
+      diagnostico.registrarInscricao(contexto.cod_equipe, chatJid, resumoErro(erro).split(" ")[0]);
       console.error(`[PRESENCA] Falha ao inscrever a presença de um chat da equipe ${contexto.cod_equipe}:`, resumoErro(erro));
     }
   }
@@ -102,10 +112,22 @@ function criarPresenca({ contexto, registrarPresenca = presencaInternoClient.reg
     for (const [participante, dados] of Object.entries(presencas)) {
       const estado = estadoDaPresenca(dados?.lastKnownPresence);
       const quem = normalizarJid(participante);
-      if (!estado || !quem || proprios.has(quem)) continue;
+      // Diagnóstico temporário (56.0): o que aconteceu com este participante. Só log; não muda o fluxo.
+      const diag = diagnostico.marcarChegada(contexto.cod_equipe, { chat, participante, presenca: dados?.lastKnownPresence, inscrito: inscritos.has(chat) || inscritos.has(normalizarJid(chat) ?? chat), proprio: false, repetido: false, resposta: "-" });
+      if (!estado || !quem) {
+        diagnostico.registrarEvento(contexto.cod_equipe, diag);
+        continue;
+      }
+      if (proprios.has(quem)) {
+        diagnostico.registrarEvento(contexto.cod_equipe, { ...diag, proprio: true });
+        continue;
+      }
       const participante_jid = quem === normalizarJid(chat) ? null : participante;
       const chave = `${chat}|${participante_jid ?? ""}`;
-      if ((estados.get(chave) ?? "PARADO") === estado) continue;
+      if ((estados.get(chave) ?? "PARADO") === estado) {
+        diagnostico.registrarEvento(contexto.cod_equipe, { ...diag, repetido: true });
+        continue;
+      }
       estados.set(chave, estado);
       /** @type {DadosPresenca} */
       const corpo = { chat_jid: chat, participante_jid, estado };
@@ -113,8 +135,11 @@ function criarPresenca({ contexto, registrarPresenca = presencaInternoClient.reg
         Promise.resolve()
           .then(() => registrarPresenca(corpo, contexto))
           .then(
-            () => undefined,
-            (erro) => console.error(`[PRESENCA] Falha ao registrar a presença ${estado} da equipe ${contexto.cod_equipe}:`, resumoErro(erro))
+            (resposta) => diagnostico.registrarEvento(contexto.cod_equipe, { ...diag, resposta: respostaDoBack(resposta) }),
+            (erro) => {
+              console.error(`[PRESENCA] Falha ao registrar a presença ${estado} da equipe ${contexto.cod_equipe}:`, resumoErro(erro));
+              diagnostico.registrarEvento(contexto.cod_equipe, { ...diag, resposta: resumoErro(erro) });
+            }
           )
       );
     }
