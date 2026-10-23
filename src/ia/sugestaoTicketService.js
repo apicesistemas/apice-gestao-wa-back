@@ -21,6 +21,8 @@
 // - `base_resp` (formato antigo da MiniMax) só é lido por compatibilidade, se vier.
 // Na homologação fica só o teste com a chave real e a conferência do 429 cruzado com a transcrição.
 
+const { blocoTaxonomia, validarClassificacao, temEscolha, INSTRUCAO_CLASSIFICACAO } = require("./classificacaoTicketService");
+
 const URL_CHAT = "https://api.minimax.io/v1/chat/completions";
 /** Modelo padrão (teto técnico do provedor); `MINIMAX_MODELO_TEXTO` sobrescreve. */
 const MODELO_PADRAO = "MiniMax-M3";
@@ -37,13 +39,13 @@ const MAXIMO_TOKENS_RESPOSTA = 4096;
 const DELIMITADOR_INICIO = "<<<CONTEXTO_DO_TICKET";
 const DELIMITADOR_FIM = "FIM_CONTEXTO_DO_TICKET>>>";
 
-const CAMPOS_VALIDOS = ["titulo", "descricao", "cod_tipo_resolucao", "explicacao"];
+const CAMPOS_VALIDOS = ["titulo", "descricao", "cod_tipo_resolucao", "explicacao", "classificacao"];
 
 /**
  * @typedef {"SEM_CHAVE" | "MINIMAX_LIMITE" | "MINIMAX_INDISPONIVEL" | "MINIMAX_REDE" | "MINIMAX_TIMEOUT"
  *   | "MINIMAX_RECUSOU" | "RESPOSTA_INVALIDA"} CodigoErroSugestao
  */
-/** @typedef {{ titulo?: string, descricao?: string, cod_tipo_resolucao?: number | null, explicacao?: string }} SugestaoTicket */
+/** @typedef {{ titulo?: string, descricao?: string, cod_tipo_resolucao?: number | null, explicacao?: string, classificacao?: import("./classificacaoTicketService").ClassificacaoTicket }} SugestaoTicket */
 /** @typedef {{ sugestao: SugestaoTicket } | { erro: CodigoErroSugestao }} ResultadoSugestao */
 /**
  * @typedef {{
@@ -51,6 +53,7 @@ const CAMPOS_VALIDOS = ["titulo", "descricao", "cod_tipo_resolucao", "explicacao
  *   contexto: string,
  *   tipos_resolucao?: { cod_tipo_resolucao: number, nome: string }[],
  *   minimo_caracteres_explicacao?: number,
+ *   taxonomia?: import("./classificacaoTicketService").Taxonomia,
  *   prazoMs: number,
  *   fetch?: typeof fetch,
  * }} PedidoSugestao
@@ -91,13 +94,14 @@ const neutralizarDelimitadores = (contexto) => contexto.split(DELIMITADOR_INICIO
  * Mensagem do usuário: pedido do atendente + conversa delimitada.
  * @param {PedidoSugestao} pedido
  */
-function montarPedidoUsuario({ campos, contexto, tipos_resolucao: tipos, minimo_caracteres_explicacao: minimo }) {
+function montarPedidoUsuario({ campos, contexto, tipos_resolucao: tipos, minimo_caracteres_explicacao: minimo, taxonomia }) {
   const linhas = [`Chaves pedidas: ${campos.map((c) => `"${c}"`).join(", ")}.`];
   if (campos.includes("cod_tipo_resolucao") && tipos?.length) {
     linhas.push("Tipos de resolução permitidos (número: nome):");
     for (const tipo of tipos) linhas.push(`${tipo.cod_tipo_resolucao}: ${tipo.nome.replace(/\s+/g, " ").trim()}`);
   }
   if (campos.includes("explicacao") && minimo) linhas.push(`A explicação deve ter no mínimo ${minimo} caracteres.`);
+  if (campos.includes("classificacao") && taxonomia) linhas.push(blocoTaxonomia(taxonomia));
   linhas.push("", DELIMITADOR_INICIO, neutralizarDelimitadores(contexto), DELIMITADOR_FIM);
   return linhas.join("\n");
 }
@@ -155,7 +159,7 @@ const textoAparado = (valor) => (typeof valor === "string" ? valor.trim() : "");
  * @param {PedidoSugestao} pedido
  * @returns {SugestaoTicket | null}
  */
-function validarSugestao(objeto, { campos, tipos_resolucao: tipos }) {
+function validarSugestao(objeto, { campos, tipos_resolucao: tipos, taxonomia }) {
   /** @type {SugestaoTicket} */
   const sugestao = {};
   let util = false;
@@ -187,6 +191,11 @@ function validarSugestao(objeto, { campos, tipos_resolucao: tipos }) {
     const permitido = typeof n === "number" && Number.isInteger(n) && (tipos ?? []).some((t) => t.cod_tipo_resolucao === n);
     sugestao.cod_tipo_resolucao = permitido ? /** @type {number} */ (n) : null;
     if (permitido) util = true;
+  }
+  if (campos.includes("classificacao") && taxonomia && Object.hasOwn(objeto, "classificacao")) {
+    // Como o tipo: a IA que se abstém (tudo nulo) volta como nulos, mas isso sozinho não é resposta útil.
+    sugestao.classificacao = validarClassificacao(objeto.classificacao, taxonomia);
+    if (temEscolha(sugestao.classificacao)) util = true;
   }
   return util ? sugestao : null;
 }
@@ -274,7 +283,10 @@ async function sugerir(pedido) {
     const { campos, contexto, prazoMs, fetch } = pedido;
     if (!Array.isArray(campos) || campos.length === 0 || !campos.every((c) => CAMPOS_VALIDOS.includes(c))) return falha("RESPOSTA_INVALIDA");
     if (typeof contexto !== "string" || !contexto) return falha("RESPOSTA_INVALIDA");
-    const r = await conversarJson({ sistema: PROMPT_SISTEMA, usuario: montarPedidoUsuario(pedido), prazoMs, fetch });
+    if (campos.includes("classificacao") && !pedido.taxonomia) return falha("RESPOSTA_INVALIDA");
+    // O campo novo só acrescenta a instrução quando é pedido: sem ele o prompt é o de sempre.
+    const sistema = campos.includes("classificacao") ? PROMPT_SISTEMA + INSTRUCAO_CLASSIFICACAO : PROMPT_SISTEMA;
+    const r = await conversarJson({ sistema, usuario: montarPedidoUsuario(pedido), prazoMs, fetch });
     if ("erro" in r) return r;
     const sugestao = validarSugestao(r.objeto, pedido);
     return sugestao ? { sugestao } : falha("RESPOSTA_INVALIDA");

@@ -189,7 +189,7 @@ test("prazo estourado na MiniMax → 504 PRAZO", async () => {
 });
 
 test("allowlist: chave desconhecida (inclusive hash_empresa, transcricao, nota_interna, sugestao_ia) → 400 sem chamar a MiniMax", async () => {
-  assert.deepEqual([...ALLOWLIST_IA].sort(), ["campos", "contexto", "minimo_caracteres_explicacao", "prazo_ms", "tipos_resolucao"]);
+  assert.deepEqual([...ALLOWLIST_IA].sort(), ["campos", "contexto", "minimo_caracteres_explicacao", "prazo_ms", "taxonomia", "tipos_resolucao"]);
   for (const campo of ["hash_empresa", "transcricao", "nota_interna", "sugestao_ia", "explicacao", "cod_equipe", "qualquer"]) {
     const r = await postar({ ...VALIDO, [campo]: "x" });
     assert.equal(r.status, 400, campo);

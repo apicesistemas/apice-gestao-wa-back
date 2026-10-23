@@ -3,6 +3,27 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.32.0] - 2026-10-22
+
+### Adicionado
+
+- Classificação dos tickets por produto, área e natureza (Fase 57, Task 57.1, contratos D1 alterado e D3). Só o back chama, com `X-Internal-Token` conferido antes do corpo e 503 + `Retry-After` no desligamento. Nada grava, toca no Baileys ou chama o back.
+  - D1 alterado, `POST /ia/sugestao-ticket`: `campos` aceita `classificacao` (1..5 campos) e a chave nova `taxonomia` (obrigatória com `classificacao`): `{ produtos: [{ cod_produto_suporte, nome (1..100), areas: [{ cod_area_produto, nome (1..100) }] (0..100) }] (1..50), naturezas: [{ codigo: /^[A-Z][A-Z_]{1,29}$/, nome (1..100), descricao (1..300) }] (1..20) }`. Ids e códigos repetidos são 400. A `taxonomia` sem `classificacao` é validada e ignorada. Sem `classificacao`, o pedido, o prompt e a resposta são os de sempre.
+  - D1, saída: `classificacao?: { cod_produto_suporte: int | null, cod_area_produto: int | null, natureza: string | null }`. Id fora da taxonomia vira `null`, área de outro produto (ou com o produto nulo) vira `null` e natureza fora da lista recebida vira `null`; a IA pode se abster com `null`. Pedido só de `classificacao` com os três nulos: 502 `RESPOSTA_INVALIDA`. Com outros campos úteis, volta com os nulos.
+  - D3, `POST /ia/classificacao-ticket` (JSON, teto técnico de 512 kb): `{ taxonomia, contexto (1..200000, já mascarado e cortado pelo back), prazo_ms (1000..120000) }`. `ALLOWLIST_CLASSIFICACAO`: chave desconhecida no topo (hash_empresa, cod_ticket, nota_interna, explicacao, titulo e descricao soltos...) responde 400 sem chamar a MiniMax. Resposta 200 `{ cod_produto_suporte, cod_area_produto, natureza }` (a mesma validação da D1); os três nulos ou JSON inválido: 502 `RESPOSTA_INVALIDA`; também 503 `IA_INDISPONIVEL`, 504 `PRAZO` e 500 sem vazar o erro. Usa o portão de LOTE (`MINIMAX_IA_CONCORRENCIA_LOTE`): uma classificação em curso não atrasa a sugestão interativa.
+  - `ALLOWLIST_IA` ganha `taxonomia`, e `ALLOWLIST_TAXONOMIA`, `ALLOWLIST_PRODUTO`, `ALLOWLIST_AREA` e `ALLOWLIST_NATUREZA` recusam chave desconhecida em cada nível da taxonomia (na D1 e na D3) com 400, sem chamar a MiniMax.
+  - `src/ia/classificacaoTicketService.js` (novo): `PROMPT_CLASSIFICACAO` (D3), `INSTRUCAO_CLASSIFICACAO` (acrescentada ao prompt da D1 só quando `classificacao` é pedido), `blocoTaxonomia` (o mesmo bloco nas duas rotas), `validarClassificacao` e `classificar`. A IA devolve só ids e o código da natureza, nunca texto. Os delimitadores do bloco de dados são neutralizados no contexto e nos nomes e descrições da taxonomia, que ainda ficam em uma linha só.
+  - O log leva só o código e os ms (D3) ou os campos pedidos, o código e os ms (D1): nunca o contexto, os nomes da taxonomia, a resposta da IA nem a chave.
+  - Teste de contrato novo no `EnvioController`: `classificacao`, `natureza`, `taxonomia`, `cod_produto_suporte`, `cod_area_produto` e `especificacao` no envio, na reação, na edição e na exclusão respondem 400 sem tocar o Baileys.
+
+### Alterado
+
+- `sugestaoTicketService.js`: `CAMPOS_VALIDOS` ganha `classificacao`, e a mensagem do 400 passa a "Informe de 1 a 5 campos para a sugestão.". O teste de `ALLOWLIST_IA` em `IaController.test.js` ganhou `taxonomia`.
+
+### Observações
+
+- Rota nova e chave nova do canal D: publicar o wa-back 0.32.0 ANTES do back da Fase 57. Um wa-back antigo responde 400 à chave `taxonomia` (D1) e 404 à rota nova (D3).
+
 ## [0.31.0] - 2026-10-22
 
 ### Adicionado
