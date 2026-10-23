@@ -62,5 +62,5 @@ Detalhes e parâmetros em [CLAUDE.md](CLAUDE.md#deploy).
 
 - `sessoes-baileys/` guarda as credenciais da sessão pareada de cada equipe. Nunca versionar nem compartilhar.
 - Rodar sempre com **uma única instância** (PM2 `instances: 1`). Dois processos na mesma sessão corrompem o pareamento.
-- Porta 3501 só na rede interna, nunca publicada pelo proxy (Apache). O processo escuta apenas em `SERVER_HOST` (padrão e valor fixo no PM2: `127.0.0.1`), então outra máquina da rede não alcança nem o `/ping`. `0.0.0.0` e `::` geram aviso no log. O `WA_BACK_BASE_URL` do back precisa ser `http://127.0.0.1:3501` (não `localhost`, que o Node pode resolver para `::1`).
-- `CRM_BACK_URL` precisa ser `http://127.0.0.1:3500`: o back só aceita `/interno/*` vindo do loopback e sem cabeçalho de proxy, então não aponte para o domínio público nem para o Apache.
+- Porta 3501 só na rede interna, nunca publicada pelo proxy (nginx). O processo escuta apenas em `SERVER_HOST` (padrão e valor fixo no PM2: `127.0.0.1`), então outra máquina da rede não alcança nem o `/ping`. `0.0.0.0` e `::` geram aviso no log. O `WA_BACK_BASE_URL` do back precisa ser `http://127.0.0.1:3501` (não `localhost`, que o Node pode resolver para `::1`).
+- `CRM_BACK_URL` precisa ser `http://127.0.0.1:3500`: o back só aceita `/interno/*` vindo do loopback e sem cabeçalho de proxy, então não aponte para o domínio público nem para o nginx.
