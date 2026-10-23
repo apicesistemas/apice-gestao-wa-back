@@ -190,7 +190,8 @@ async function dadosDoFormulario(form) {
   const nomeArquivo = texto("nome_arquivo") ?? (arquivo instanceof File ? arquivo.name : undefined);
   return {
     ...base,
-    conteudo: { midia: { buffer, mimetype, legenda: texto("legenda") ?? null, nome: nomeArquivo ?? null, ptt } },
+    // `documento` é campo interno do objeto, não do formulário: DOCUMENTO nunca vai como imagem, vídeo ou áudio.
+    conteudo: { midia: { buffer, mimetype, legenda: texto("legenda") ?? null, nome: nomeArquivo ?? null, ptt, documento: tipo === "DOCUMENTO" } },
   };
 }
 

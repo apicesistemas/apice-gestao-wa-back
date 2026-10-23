@@ -249,3 +249,113 @@ test("um transcrever que lança (defesa) vira FALHOU e não trava a fila", async
     ["D2", "CONCLUIDA"],
   ]);
 });
+
+test("a tarefa de um vídeo guarda só a trilha de áudio: o buffer enfileirado é menor que o vídeo e não o compartilha", async () => {
+  /** @type {{ buffer: Buffer, mimetype: string }[]} */
+  const recebidos = [];
+  /** @type {any[]} */
+  const registros = [];
+  const fila = criarFilaTranscricao({
+    esperar: async () => {},
+    transcrever: async (buffer, mimetype) => {
+      recebidos.push({ buffer, mimetype });
+      return recebidos.length === 1 ? { erro: "MINIMAX_LIMITE", transitorio: true } : { texto: "fala do vídeo" };
+    },
+    registrarTranscricao: async (id, resultado) => void registros.push([id, resultado.status]),
+  });
+  const video = mp4ComAudio({ moovNoFim: true });
+
+  const promessa = fila.enfileirarTranscricao(tarefaAudio({ mensagem_wa_id: "V1", buffer: video, mimetype: "video/mp4", duracao_segundos: 3 }));
+  // Depois de enfileirar, o vídeo inteiro não pode mais estar na tarefa: nem na nova tentativa.
+  assert.deepEqual(await promessa, { status: "CONCLUIDA", texto: "fala do vídeo" });
+  assert.equal(recebidos.length, 2);
+  for (const { buffer, mimetype } of recebidos) {
+    assert.equal(mimetype, "audio/aac");
+    assert.ok(buffer.length < video.length, "a trilha é menor que o vídeo");
+    assert.notEqual(buffer.buffer, video.buffer, "não compartilha a memória do vídeo");
+    assert.ok(!buffer.includes(Buffer.from("ftyp", "latin1")));
+    assert.deepEqual(
+      lerAdts(buffer).map((q) => q.conteudo),
+      AMOSTRAS_PADRAO
+    );
+  }
+  assert.equal(recebidos[0].buffer, recebidos[1].buffer, "as duas tentativas usam a mesma trilha");
+  assert.deepEqual(registros, [["V1", "CONCLUIDA"]]);
+});
+
+test("vídeo sem trilha de áudio aproveitável (sem áudio ou contêiner inválido) vira FALHOU na hora, sem chamar a MiniMax", async () => {
+  const estado = instalarFetch();
+  const fila = filaDeTeste();
+  const semAudio = mp4ComAudio({ comAudio: false });
+  const truncado = mp4ComAudio({ moovNoFim: true }).subarray(0, 40);
+
+  assert.deepEqual(await fila.enfileirarTranscricao(tarefaAudio({ mensagem_wa_id: "V2", buffer: semAudio, mimetype: "video/mp4" })), { status: "FALHOU", texto: null });
+  assert.deepEqual(await fila.enfileirarTranscricao(tarefaAudio({ mensagem_wa_id: "V3", buffer: truncado, mimetype: "video/3gpp" })), { status: "FALHOU", texto: null });
+  assert.equal(estado.chamadasMinimax.length, 0);
+  assert.deepEqual(esperas, []);
+  assert.deepEqual(
+    estado.registros.map((r) => [r.mensagem_wa_id, r.status, r.texto]),
+    [
+      ["V2", "FALHOU", null],
+      ["V3", "FALHOU", null],
+    ]
+  );
+});
+
+test("o áudio (ogg, M4A) segue inteiro na tarefa: só o vídeo é reduzido à trilha", async () => {
+  /** @type {Buffer[]} */
+  const recebidos = [];
+  const fila = criarFilaTranscricao({
+    transcrever: async (buffer) => (recebidos.push(buffer), { texto: "ok" }),
+    registrarTranscricao: async () => {},
+  });
+  const ogg = arquivos.oggOpus(2);
+  await fila.enfileirarTranscricao(tarefaAudio({ buffer: ogg }));
+  assert.equal(recebidos[0], ogg);
+});
+
+test("o vídeo e a tarefa original são liberados da memória enquanto a tarefa espera a vez na fila", async () => {
+  // gc() sem --expose-gc: o V8 liga o flag em tempo de execução e o `vm` entrega a função.
+  require("node:v8").setFlagsFromString("--expose-gc");
+  const gc = require("node:vm").runInNewContext("gc");
+  /** @type {() => void} */
+  let liberarPrimeira = () => {};
+  const portao = new Promise((resolve) => (liberarPrimeira = () => resolve(undefined)));
+  /** @type {Buffer[]} */
+  const recebidos = [];
+  const fila = criarFilaTranscricao({
+    esperar: async () => {},
+    transcrever: async (buffer) => {
+      recebidos.push(buffer);
+      if (recebidos.length === 1) await portao; // a 1ª segura a fila; a do vídeo espera atrás dela
+      return { texto: "ok" };
+    },
+    registrarTranscricao: async () => {},
+  });
+
+  // O vídeo e a tarefa só existem dentro desta função: ao voltar, o teste não guarda nenhuma referência.
+  const enfileirarVideo = () => {
+    const video = mp4ComAudio({ moovNoFim: true });
+    const tarefa = tarefaAudio({ mensagem_wa_id: "LIB2", buffer: video, mimetype: "video/mp4" });
+    const refs = { video: new WeakRef(video), tarefa: new WeakRef(tarefa) };
+    return { refs, promessa: fila.enfileirarTranscricao(tarefa) };
+  };
+
+  const primeira = fila.enfileirarTranscricao(tarefaAudio({ mensagem_wa_id: "LIB1" }));
+  const { refs, promessa } = enfileirarVideo();
+  await pausa(10); // a 1ª já está na MiniMax (no portão); o WeakRef só solta depois do job atual
+  for (let i = 0; i < 5; i += 1) {
+    gc();
+    await pausa(5);
+  }
+  assert.equal(recebidos.length, 1, "o vídeo ainda espera a vez");
+  assert.equal(refs.video.deref(), undefined, "o vídeo inteiro não fica retido enquanto espera");
+  assert.equal(refs.tarefa.deref(), undefined, "a tarefa original (com o vídeo) não fica retida enquanto espera");
+
+  liberarPrimeira();
+  assert.deepEqual(await Promise.all([primeira, promessa]), [
+    { status: "CONCLUIDA", texto: "ok" },
+    { status: "CONCLUIDA", texto: "ok" },
+  ]);
+  assert.equal(recebidos[1].length > 0 && recebidos[1].includes(Buffer.from("ftyp", "latin1")), false, "a MiniMax recebe a trilha, não o vídeo");
+});

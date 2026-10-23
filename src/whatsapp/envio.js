@@ -54,6 +54,9 @@ const EXTENSAO_DOCUMENTO = {
   [MIME_DOC]: "doc",
   [MIME_XLS]: "xls",
   [MIME_PKCS12]: "pfx",
+  // Vídeo enviado como DOCUMENTO (acima do limite de mídia): o cliente recebe o arquivo para baixar.
+  "video/mp4": "mp4",
+  "video/3gpp": "3gp",
 };
 
 /** Outras extensões que já valem para o mimetype (não recebem a extensão padrão no fim). */
@@ -94,6 +97,7 @@ function obterPrazoEnvioMs(env = process.env) {
  *   nome?: string | null,
  *   legenda?: string | null,
  *   ptt?: boolean,
+ *   documento?: boolean,
  * }} MidiaParaEnvio mídia já validada (magic bytes e teto) pelo controller
  */
 /** @typedef {{ texto: string } | { midia: MidiaParaEnvio }} ConteudoCliente */
@@ -197,9 +201,11 @@ function montarConteudo(conteudo, { mencoes = [] } = {}) {
   /** @type {Record<string, any>} */
   const caption = legenda ? { caption: legenda } : {};
 
-  if (mimetype.startsWith("image/")) return { image: midia.buffer, mimetype, ...caption, jpegThumbnail: null, ...extra };
-  if (mimetype.startsWith("video/")) return { video: midia.buffer, mimetype, ...caption, jpegThumbnail: null, ...extra };
-  if (mimetype.startsWith("audio/")) {
+  // `documento` (tipo DOCUMENTO do pedido) vale antes do mimetype: um MP4 enviado como documento nunca vira vídeo.
+  const comoDocumento = midia.documento === true;
+  if (!comoDocumento && mimetype.startsWith("image/")) return { image: midia.buffer, mimetype, ...caption, jpegThumbnail: null, ...extra };
+  if (!comoDocumento && mimetype.startsWith("video/")) return { video: midia.buffer, mimetype, ...caption, jpegThumbnail: null, ...extra };
+  if (!comoDocumento && mimetype.startsWith("audio/")) {
     const ptt = midia.ptt === true;
     const ogg = mimetype === "audio/ogg";
     const duracao = ogg ? duracaoOggOpusSegundos(midia.buffer) : null;

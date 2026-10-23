@@ -12,12 +12,13 @@
 // - Tudo em memória: nada é gravado em disco.
 //
 // O teto e o prazo são parâmetros (`MIDIA_TETO_BYTES`, `MIDIA_PRAZO_MS`), não regra fixa no código.
-// O tamanho máximo por empresa (parâmetro do superadmin no back) ainda não é consultado.
+// O teto é técnico, do processo (proteção de memória). O limite por empresa (parâmetros de mídia e de
+// documento do superadmin) é conferido pelo back, que recusa o excesso em `/interno/midia` e no envio.
 const pino = require("pino");
 const { validarMidia, duracaoOggOpusSegundos } = require("./tipoMidia");
 
-/** Padrão do SPEC (§12, parâmetros de mídia): 16 MB por arquivo. */
-const TETO_PADRAO_BYTES = 16 * 1024 * 1024;
+/** Teto técnico padrão do processo (Fase 58): 100 MiB por arquivo, o maior limite que o back aceita. */
+const TETO_PADRAO_BYTES = 100 * 1024 * 1024;
 /** Prazo total do download (stream lento ou parado não trava a fila de entrada para sempre). */
 const PRAZO_PADRAO_MS = 60 * 1000;
 
@@ -55,7 +56,7 @@ function inteiroPositivo(valor, padrao) {
 }
 
 /**
- * Teto e prazo do download, lidos do ambiente a cada chamada (padrões: 16 MB e 60 s).
+ * Teto e prazo do download, lidos do ambiente a cada chamada (padrões: 100 MiB e 60 s).
  * @returns {LimitesMidia}
  */
 function obterLimitesMidia() {

@@ -67,6 +67,21 @@ test("um PDF vira { document, mimetype, fileName } com a legenda em caption", ()
   assert.deepEqual(conteudo, { document: buffer, mimetype: "application/pdf", fileName: "boleto.pdf", caption: "Segue o boleto" });
 });
 
+test("DOCUMENTO com conteúdo MP4 ou 3GP sai como document (nunca video), com a extensão do tipo", () => {
+  const mp4 = arquivos.mp4();
+  const comoDocumento = montarConteudo({ midia: { buffer: mp4, mimetype: "video/mp4", nome: "treinamento.mp4", documento: true } });
+  assert.deepEqual(comoDocumento, { document: mp4, mimetype: "video/mp4", fileName: "treinamento.mp4" });
+  assert.ok(!("video" in comoDocumento) && !("jpegThumbnail" in comoDocumento));
+  assert.equal(montarConteudo({ midia: { buffer: mp4, mimetype: "video/mp4", documento: true } }).fileName, "documento.mp4");
+  assert.equal(montarConteudo({ midia: { buffer: mp4, mimetype: "video/mp4", nome: "tela", documento: true } }).fileName, "tela.mp4");
+  const gp3 = montarConteudo({ midia: { buffer: mp4, mimetype: "video/3gpp", nome: "clip", legenda: "veja", documento: true } });
+  assert.deepEqual(gp3, { document: mp4, mimetype: "video/3gpp", fileName: "clip.3gp", caption: "veja" });
+  // Sem a marca de documento, o vídeo continua sendo vídeo.
+  assert.deepEqual(montarConteudo({ midia: { buffer: mp4, mimetype: "video/mp4" } }), { video: mp4, mimetype: "video/mp4", jpegThumbnail: null });
+  // A marca de documento não faz imagem (nem outro tipo fora da lista) virar documento.
+  assert.throws(() => montarConteudo({ midia: { buffer: arquivos.jpeg(), mimetype: "image/jpeg", documento: true } }), { codigo: "CONTEUDO_INVALIDO" });
+});
+
 test("um documento PKCS#12 sai como document com a extensão pfx", () => {
   const buffer = arquivos.pfx();
   assert.deepEqual(montarConteudo({ midia: { buffer, mimetype: "application/x-pkcs12", nome: "certificado" } }), {

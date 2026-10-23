@@ -57,7 +57,7 @@ const ZIP = [0x50, 0x4b, 0x03, 0x04];
 const OLE = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
 const ASSINATURA_EOCD = 0x06054b50;
 const ASSINATURA_CENTRAL = 0x02014b50;
-// ZIP64 é recusado e o teto é 10000 entradas: Office de até 16 MB não precisa de ZIP64.
+// ZIP64 é recusado e o teto é 10000 entradas: Office de até 100 MiB não precisa de ZIP64.
 const MAX_ENTRADAS_ZIP = 10000;
 
 /**

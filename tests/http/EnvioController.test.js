@@ -12,6 +12,7 @@ const baileysFalso = require("../helpers/baileysFalso");
 baileysFalso.instalarBaileysFalso();
 const { registrarControllers } = require("../../src/http");
 const { criarEnvioController } = require("../../src/http/EnvioController");
+const { obterLimitesMidia } = require("../../src/whatsapp/midiaEntrada");
 const arquivos = require("../helpers/arquivosMidia");
 const { JID_CLIENTE, JID_GRUPO, JID_PARTICIPANTE, EU } = require("../helpers/mensagensWa");
 
@@ -218,6 +219,46 @@ test("IMAGEM e VIDEO saem com jpegThumbnail null; menções em grupo vão em men
   assert.equal(video.status, 200);
   assert.ok(Buffer.isBuffer(envios[1].conteudo.video));
   assert.equal(envios[1].conteudo.jpegThumbnail, null);
+});
+
+test("DOCUMENTO com conteúdo MP4 ou 3GP vai como { document, mimetype, fileName } e nenhuma chave video; VIDEO segue como video", async () => {
+  const doc = await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO", legenda: "gravação" }, { buffer: arquivos.mp4(), mimetype: "video/mp4", nome: "treino" }));
+  assert.equal(doc.status, 200);
+  assert.ok(Buffer.isBuffer(envios[0].conteudo.document));
+  assert.equal(envios[0].conteudo.mimetype, "video/mp4");
+  assert.equal(envios[0].conteudo.fileName, "treino.mp4");
+  assert.equal(envios[0].conteudo.caption, "gravação");
+  assert.ok(!("video" in envios[0].conteudo) && !("jpegThumbnail" in envios[0].conteudo));
+
+  const gp3 = await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO" }, { buffer: arquivos.isoBmff("3gp4"), mimetype: "video/3gpp", nome: "clip.3gp" }));
+  assert.equal(gp3.status, 200);
+  assert.equal(envios[1].conteudo.fileName, "clip.3gp");
+  assert.equal(envios[1].conteudo.mimetype, "video/3gpp");
+  assert.ok(!("video" in envios[1].conteudo));
+
+  const video = await postEnviar("7", formulario({ ...BASE, tipo: "VIDEO" }, { buffer: arquivos.mp4(), mimetype: "video/mp4", nome: "video.mp4" }));
+  assert.equal(video.status, 200);
+  assert.ok(Buffer.isBuffer(envios[2].conteudo.video));
+  assert.equal(envios[2].conteudo.jpegThumbnail, null);
+  assert.ok(!("document" in envios[2].conteudo));
+});
+
+test("DOCUMENTO de vídeo com transcricao, nota_interna ou explicacao responde 400 sem tocar o Baileys", async () => {
+  for (const campo of ["transcricao", "nota_interna", "explicacao"]) {
+    await esperarErro(await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO", [campo]: "conteúdo interno" }, { buffer: arquivos.mp4(), mimetype: "video/mp4", nome: "a.mp4" })), 400);
+  }
+  assert.equal(envios.length, 0);
+  assert.deepEqual(marcadas, []);
+});
+
+test("sem MIDIA_TETO_BYTES o teto do arquivo é 100 MiB; corpo acima do teto mais 1 MiB responde 400 sem tocar o Baileys", async () => {
+  delete process.env.MIDIA_TETO_BYTES;
+  assert.equal(obterLimitesMidia().tetoBytes, 100 * 1024 * 1024);
+  process.env.MIDIA_TETO_BYTES = "1024";
+  const corpo = Buffer.concat([arquivos.mp4(), Buffer.alloc(1024 * 1024 + 2048)]);
+  const resposta = await esperarErro(await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO" }, { buffer: corpo, mimetype: "video/mp4", nome: "grande.mp4" })), 400);
+  assert.equal(resposta.msg, "O arquivo está acima do tamanho máximo permitido.");
+  assert.equal(envios.length, 0);
 });
 
 test("payload com campos internos (transcricao, nota_interna, explicacao) é rejeitado com 400 sem chamar o Baileys (teste de contrato)", async () => {

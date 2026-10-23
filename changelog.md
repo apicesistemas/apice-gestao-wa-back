@@ -3,6 +3,22 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.34.0] - 2026-10-23
+
+### Alterado
+
+- Limites de arquivo alinhados ao WhatsApp (Fase 58, Task 58.1, contrato D1).
+  - Teto técnico padrão de 100 MiB (`TETO_PADRAO_BYTES` em `midiaEntrada.js`; `MIDIA_TETO_BYTES=104857600` no `.env.example`), antes 16 MiB. É proteção de memória do processo: o limite por empresa (mídia e documento) é conferido pelo back. Vale na entrada (download em stream e tamanho declarado, que acima do teto continua gerando `midia_pendente` `ACIMA_DO_TETO` sem baixar) e no `/enviar`, cujo corpo aceita o teto mais 1 MiB de folga dos campos (acima disso, 400 "O arquivo está acima do tamanho máximo permitido.", sem tocar no Baileys).
+  - `POST /equipe/:cod_equipe/enviar` com `tipo=DOCUMENTO` vai SEMPRE como `document`, nunca como `video`, qualquer que seja o mimetype. `EXTENSAO_DOCUMENTO` ganha `video/mp4` (`mp4`) e `video/3gpp` (`3gp`), e com isso o `DOCUMENTO` passa a aceitar esses dois conteúdos (magic bytes, nunca a extensão). O `EnvioController` marca `documento: true` no objeto interno da mídia (não é campo do formulário) e o `montarConteudo` cai no ramo `document` antes de olhar o início do mimetype. `tipo=VIDEO` segue como `{ video, jpegThumbnail: null }`. Sem campo novo na allowlist: transcrição, nota interna e explicação continuam recusadas com 400.
+  - Fila de transcrição: ao enfileirar um vídeo, a tarefa passa a guardar só a trilha de áudio (AAC/ADTS, `audio/aac`), nunca o vídeo inteiro, e a nova tentativa reaproveita a mesma trilha. O `enfileirarTranscricao` deixou de ser `async`: a parte que espera recebe só o id, o contexto e a promessa, então nem a tarefa original nem o vídeo ficam retidos enquanto ela aguarda a vez (teste com `WeakRef` e `gc`). Falha na extração (sem áudio, contêiner inválido, codec que não é AAC) vira FALHOU na hora, sem chamar a MiniMax. Removido o comentário `ponytail:` do teto de tarefas.
+
+### Observações
+
+- **Publicar antes do back.** Com o back antigo nada muda (ele não manda DOCUMENTO de vídeo e continua recusando acima de 16 MB). Com o back novo e este wa-back antigo, o DOCUMENTO de vídeo volta 400 do wa-back e arquivos acima de 16 MiB também, sem nada gravado.
+- Ordem de deploy da fase: wa-back (este), SQL manual, back, front. No `.env` do servidor, remover `MIDIA_TETO_BYTES` ou deixá-lo em `104857600`: um valor antigo de 16777216 continuaria valendo e travaria tudo acima de 16 MiB.
+- Contrato do canal D (`/enviar`): entrada igual; `tipo=DOCUMENTO` aceita `video/mp4` e `video/3gpp`. Canal C: sem mudança de payload.
+- Memória: o envio de 100 MiB chega a cerca de 300 MB no processo (corpo, `Blob` e buffer). O PM2 do wa-back não define `max_memory_restart`; conferir a RAM do servidor.
+
 ## [0.33.0] - 2026-10-23
 
 ### Adicionado

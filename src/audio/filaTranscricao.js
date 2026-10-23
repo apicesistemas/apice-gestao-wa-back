@@ -11,9 +11,9 @@
 // - O registro no back acontece FORA da vez (não usa a MiniMax e não deve segurar a fila).
 // - Nunca rejeita e nunca trava: uma falha vira status, e um erro inesperado vira FALHOU.
 // - A fila de entrada da equipe (BaileysAdapter) não espera a transcrição.
-//
-// ponytail: as tarefas esperando guardam o buffer em memória (até o teto de mídia cada). Com um
-// volume que acumule muitos vídeos na fila, pôr um teto de tarefas pendentes.
+// - Vídeo: ao enfileirar, a tarefa passa a guardar só a trilha de áudio (AAC/ADTS), nunca o vídeo
+//   inteiro (até 100 MiB). Uma tarefa esperando na fila segura, no máximo, a trilha.
+const { extrairTrilhaAudio, ErroTrilhaAudio, MIMETYPE_TRILHA } = require("./trilhaVideo");
 const transcricaoService = require("./transcricaoService");
 const transcricaoInternoClient = require("../services/transcricaoInternoClient");
 
@@ -92,19 +92,49 @@ function criarFilaTranscricao({
   }
 
   /**
-   * Põe a transcrição na fila e registra o resultado no back. Nunca rejeita.
+   * Põe a tarefa na fila de concorrência 1. Síncrona de propósito: um vídeo vira a trilha de áudio
+   * ANTES de esperar a vez, e nenhum frame que fique suspenso na espera guarda a `tarefa` original
+   * nem o vídeo (só a trilha e o contexto). A falha da extração (sem áudio, contêiner inválido,
+   * codec que não é AAC) é definitiva e não chama a MiniMax.
+   * @param {TarefaTranscricao} tarefa
+   * @returns {Promise<ResultadoTranscricao>}
+   */
+  function transcreverNaVez(tarefa) {
+    let guardada = tarefa;
+    if (tarefa.mimetype.startsWith("video/")) {
+      try {
+        guardada = { ...tarefa, buffer: extrairTrilhaAudio(tarefa.buffer), mimetype: MIMETYPE_TRILHA };
+      } catch (erro) {
+        const semAudio = erro instanceof ErroTrilhaAudio && erro.codigo === "SEM_TRILHA_AUDIO";
+        return Promise.resolve(/** @type {ResultadoTranscricao} */ ({ erro: semAudio ? "SEM_TRILHA_AUDIO" : "FORMATO_NAO_SUPORTADO", transitorio: false }));
+      }
+    }
+    const vez = cadeia.then(() => transcreverComNovaTentativa(guardada));
+    cadeia = vez.catch(() => {}); // uma tarefa com erro não trava as próximas
+    return vez;
+  }
+
+  /**
+   * Põe a transcrição na fila e registra o resultado no back. Nunca rejeita. Não é `async`: a parte
+   * que espera (`concluir`) recebe só o id, o contexto e a promessa, sem a tarefa original.
    * @param {TarefaTranscricao} tarefa
    * @returns {Promise<DesfechoTranscricao>}
    */
-  async function enfileirarTranscricao(tarefa) {
-    const id = tarefa.mensagem_wa_id;
-    const vez = cadeia.then(() => transcreverComNovaTentativa(tarefa));
-    cadeia = vez.catch(() => {}); // uma tarefa com erro não trava as próximas
+  function enfileirarTranscricao(tarefa) {
+    return concluir(tarefa.mensagem_wa_id, tarefa.contexto, transcreverNaVez(tarefa));
+  }
 
+  /**
+   * @param {string} id
+   * @param {ContextoInstancia} contexto
+   * @param {Promise<ResultadoTranscricao>} espera
+   * @returns {Promise<DesfechoTranscricao>}
+   */
+  async function concluir(id, contexto, espera) {
     /** @type {DesfechoTranscricao} */
     let resultado;
     try {
-      const transcricao = await vez;
+      const transcricao = await espera;
       resultado = desfecho(transcricao);
       if ("erro" in transcricao) console.log(`[TRANSCRICAO] Mensagem ${id}: ${resultado.status} (${transcricao.erro})`);
     } catch (erro) {
@@ -113,7 +143,7 @@ function criarFilaTranscricao({
     }
 
     try {
-      await registrarTranscricao(id, resultado, tarefa.contexto);
+      await registrarTranscricao(id, resultado, contexto);
     } catch (erro) {
       console.error(`[TRANSCRICAO] Falha ao registrar a transcrição da mensagem ${id} no back:`, resumoFalha(erro));
     }

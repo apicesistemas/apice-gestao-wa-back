@@ -242,14 +242,14 @@ afterEach(() => {
   }
 });
 
-test("obterLimitesMidia lê MIDIA_TETO_BYTES e MIDIA_PRAZO_MS, com padrão de 16 MB e 60 s", () => {
+test("obterLimitesMidia lê MIDIA_TETO_BYTES e MIDIA_PRAZO_MS, com padrão de 100 MiB (teto técnico) e 60 s", () => {
   delete process.env.MIDIA_TETO_BYTES;
   delete process.env.MIDIA_PRAZO_MS;
-  assert.deepEqual(obterLimitesMidia(), { tetoBytes: 16 * 1024 * 1024, prazoMs: 60_000 });
+  assert.deepEqual(obterLimitesMidia(), { tetoBytes: 100 * 1024 * 1024, prazoMs: 60_000 });
   process.env.MIDIA_TETO_BYTES = "1048576";
   process.env.MIDIA_PRAZO_MS = "5000";
   assert.deepEqual(obterLimitesMidia(), { tetoBytes: 1048576, prazoMs: 5000 });
   process.env.MIDIA_TETO_BYTES = "abc";
   process.env.MIDIA_PRAZO_MS = "-1";
-  assert.deepEqual(obterLimitesMidia(), { tetoBytes: 16 * 1024 * 1024, prazoMs: 60_000 });
+  assert.deepEqual(obterLimitesMidia(), { tetoBytes: 100 * 1024 * 1024, prazoMs: 60_000 });
 });
