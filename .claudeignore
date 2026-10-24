@@ -92,3 +92,9 @@ pnpm-debug.log*
 graphify-out/cache/
 .DS_Store
 Thumbs.db
+
+# Grafos do graphify: o GRAPH_REPORT.md fica legível; o grafo bruto é grande e se consulta pelo CLI
+graphify-out/graph.json
+graphify-out/graph.html
+graphify-out/GRAPH_TREE.html
+graphify-out/manifest.json

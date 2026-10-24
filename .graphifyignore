@@ -1,0 +1,31 @@
+# Sensíveis e gerados: nunca entram no grafo
+.env
+.env.*
+!.env.example
+sessoes-baileys/
+LOGS/
+.cache/
+node_modules/
+dist/
+coverage/
+test-results/
+playwright-report/
+*.tsbuildinfo
+yarn.lock
+saida/
+__pycache__/
+graphify-out/
+
+# Testes, specs e documentação/config: fora do grafo (só código-fonte)
+tests/
+e2e/
+*.test.*
+*.spec.*
+CLAUDE.md
+README.md
+changelog.md
+package.json
+deploy.sh
+ecosystem.config.cjs
+nodemon.json
+jsconfig.json

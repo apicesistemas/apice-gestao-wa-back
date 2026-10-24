@@ -74,3 +74,14 @@ yarn-error.log*
 .eslintcache
 .pm2/
 graphify-out/cache/
+
+# Graphify: versionar só graph.json e GRAPH_REPORT.md; o resto é local/regenerável
+graphify-out/cache/
+graphify-out/manifest.json
+graphify-out/graph.html
+graphify-out/memory/
+graphify-out/reflections/
+graphify-out/.graphify_*
+
+# backups datados do graphify
+graphify-out/20*/
