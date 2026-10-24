@@ -64,3 +64,38 @@ Detalhes e parâmetros em [CLAUDE.md](CLAUDE.md#deploy).
 - Rodar sempre com **uma única instância** (PM2 `instances: 1`). Dois processos na mesma sessão corrompem o pareamento.
 - Porta 3501 só na rede interna, nunca publicada pelo proxy (nginx). O processo escuta apenas em `SERVER_HOST` (padrão e valor fixo no PM2: `127.0.0.1`), então outra máquina da rede não alcança nem o `/ping`. `0.0.0.0` e `::` geram aviso no log. O `WA_BACK_BASE_URL` do back precisa ser `http://127.0.0.1:3501` (não `localhost`, que o Node pode resolver para `::1`).
 - `CRM_BACK_URL` precisa ser `http://127.0.0.1:3500`: o back só aceita `/interno/*` vindo do loopback e sem cabeçalho de proxy, então não aponte para o domínio público nem para o nginx.
+
+## Graphify (índice do código)
+
+O graphify gera um grafo local do código (por AST, sem LLM e sem chave de API). O harness do Claude Code o consulta antes de `Grep`/`Glob` para achar arquivos e relações (quem chama, o que depende). Ele é índice, não fonte da verdade: confirme sempre abrindo o arquivo. Usar é opcional, e sem o graphify instalado nada quebra.
+
+### Instalação
+
+- Python 3.10+.
+- `pip install graphifyy` (atenção: o nome do pacote tem dois "y").
+- Confira com `graphify --help`. No Windows, se o comando não for achado, adicione a pasta `Scripts` do Python ao `PATH` (por exemplo `%APPDATA%\Python\Python314\Scripts`).
+
+### Uso no wa-back
+
+O `graphify-out/graph.json` e o `GRAPH_REPORT.md` vêm versionados, então quem clonar só esta pasta já consulta de dentro dela:
+
+```bash
+graphify query "Baileys conexão equipe"
+graphify explain "BaileysAdapter.js"
+graphify god-nodes --top 5
+```
+
+Para atualizar depois de mudar o código (local, sem LLM):
+
+```bash
+graphify update .
+```
+
+O `.graphifyignore` já exclui `.env*`, `sessoes-baileys/`, `LOGS/`, `.cache/`, testes e configs. Não o altere para incluí-los.
+
+### Como testar se está funcionando
+
+1. `graphify --help` mostra a lista de comandos (`Usage: graphify <command>`).
+2. `graphify query "Baileys conexão equipe"` (dentro desta pasta) devolve `Graph: graphify-out/graph.json (761 nodes)` e linhas `NODE ... [src=src/... ]` apontando para arquivos de `src/`. Se der `error: graph file not found`, o `graph.json` não existe: rode `graphify extract . --code-only`.
+3. `graphify explain "BaileysAdapter.js"` descreve o nó (`Node:`, `Source:`, `Community:`, `Degree:`) e os vizinhos.
+4. `graphify god-nodes --top 5` lista os 5 nós mais conectados (`God nodes (most connected):`).
