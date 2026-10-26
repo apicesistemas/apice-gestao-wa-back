@@ -33,7 +33,7 @@ apice-gestao-wa-back/
 ├── sessoes-baileys/      # credenciais da sessão pareada (ignorado, nunca ler)
 ├── LOGS/                 # log em arquivo (ignorado)
 ├── ecosystem.config.cjs  # PM2 instances: 1, fork, porta 3501, kill_timeout 12 s
-├── deploy.sh             # pull → install → test → pm2 reload → /ping
+├── deploy.sh             # pull → install → pm2 reload → /ping
 ├── .gitattributes        # *.sh sempre LF
 ├── changelog.md
 ├── .env.example
@@ -58,7 +58,7 @@ yarn test             # node scripts/run-tests.js → node --test tests/**/*.tes
 
 No servidor `192.168.1.167`, na pasta do submódulo: `bash deploy.sh`.
 
-- **Ordem:** `git pull --ff-only` → `yarn install` (`--frozen-lockfile` quando o `yarn.lock` é versionado) → `yarn test` → `pm2 reload ecosystem.config.cjs --update-env` (`pm2 start` se o app ainda não existe no PM2) → `GET http://127.0.0.1:3501/ping` com tentativas → `pm2 save`. Qualquer falha antes do PM2 aborta com código ≠ 0 e o processo em execução não é tocado. Teste vermelho nunca chega ao reload.
+- **Ordem:** `git pull --ff-only` → `yarn install` (`--frozen-lockfile` quando o `yarn.lock` é versionado) → `pm2 reload ecosystem.config.cjs --update-env` (`pm2 start` se o app ainda não existe no PM2) → `GET http://127.0.0.1:3501/ping` com tentativas → `pm2 save`. Qualquer falha antes do PM2 aborta com código ≠ 0 e o processo em execução não é tocado. O deploy não roda testes (já rodados antes de subir para produção).
 - **Sessão sobrevive ao reload:** `instances: 1` + `exec_mode: "fork"` são obrigatórios (sessão do Baileys em disco, dois processos corrompem o pareamento), então o reload é stop gracioso + start. O PM2 manda SIGINT, o encerrador do `src/index.js` fecha tudo sem logout dentro do teto `MS_TETO_ENCERRAMENTO` (10 s), e o `kill_timeout` (12 s) fica acima dele. O `tests/ecosystem.config.test.js` garante isso. O boot seguinte reconecta sem QR e recupera as mensagens do intervalo.
 - **Porta e endereço:** `SERVER_PORT: "3501"` e `SERVER_HOST: "127.0.0.1"` no `env` do ecosystem. O `--env-file=.env` não sobrescreve variável que já existe, então sob o PM2 o wa-back escuta sempre em `127.0.0.1:3501` (só loopback, porque `/ping` e `/health` não têm token). O back o chama por `WA_BACK_BASE_URL=http://127.0.0.1:3501`, nunca `localhost`, que pode resolver para `::1`. Com `SERVER_HOST` em todas as interfaces (`0.0.0.0`, `::`), o boot avisa no log.
 - **`GET /ping` (sem token):** `{ status, versao, encerrando, equipes: [{ cod_equipe, status, desde? }] }`, 200 no ar e 503 durante o desligamento. Fica aberto para o PM2, o deploy e o monitor, por isso nunca pode levar JID, telefone, LID, nome do número, QR, texto de erro nem hash_empresa.

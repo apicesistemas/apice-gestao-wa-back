@@ -5,13 +5,12 @@
 # 1. git pull --ff-only (nunca merge nem reset; .env, sessoes-baileys/ e .cache/ estão no .gitignore
 #    e não são tocados);
 # 2. yarn install (--frozen-lockfile quando o yarn.lock é versionado);
-# 3. yarn test: se falhar, aborta ANTES do PM2 e o processo em execução continua como estava;
-# 4. pm2 reload ecosystem.config.cjs --update-env (pm2 start na primeira vez). Com instância única
+# 3. pm2 reload ecosystem.config.cjs --update-env (pm2 start na primeira vez). Com instância única
 #    em fork, o reload é stop gracioso + start: o PM2 manda SIGINT, o wa-back recusa envios novos com
 #    503, espera os em andamento, encerra as sessões do Baileys SEM logout e sai dentro do teto de
 #    10 s, antes do kill_timeout de 12 s. A sessão fica em disco e o processo novo reconecta sem QR,
 #    recuperando as mensagens que chegaram no intervalo;
-# 5. confere o GET http://127.0.0.1:3501/ping com tentativas (503 durante o encerramento conta como
+# 4. confere o GET http://127.0.0.1:3501/ping com tentativas (503 durante o encerramento conta como
 #    "ainda não") e só então grava a lista do PM2 (pm2 save). O ping em 127.0.0.1 é de propósito: o
 #    wa-back escuta só no loopback (SERVER_HOST=127.0.0.1 no ecosystem.config.cjs).
 #
@@ -46,14 +45,6 @@ main() {
   else
     yarn install --non-interactive
   fi
-
-  echo "[DEPLOY] Rodando a suíte de testes (yarn test)..."
-  trap - ERR
-  if ! yarn test; then
-    echo "[DEPLOY] Testes falharam. Deploy abortado antes do reload: o processo em execução não foi tocado." >&2
-    exit 1
-  fi
-  trap 'echo "[DEPLOY] Falha na linha $LINENO. Deploy abortado." >&2' ERR
 
   if pm2 describe "$APP" >/dev/null 2>&1; then
     echo "[DEPLOY] Recarregando no PM2 (desligamento gracioso, a sessão do WhatsApp é mantida)..."

@@ -41,7 +41,7 @@ const STUBS = {
   ls-files) exit "\${STUB_GIT_LSFILES_SAIDA:-1}" ;;
 esac
 exit 0`,
-  yarn: `if [ "\${1:-}" = "test" ]; then exit "\${STUB_YARN_TEST_SAIDA:-0}"; fi
+  yarn: `if [ "\${1:-}" = "install" ]; then exit "\${STUB_YARN_INSTALL_SAIDA:-0}"; fi
 exit 0`,
   // `describe` só acha o app se o nome chegar INTEIRO como um único argumento (nome com espaço e
   // acento); sem aspas no script, o PM2 real receberia pedaços e não acharia o app.
@@ -116,32 +116,30 @@ function exigirBash(t) {
   return true;
 }
 
-test("deploy.sh aborta antes do reload se yarn test falhar (sai ≠ 0 e nunca chama o pm2)", (t) => {
+test("deploy.sh não roda yarn test e aborta antes do reload se o yarn install falhar (nunca chama o pm2)", (t) => {
   if (!exigirBash(t)) return;
-  const { codigo, saida, chamadas, erro } = rodarDeploy({ STUB_YARN_TEST_SAIDA: "1" });
+  const { codigo, saida, chamadas, erro } = rodarDeploy({ STUB_YARN_INSTALL_SAIDA: "1" });
   assert.equal(erro, undefined);
   assert.notEqual(codigo, 0);
   assert.ok(chamadas.includes("git pull --ff-only"), chamadas.join(" | "));
-  assert.ok(chamadas.some((c) => c.startsWith("yarn install")), chamadas.join(" | "));
-  assert.ok(chamadas.includes("yarn test"), chamadas.join(" | "));
+  assert.ok(!chamadas.includes("yarn test"), chamadas.join(" | "));
   assert.deepEqual(
     chamadas.filter((c) => c.startsWith("pm2") || c.startsWith("curl")),
     [],
-    "o pm2 (ou o ping) foi chamado com a suíte vermelha"
+    "o pm2 (ou o ping) foi chamado com o install falhando"
   );
-  assert.match(saida, /Testes falharam/);
   assert.match(saida, /abortado/);
 });
 
-test("deploy.sh com a suíte verde roda pull, install e test e depois o pm2 reload com --update-env", (t) => {
+test("deploy.sh roda pull e install (sem testes) e depois o pm2 reload com --update-env", (t) => {
   if (!exigirBash(t)) return;
   const { codigo, saida, chamadas } = rodarDeploy();
   assert.equal(codigo, 0, saida);
   const indice = (/** @type {string} */ prefixo) => chamadas.findIndex((c) => c.startsWith(prefixo));
   assert.ok(indice("git pull --ff-only") >= 0);
   assert.ok(indice("git pull") < indice("yarn install"));
-  assert.ok(indice("yarn install") < indice("yarn test"));
-  assert.ok(indice("yarn test") < indice("pm2 reload"));
+  assert.ok(indice("yarn test") < 0, "o deploy não roda testes");
+  assert.ok(indice("yarn install") < indice("pm2 reload"));
   assert.ok(chamadas.includes("pm2 reload ecosystem.config.cjs --update-env"), chamadas.join(" | "));
   assert.ok(indice("pm2 reload") < indice("curl"));
   assert.ok(chamadas.some((c) => c.startsWith("curl") && c.includes("http://127.0.0.1:3501/ping")), chamadas.join(" | "));
@@ -150,7 +148,7 @@ test("deploy.sh com a suíte verde roda pull, install e test e depois o pm2 relo
   assert.match(saida, /0\.0\.0-teste/);
 });
 
-test("deploy.sh aborta sem instalar, testar nem recarregar se o git pull falhar", (t) => {
+test("deploy.sh aborta sem instalar nem recarregar se o git pull falhar", (t) => {
   if (!exigirBash(t)) return;
   const { codigo, chamadas } = rodarDeploy({ STUB_GIT_PULL_SAIDA: "1" });
   assert.notEqual(codigo, 0);
