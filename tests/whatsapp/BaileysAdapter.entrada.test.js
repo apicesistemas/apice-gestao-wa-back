@@ -243,3 +243,40 @@ test("Fase 41: o eco do REVOKE do CRM (id do envelope) não vai ao back; o REVOK
   assert.equal(registradas[0].mensagem.origem, "APARELHO");
   assert.equal(registradas[0].mensagem.alvo.mensagem_wa_id, "3EB0ORIGINAL2");
 });
+
+test("formato não suportado descartado loga só os nomes das chaves: nunca conteúdo, JID, telefone, nome nem id", async (t) => {
+  const { registradas, receber } = await adapterConectado();
+  const linhas = /** @type {string[]} */ ([]);
+  t.mock.method(console, "log", (/** @type {any[]} */ ...args) => linhas.push(args.join(" ")));
+
+  const desconhecida = mensagemWa({ eventMessage: { name: "SEGREDO-DO-EVENTO" }, messageContextInfo: {} });
+  await receber([
+    desconhecida,
+    mensagemWa({ pollCreationMessageV3: { name: "enquete" } }), // ruído esperado: sem log
+    mensagemWa(undefined), // stub sem message: sem log
+    mensagemWa({ protocolMessage: { type: 3 } }), // protocolo: sem log
+  ]);
+
+  assert.equal(registradas.length, 0);
+  const entrada = linhas.filter((l) => l.startsWith("[ENTRADA]"));
+  assert.deepEqual(entrada, ["[ENTRADA] Equipe 21: mensagem descartada, formato não suportado ou sem texto (eventMessage)"]);
+  const tudo = entrada.join("\n");
+  for (const proibido of ["SEGREDO-DO-EVENTO", TELEFONE_CLIENTE, JID_CLIENTE, "Cliente Teste", desconhecida.key.id]) {
+    assert.ok(!tudo.includes(proibido), `o log não pode ter ${proibido}`);
+  }
+});
+
+test("mensagem de botões chega ao back como TEXTO", async () => {
+  const { registradas, receber } = await adapterConectado();
+  await receber([
+    mensagemWa({
+      interactiveMessage: {
+        body: { text: "Bem-vindo(a)!" },
+        nativeFlowMessage: { buttons: [{ name: "quick_reply", buttonParamsJson: '{"display_text":"Já sou cliente"}' }] },
+      },
+    }),
+  ]);
+  assert.equal(registradas.length, 1);
+  assert.equal(registradas[0].mensagem.tipo, "TEXTO");
+  assert.equal(registradas[0].mensagem.texto, "Bem-vindo(a)!\n\n[Opções]\n• Já sou cliente");
+});

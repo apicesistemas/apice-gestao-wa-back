@@ -3,6 +3,25 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.35.0] - 2026-10-26
+
+### Adicionado
+
+- Mensagens com botões, listas e modelos, e as respostas a elas, deixam de sumir do livechat: viram `TEXTO` (`extrairConteudo` em `filtroEntrada.js`), sem tipo novo e sem mudança no payload de `/interno/mensagem-recebida`.
+  - Reconhecidos (nomes do proto do Baileys 6.7.24): `interactiveMessage` (título, subtítulo, corpo, rodapé e os botões do `nativeFlowMessage`: `quick_reply`, `cta_url` com o link, `cta_call` com o telefone e `single_select` com as linhas), `buttonsMessage`, `templateMessage` (`hydratedTemplate`, `hydratedFourRowTemplate` e `interactiveMessageTemplate`), `listMessage`, e as respostas `buttonsResponseMessage`, `templateButtonReplyMessage`, `listResponseMessage` e `interactiveResponseMessage` (só o rótulo escolhido).
+  - Formato do texto: partes não vazias separadas por linha em branco e, no fim, `[Opções]` com um `• rótulo` por linha (`• Rótulo: https://...` para link e `• Rótulo: +55...` para ligar). `buttonParamsJson` inválido ou sem rótulo ignora só aquele botão. Sem texto e sem opção, a mensagem continua descartada. Citação (`stanzaId` da mensagem de botões) e menções vêm do `contextInfo` do próprio nó.
+  - Fora do escopo: enquete continua descartada, a mídia do cabeçalho do `interactiveMessage` não é baixada (só o texto entra) e não há envio de clique de botão.
+- Log de descarte: `chavesDescartadas(waMessage, { eu })` (função pura) é chamada só quando `normalizarMensagem` devolve null e devolve os nomes das chaves do conteúdo, sem o ruído esperado (`messageContextInfo`, `senderKeyDistributionMessage`, `protocolMessage`, `reactionMessage`, enquetes, `keepInChatMessage`, `pinInChatMessage`, chamadas). Formato já tratado que chega ali é porque nada foi extraído (ex.: `interactiveResponseMessage` sem texto legível, `interactiveMessage` só com mídia no cabeçalho) e aparece de propósito. Chat que a entrada ignora (status, broadcast, conversa do número com ele mesmo) e stub sem `message` não geram log. O `BaileysAdapter` escreve `[ENTRADA] Equipe <cod>: mensagem descartada, formato não suportado ou sem texto (<chaves>)`. Nunca vão ao log conteúdo, JID, LID, telefone, nome nem id da mensagem.
+
+### Observações
+
+- Sem contrato novo com o back nem com o front: nenhuma ordem de deploy.
+- Mensagem com botões de robô ou de marketing de outra empresa, que antes sumia, agora entra como texto de cliente e pode abrir ticket na fila (mesmo comportamento de um texto puro desses robôs).
+- Mídia no cabeçalho (imagem, vídeo ou documento do `interactiveMessage`, `buttonsMessage` e `hydratedTemplate`/`hydratedFourRowTemplate`) não é baixada: o texto ganha a primeira parte fixa `[Anexo não exibido]`. Mensagem só com essa mídia, sem texto e sem opção, continua descartada (o marcador sozinho não justifica registrar).
+- Quando o leitor de um nó não rende texto, a entrada segue para o próximo formato (um `interactiveMessage` vazio não esconde um `buttonsMessage` com texto; no `templateMessage`, a ordem é `interactiveMessageTemplate`, `hydratedTemplate`, `hydratedFourRowTemplate`).
+- No `single_select`, só as linhas (`rows[].title`) viram opções; o `title` é o botão que abre a lista, como o `buttonText` do `listMessage`. Botão `cta_url`/`cta_call` sem `display_text` mostra o valor (URL ou telefone) sozinho.
+- O filtro de chat (id válido, grupo ou privado, fora a conversa do número com ele mesmo) é um só, `chatRegistravel`, usado por `normalizarMensagem` e por `chavesDescartadas`.
+
 ## [0.34.0] - 2026-10-23
 
 ### Alterado

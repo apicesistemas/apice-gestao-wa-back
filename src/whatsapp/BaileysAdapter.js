@@ -63,7 +63,7 @@ const path = require("node:path");
 const NodeCache = require("node-cache");
 const pino = require("pino");
 const QRCode = require("qrcode");
-const { normalizarMensagem, normalizarJid, lidDe, telefoneDe } = require("./filtroEntrada");
+const { normalizarMensagem, chavesDescartadas, normalizarJid, lidDe, telefoneDe } = require("./filtroEntrada");
 const { criarRegistroAparelho } = require("./registroAparelho");
 const { criarResolvedorLid } = require("./resolverLid");
 const midiaEntrada = require("./midiaEntrada");
@@ -569,7 +569,12 @@ function criarAdapter({
     if (STUBS_PARTICIPANTES_GRUPO.has(Number(waMessage?.messageStubType))) nomesGrupo.esquecer(waMessage?.key?.remoteJid);
     resolvedorLid.aprenderDaMensagem(waMessage);
     const normalizada = normalizarMensagem(waMessage, { eu: { jid: s.user?.id, lid: s.user?.lid } });
-    if (!normalizada) return;
+    if (!normalizada) {
+      // Só os nomes das chaves: formato novo não some sem rastro, e nada da mensagem vai ao log.
+      const chaves = chavesDescartadas(waMessage, { eu: { jid: s.user?.id, lid: s.user?.lid } });
+      if (chaves.length > 0) console.log(`[ENTRADA] Equipe ${cod}: mensagem descartada, formato não suportado ou sem texto (${chaves.join(", ")})`);
+      return;
+    }
     if (!registroAparelho.deveRegistrar(normalizada)) {
       // Eco de um envio do CRM: já registrado pelo envio. Os recibos que vieram junto seguem a retenção do envio.
       await liberarRecibosDaMensagem(s, waMessage);

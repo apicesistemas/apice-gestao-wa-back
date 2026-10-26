@@ -326,8 +326,200 @@ function legendaDe(m) {
  */
 
 /**
+ * @param {unknown} valor
+ * @returns {string | null} texto aparado, ou null se vazio
+ */
+function limpo(valor) {
+  return typeof valor === "string" && valor.trim() !== "" ? valor.trim() : null;
+}
+
+/**
+ * @param {unknown} valor
+ * @returns {any[]}
+ */
+function lista(valor) {
+  return Array.isArray(valor) ? valor : [];
+}
+
+/**
+ * @param {unknown} json
+ * @returns {any} objeto, ou null se não for um JSON de objeto
+ */
+function lerJson(json) {
+  if (typeof json !== "string") return null;
+  try {
+    const valor = JSON.parse(json);
+    return valor && typeof valor === "object" ? valor : null;
+  } catch {
+    return null;
+  }
+}
+
+/** "Rótulo: valor" (link, telefone); sem rótulo, só o valor; sem os dois, null. @param {unknown} rotulo @param {unknown} valor */
+function rotuloComValor(rotulo, valor) {
+  const r = limpo(rotulo);
+  const v = limpo(valor);
+  return r && v ? `${r}: ${v}` : (r ?? v);
+}
+
+/** Aviso fixo quando o cabeçalho traz imagem, vídeo ou documento (a mídia do cabeçalho não é baixada). */
+const MARCADOR_ANEXO = "[Anexo não exibido]";
+
+/** @param {any} no nó que pode ter mídia no cabeçalho */
+function temMidiaNoCabecalho(no) {
+  return Boolean(no?.imageMessage || no?.videoMessage || no?.documentMessage);
+}
+
+/**
+ * Partes não vazias separadas por linha em branco e, no fim, o bloco "[Opções]" com um marcador por opção.
+ * @param {unknown[]} partes título, corpo, rodapé...
+ * @param {unknown[]} [opcoes] rótulos dos botões ou das linhas da lista
+ * @param {boolean} [comAnexo] acrescenta o `MARCADOR_ANEXO` como primeira parte, mas só se houver texto ou opção
+ * @returns {string | null} null sem nenhum texto e sem nenhuma opção
+ */
+function textoInterativo(partes, opcoes = [], comAnexo = false) {
+  const blocos = partes.map(limpo).filter((p) => p !== null);
+  const itens = opcoes.map(limpo).filter((o) => o !== null);
+  if (itens.length > 0) blocos.push(`[Opções]\n${itens.map((o) => `• ${o}`).join("\n")}`);
+  if (blocos.length === 0) return null; // só o marcador não justifica registrar
+  if (comAnexo) blocos.unshift(MARCADOR_ANEXO);
+  return blocos.join("\n\n");
+}
+
+/** Rótulos dos botões do `nativeFlowMessage` (`buttonParamsJson` é string JSON; inválido = botão ignorado). @param {any[]} botoes */
+function opcoesNativas(botoes) {
+  return botoes.flatMap((botao) => {
+    const p = lerJson(botao?.buttonParamsJson);
+    if (!p) return [];
+    // `title` é o rótulo do botão que abre a lista (como o `buttonText` do listMessage): só as linhas viram opções.
+    if (botao.name === "single_select") return lista(p.sections).flatMap((s) => lista(s?.rows).map((r) => r?.title));
+    if (botao.name === "cta_url") return [rotuloComValor(p.display_text, p.url)];
+    if (botao.name === "cta_call") return [rotuloComValor(p.display_text, p.phone_number)];
+    return [p.display_text];
+  });
+}
+
+/** @param {any} botao `TemplateButton` do `hydratedButtons` */
+function opcaoDoModelo(botao) {
+  if (botao?.quickReplyButton) return botao.quickReplyButton.displayText;
+  if (botao?.urlButton) return rotuloComValor(botao.urlButton.displayText, botao.urlButton.url);
+  if (botao?.callButton) return rotuloComValor(botao.callButton.displayText, botao.callButton.phoneNumber);
+  return null;
+}
+
+/** @param {any} no `interactiveMessage` */
+const interativa = (no) =>
+  textoInterativo(
+    [no.header?.title, no.header?.subtitle, no.body?.text, no.footer?.text],
+    opcoesNativas(lista(no.nativeFlowMessage?.buttons)),
+    temMidiaNoCabecalho(no.header)
+  );
+
+/** @param {any} no `buttonsMessage` */
+const comBotoes = (no) =>
+  textoInterativo([no.text, no.contentText, no.footerText], lista(no.buttons).map((b) => b?.buttonText?.displayText), temMidiaNoCabecalho(no));
+
+/** @param {any} t `hydratedTemplate` ou `hydratedFourRowTemplate` (pode ser undefined) */
+const hidratado = (t) =>
+  textoInterativo(
+    [t?.hydratedTitleText, t?.hydratedContentText, t?.hydratedFooterText],
+    lista(t?.hydratedButtons).map(opcaoDoModelo),
+    temMidiaNoCabecalho(t)
+  );
+
+/** @param {any} no `templateMessage`: o primeiro dos três formatos que render texto */
+const modelo = (no) =>
+  (no.interactiveMessageTemplate ? interativa(no.interactiveMessageTemplate) : null) ??
+  hidratado(no.hydratedTemplate) ??
+  hidratado(no.hydratedFourRowTemplate);
+
+/** @param {any} no `listMessage` */
+function listaDeOpcoes(no) {
+  const opcoes = lista(no.sections).flatMap((s) =>
+    lista(s?.rows).map((r) => {
+      const descricao = limpo(r?.description);
+      return limpo(r?.title) && descricao ? `${limpo(r.title)} (${descricao})` : r?.title;
+    })
+  );
+  return textoInterativo([no.title, no.description, no.footerText], opcoes);
+}
+
+/** Resposta de `interactiveMessage`: o corpo; sem ele, um texto legível do `paramsJson`. @param {any} no */
+function respostaInterativa(no) {
+  const p = lerJson(no.nativeFlowResponseMessage?.paramsJson);
+  return limpo(no.body?.text) ?? limpo(p?.title) ?? limpo(p?.display_text) ?? limpo(p?.text);
+}
+
+/** Mensagens com botões, lista e modelo, e as respostas a elas, lidas como texto. `[campo do proto, leitor do texto]`. */
+const FORMATOS_INTERATIVOS = /** @type {[string, (no: any) => string | null][]} */ ([
+  ["interactiveMessage", interativa],
+  ["buttonsMessage", comBotoes],
+  ["templateMessage", modelo],
+  ["listMessage", listaDeOpcoes],
+  ["buttonsResponseMessage", (no) => limpo(no.selectedDisplayText)],
+  ["templateButtonReplyMessage", (no) => limpo(no.selectedDisplayText)],
+  ["listResponseMessage", (no) => limpo(no.title)],
+  ["interactiveResponseMessage", respostaInterativa],
+]);
+
+/**
+ * @param {any} m conteúdo já desembrulhado
+ * @returns {Conteudo | null} TEXTO do primeiro formato que render texto; null se nenhum rendeu
+ */
+function extrairInterativo(m) {
+  for (const [campo, ler] of FORMATOS_INTERATIVOS) {
+    const no = m[campo];
+    if (!no || typeof no !== "object") continue;
+    const conteudo = ler(no);
+    if (conteudo !== null) return { tipo: "TEXTO", texto: conteudo, ...contexto(no) };
+  }
+  return null;
+}
+
+/**
+ * Filtro comum da entrada e do log de descarte: id válido e chat de grupo ou privado, fora a conversa do
+ * número da equipe com ele mesmo. Status, broadcast e newsletter não passam.
+ * @param {any} key `key` do WAMessage
+ * @param {IdentidadePropria | null | undefined} eu
+ * @returns {{ chatJid: string, tipoChat: TipoChat } | null} null quando o chat é ignorado
+ */
+function chatRegistravel(key, eu) {
+  if (!key || typeof key !== "object" || !mensagemWaIdValido(key.id) || typeof key.remoteJid !== "string") return null;
+  const chatJid = normalizarJid(key.remoteJid);
+  const tipoChat = tipoDoChat(chatJid);
+  if (!chatJid || !tipoChat) return null;
+  const proprio = identidadePropria(eu);
+  if (tipoChat === "PRIVADO" && (chatJid === proprio.jid || chatJid === proprio.lid)) return null;
+  return { chatJid, tipoChat };
+}
+
+/** Ruído esperado (nada para o atendente): metadados, chaves de grupo, reação, protocolo, enquete, fixar/manter e chamada. */
+const CHAVES_RUIDO = new Set([
+  "messageContextInfo", "senderKeyDistributionMessage", "protocolMessage", "reactionMessage", "pollUpdateMessage",
+  "keepInChatMessage", "pinInChatMessage", "call", "callLogMesssage",
+]);
+
+/**
+ * Nomes (só os nomes) das chaves do conteúdo de uma mensagem que `normalizarMensagem` devolveu null, para o log
+ * de descarte. Formato tratado que chega aqui é porque nada foi extraído (ex.: resposta sem texto legível), e
+ * aparece de propósito. Vazio para stub sem `message`, chat que a entrada ignora (status, broadcast, conversa
+ * do número com ele mesmo), ruído esperado e enquete (`pollCreationMessage*`). Nunca devolve valores.
+ * @param {any} waMessage
+ * @param {{ eu?: IdentidadePropria | null }} [opcoes] mesmo `eu` do `normalizarMensagem`
+ * @returns {string[]}
+ */
+function chavesDescartadas(waMessage, { eu } = {}) {
+  if (!chatRegistravel(waMessage?.key, eu)) return [];
+  const m = desembrulhar(waMessage.message);
+  if (!m || typeof m !== "object") return [];
+  return Object.entries(m)
+    .filter(([chave, valor]) => valor != null && !CHAVES_RUIDO.has(chave) && !chave.startsWith("pollCreationMessage"))
+    .map(([chave]) => chave);
+}
+
+/**
  * Tipo e campos de conteúdo; null para o que não é registrado (protocolo sem conteúdo útil,
- * distribuição de chave, enquete, botões, stub sem `message`).
+ * distribuição de chave, enquete, stub sem `message`, mensagem de botões sem nenhum texto).
  * @param {any} m conteúdo já desembrulhado
  * @returns {Conteudo | null}
  */
@@ -394,7 +586,7 @@ function extrairConteudo(m) {
     return { tipo: "CONTATO", vcards: m.contactsArrayMessage.contacts.map(vcard), ...contexto(m.contactsArrayMessage) };
   }
 
-  return null;
+  return extrairInterativo(m);
 }
 
 /**
@@ -445,14 +637,10 @@ function copiarKey(key) {
  */
 function normalizarMensagem(waMessage, { eu } = {}) {
   const key = waMessage?.key;
-  if (!key || typeof key !== "object" || !mensagemWaIdValido(key.id) || typeof key.remoteJid !== "string") return null;
-
-  const chatJid = normalizarJid(key.remoteJid);
-  const tipoChat = tipoDoChat(chatJid);
-  if (!chatJid || !tipoChat) return null;
-
+  const chat = chatRegistravel(key, eu);
+  if (!chat) return null;
+  const { chatJid, tipoChat } = chat;
   const proprio = identidadePropria(eu);
-  if (tipoChat === "PRIVADO" && (chatJid === proprio.jid || chatJid === proprio.lid)) return null;
 
   const conteudo = extrairConteudo(desembrulhar(waMessage.message));
   if (!conteudo) return null;
@@ -503,4 +691,4 @@ function normalizarMensagem(waMessage, { eu } = {}) {
   };
 }
 
-module.exports = { normalizarMensagem, normalizarJid, lidDe, telefoneDe, mensagemWaIdValido, paraJson, desembrulhar };
+module.exports = { normalizarMensagem, chavesDescartadas, normalizarJid, lidDe, telefoneDe, mensagemWaIdValido, paraJson, desembrulhar };

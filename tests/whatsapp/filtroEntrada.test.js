@@ -416,3 +416,244 @@ test("34.2 regressão: stub CALL_MISSED_*, message.call e registro de chamada (c
   ];
   for (const caso of casos) assert.equal(normalizarMensagem(caso, { eu: EU }), null, caso.key.id);
 });
+
+// ---------- botões, listas, modelos e respostas (viram TEXTO) ----------
+
+const { chavesDescartadas } = require("../../src/whatsapp/filtroEntrada");
+
+/** @param {any} message @param {any} [opcoes] */
+const textoDe = (message, opcoes) => normalizarSemBruto(mensagemWa(message), opcoes);
+
+/** @param {string} nome @param {any} params */
+const nativo = (nome, params) => ({ name: nome, buttonParamsJson: typeof params === "string" ? params : JSON.stringify(params) });
+
+const MENSAGEM_BOT = {
+  interactiveMessage: {
+    body: { text: "Bem-vindo(a)! Como podemos ajudar?" },
+    footer: { text: "Escolha uma opção" },
+    nativeFlowMessage: {
+      buttons: [
+        nativo("quick_reply", { display_text: "Já sou cliente", id: "1" }),
+        nativo("quick_reply", { display_text: "Quero contratar", id: "2" }),
+      ],
+    },
+  },
+};
+
+test("interactiveMessage com quick_reply vira TEXTO com o corpo, o rodapé e as opções listadas", () => {
+  const r = textoDe(MENSAGEM_BOT);
+  assert.equal(r.tipo, "TEXTO");
+  assert.equal(r.texto, "Bem-vindo(a)! Como podemos ajudar?\n\nEscolha uma opção\n\n[Opções]\n• Já sou cliente\n• Quero contratar");
+  assert.equal(r.midia, null);
+  assert.equal(r.origem, "CLIENTE");
+});
+
+test("interactiveMessage: título, subtítulo, cta_url, cta_call, single_select; botão com JSON inválido ou sem rótulo é ignorado", () => {
+  const r = textoDe({
+    interactiveMessage: {
+      header: { title: "Título", subtitle: "Subtítulo", imageMessage: { mimetype: "image/jpeg" } },
+      body: { text: "Corpo" },
+      nativeFlowMessage: {
+        buttons: [
+          nativo("cta_url", { display_text: "Site", url: "https://exemplo.com.br" }),
+          nativo("cta_url", { display_text: "Sem link" }),
+          nativo("cta_url", { url: "https://sem-rotulo.com.br" }),
+          nativo("cta_call", { display_text: "Ligar", phone_number: "+5511900000000" }),
+          nativo("cta_copy", { display_text: "Copiar código", copy_code: "123" }),
+          nativo("single_select", { title: "Menu", sections: [{ rows: [{ title: "Financeiro" }, { title: "Suporte" }, {}] }, null, {}] }),
+          nativo("single_select", { sections: "x" }),
+          nativo("quick_reply", "{não é json"),
+          nativo("quick_reply", "42"),
+          nativo("quick_reply", { id: "sem-rotulo" }),
+          { name: "quick_reply" },
+          null,
+        ],
+      },
+    },
+  });
+  assert.equal(
+    r.texto,
+    "[Anexo não exibido]\n\nTítulo\n\nSubtítulo\n\nCorpo\n\n[Opções]\n• Site: https://exemplo.com.br\n• Sem link\n• https://sem-rotulo.com.br\n• Ligar: +5511900000000\n• Copiar código\n• Financeiro\n• Suporte"
+  );
+  assert.ok(!r.texto.includes("Menu"), "o title do single_select é o botão que abre a lista, não uma opção");
+  assert.equal(r.midia, null, "a mídia do cabeçalho não é baixada: só o texto entra");
+});
+
+test("mídia no cabeçalho: [Anexo não exibido] vira a primeira parte (interactive, buttons, hydratedTemplate e hydratedFourRowTemplate); sozinho, não justifica registrar", () => {
+  for (const midia of ["imageMessage", "videoMessage", "documentMessage"]) {
+    const no = { [midia]: { mimetype: "x/y" } };
+    assert.equal(textoDe({ interactiveMessage: { header: no, body: { text: "Oi" } } }).texto, "[Anexo não exibido]\n\nOi", `interactive ${midia}`);
+    assert.equal(textoDe({ buttonsMessage: { ...no, contentText: "Oi" } }).texto, "[Anexo não exibido]\n\nOi", `buttons ${midia}`);
+    assert.equal(textoDe({ templateMessage: { hydratedTemplate: { ...no, hydratedContentText: "Oi" } } }).texto, "[Anexo não exibido]\n\nOi", `hydrated ${midia}`);
+    assert.equal(textoDe({ templateMessage: { hydratedFourRowTemplate: { ...no, hydratedContentText: "Oi" } } }).texto, "[Anexo não exibido]\n\nOi", `fourRow ${midia}`);
+  }
+  assert.equal(
+    textoDe({ interactiveMessage: { header: { imageMessage: {} }, nativeFlowMessage: { buttons: [nativo("quick_reply", { display_text: "Sim" })] } } }).texto,
+    "[Anexo não exibido]\n\n[Opções]\n• Sim"
+  );
+  // Só o marcador, sem texto nem opção: continua descartada.
+  assert.equal(normalizarMensagem(mensagemWa({ interactiveMessage: { header: { imageMessage: {} } } })), null);
+  assert.equal(normalizarMensagem(mensagemWa({ buttonsMessage: { documentMessage: {} } })), null);
+  assert.equal(normalizarMensagem(mensagemWa({ templateMessage: { hydratedTemplate: { videoMessage: {} } } })), null);
+});
+
+test("nó vazio não esconde o seguinte: interactiveMessage vazio + buttonsMessage com texto; templateMessage cai de um formato para o outro", () => {
+  const vazio = { interactiveMessage: { body: { text: " " } } };
+  assert.equal(textoDe({ ...vazio, buttonsMessage: { contentText: "Olá", buttons: [{ buttonText: { displayText: "Sim" } }] } }).texto, "Olá\n\n[Opções]\n• Sim");
+
+  const interativo = MENSAGEM_BOT.interactiveMessage;
+  assert.equal(textoDe({ templateMessage: { interactiveMessageTemplate: { body: {} }, hydratedTemplate: { hydratedContentText: "Do hydrated" } } }).texto, "Do hydrated");
+  assert.equal(textoDe({ templateMessage: { hydratedTemplate: { hydratedButtons: [{}] }, hydratedFourRowTemplate: { hydratedContentText: "Do four row" } } }).texto, "Do four row");
+  assert.equal(textoDe({ templateMessage: { interactiveMessageTemplate: { body: {} }, hydratedTemplate: {}, hydratedFourRowTemplate: { hydratedContentText: "Do four row" } } }).texto, "Do four row");
+  assert.equal(textoDe({ templateMessage: { interactiveMessageTemplate: interativo, hydratedTemplate: { hydratedContentText: "ignorado" } } }).texto, textoDe(MENSAGEM_BOT).texto);
+});
+
+test("JSON com __proto__ em buttonParamsJson e paramsJson: rótulo ignorado e Object.prototype intacto", () => {
+  const envenenado = '{"__proto__":{"display_text":"x","title":"x"}}';
+  assert.equal(normalizarMensagem(mensagemWa({ interactiveMessage: { nativeFlowMessage: { buttons: [nativo("quick_reply", envenenado)] } } })), null);
+  assert.equal(normalizarMensagem(mensagemWa({ interactiveResponseMessage: { nativeFlowResponseMessage: { paramsJson: envenenado } } })), null);
+  assert.equal(/** @type {any} */ ({}).display_text, undefined);
+  assert.equal(/** @type {any} */ ({}).title, undefined);
+});
+
+test("mensagem só com botões, sem corpo, vira TEXTO só com as opções", () => {
+  const r = textoDe({ interactiveMessage: { nativeFlowMessage: { buttons: [nativo("quick_reply", { display_text: "Sim" })] } } });
+  assert.equal(r.texto, "[Opções]\n• Sim");
+});
+
+test("mensagem interativa sem texto e sem opção é descartada", () => {
+  assert.equal(normalizarMensagem(mensagemWa({ interactiveMessage: { body: { text: "  " } } })), null);
+  assert.equal(normalizarMensagem(mensagemWa({ interactiveMessage: { nativeFlowMessage: { buttons: [nativo("quick_reply", "x")] } } })), null);
+  assert.equal(normalizarMensagem(mensagemWa({ buttonsMessage: {} })), null);
+  assert.equal(normalizarMensagem(mensagemWa({ listMessage: { sections: [] } })), null);
+  assert.equal(normalizarMensagem(mensagemWa({ templateMessage: {} })), null);
+  assert.equal(normalizarMensagem(mensagemWa({ buttonsResponseMessage: {} })), null);
+  assert.equal(normalizarMensagem(mensagemWa({ interactiveResponseMessage: { nativeFlowResponseMessage: { paramsJson: "{}" } } })), null);
+});
+
+test("buttonsMessage: texto, corpo, rodapé e botões", () => {
+  const r = textoDe({
+    buttonsMessage: {
+      text: "Atendimento",
+      contentText: "Como posso ajudar?",
+      footerText: "Ápice",
+      buttons: [{ buttonText: { displayText: "Suporte" } }, { buttonText: { displayText: "Vendas" } }, {}],
+    },
+  });
+  assert.equal(r.texto, "Atendimento\n\nComo posso ajudar?\n\nÁpice\n\n[Opções]\n• Suporte\n• Vendas");
+});
+
+test("templateMessage: hydratedTemplate com resposta rápida, link e ligação; hydratedFourRowTemplate; interactiveMessageTemplate", () => {
+  const hidratado = {
+    hydratedTitleText: "Pedido",
+    hydratedContentText: "Seu pedido saiu",
+    hydratedFooterText: "Obrigado",
+    hydratedButtons: [
+      { quickReplyButton: { displayText: "Rastrear", id: "a" } },
+      { urlButton: { displayText: "Ver site", url: "https://exemplo.com.br/p" } },
+      { callButton: { displayText: "Ligar", phoneNumber: "+5511900000000" } },
+      { index: 3 },
+      null,
+    ],
+  };
+  const esperado = "Pedido\n\nSeu pedido saiu\n\nObrigado\n\n[Opções]\n• Rastrear\n• Ver site: https://exemplo.com.br/p\n• Ligar: +5511900000000";
+  assert.equal(textoDe({ templateMessage: { hydratedTemplate: hidratado } }).texto, esperado);
+  assert.equal(textoDe({ templateMessage: { hydratedFourRowTemplate: hidratado } }).texto, esperado);
+  assert.equal(textoDe({ templateMessage: { interactiveMessageTemplate: MENSAGEM_BOT.interactiveMessage } }).texto, textoDe(MENSAGEM_BOT).texto);
+});
+
+test("listMessage: título, descrição, rodapé e linhas (com descrição entre parênteses)", () => {
+  const r = textoDe({
+    listMessage: {
+      title: "Menu",
+      description: "Escolha",
+      footerText: "Rodapé",
+      buttonText: "Ver opções",
+      sections: [
+        { title: "A", rows: [{ title: "Financeiro", description: "Boletos" }, { title: "Suporte" }, { description: "sem título" }] },
+        { rows: [{ title: "Vendas", description: "  " }] },
+      ],
+    },
+  });
+  assert.equal(r.texto, "Menu\n\nEscolha\n\nRodapé\n\n[Opções]\n• Financeiro (Boletos)\n• Suporte\n• Vendas");
+});
+
+test("respostas a botão, modelo, lista e fluxo nativo viram TEXTO só com o rótulo escolhido", () => {
+  assert.equal(textoDe({ buttonsResponseMessage: { selectedButtonId: "1", selectedDisplayText: "Já sou cliente" } }).texto, "Já sou cliente");
+  assert.equal(textoDe({ templateButtonReplyMessage: { selectedId: "1", selectedDisplayText: "Rastrear" } }).texto, "Rastrear");
+  assert.equal(textoDe({ listResponseMessage: { title: "Financeiro", description: "Boletos", singleSelectReply: { selectedRowId: "x" } } }).texto, "Financeiro");
+  assert.equal(textoDe({ interactiveResponseMessage: { body: { text: "Quero contratar" }, nativeFlowResponseMessage: { name: "quick_reply", paramsJson: '{"id":"2"}' } } }).texto, "Quero contratar");
+  assert.equal(textoDe({ interactiveResponseMessage: { nativeFlowResponseMessage: { paramsJson: '{"id":"2","title":"Suporte"}' } } }).texto, "Suporte");
+  assert.equal(textoDe({ interactiveResponseMessage: { nativeFlowResponseMessage: { paramsJson: '{"display_text":"Vendas"}' } } }).texto, "Vendas");
+  assert.equal(textoDe({ interactiveResponseMessage: { nativeFlowResponseMessage: { paramsJson: '{"text":"Outro"}' } } }).texto, "Outro");
+});
+
+test("resposta a botão guarda a citação (stanzaId da mensagem de botões) e as menções", () => {
+  const r = textoDe({
+    buttonsResponseMessage: {
+      selectedDisplayText: "Quero contratar",
+      contextInfo: { stanzaId: "3EB0BOTOES01", mentionedJid: [`${TELEFONE_PARTICIPANTE}:3@s.whatsapp.net`] },
+    },
+  });
+  assert.deepEqual(r.citacao, { mensagem_wa_id: "3EB0BOTOES01" });
+  assert.deepEqual(r.mencoes, [JID_PARTICIPANTE]);
+  assert.deepEqual(textoDe({ interactiveMessage: { ...MENSAGEM_BOT.interactiveMessage, contextInfo: { stanzaId: "3EB0X" } } }).citacao, { mensagem_wa_id: "3EB0X" });
+});
+
+test("origem APARELHO: resposta a botão digitada no celular da equipe", () => {
+  const msg = mensagemWa({ buttonsResponseMessage: { selectedDisplayText: "Sim" } }, { key: { fromMe: true }, pushName: null });
+  const r = normalizarSemBruto(msg, { eu: EU });
+  assert.equal(r.origem, "APARELHO");
+  assert.equal(r.tipo, "TEXTO");
+  assert.equal(r.texto, "Sim");
+  assert.equal(r.remetente.nome, null);
+});
+
+test("envelopes (viewOnce, ephemeral, viewOnceV2) em volta do interactiveMessage são tirados", () => {
+  const esperado = textoDe(MENSAGEM_BOT).texto;
+  assert.equal(textoDe({ viewOnceMessage: { message: { messageContextInfo: { deviceListMetadata: {} }, ...MENSAGEM_BOT } } }).texto, esperado);
+  assert.equal(textoDe({ ephemeralMessage: { message: MENSAGEM_BOT } }).texto, esperado);
+  assert.equal(textoDe({ ephemeralMessage: { message: { viewOnceMessageV2: { message: MENSAGEM_BOT } } } }).texto, esperado);
+});
+
+test("enquete continua descartada (fora do escopo)", () => {
+  assert.equal(normalizarMensagem(mensagemWa({ pollCreationMessageV3: { name: "Qual?", options: [{ optionName: "A" }] } })), null);
+  assert.equal(normalizarMensagem(mensagemWa({ pollUpdateMessage: {} })), null);
+});
+
+test("chavesDescartadas devolve só nomes de formatos desconhecidos, sem ruído esperado nem valores", () => {
+  const msg = (/** @type {any} */ message) => mensagemWa(message);
+  assert.deepEqual(chavesDescartadas(msg({ eventMessage: { name: "segredo" }, messageContextInfo: {}, senderKeyDistributionMessage: {} })), ["eventMessage"]);
+  assert.deepEqual(chavesDescartadas(msg({ ephemeralMessage: { message: { orderMessage: {}, productMessage: {} } } })), ["orderMessage", "productMessage"]);
+  assert.deepEqual(chavesDescartadas(msg({ eventMessage: undefined, groupInviteMessage: null })), []);
+  for (const ruido of ["protocolMessage", "reactionMessage", "pollUpdateMessage", "pollCreationMessage", "pollCreationMessageV3", "keepInChatMessage", "pinInChatMessage", "call", "callLogMesssage"]) {
+    assert.deepEqual(chavesDescartadas(msg({ [ruido]: {} })), [], ruido);
+  }
+  assert.deepEqual(chavesDescartadas(mensagemWa(undefined)), [], "stub sem message");
+  assert.deepEqual(chavesDescartadas(null), []);
+  assert.deepEqual(chavesDescartadas({ message: "texto" }), []);
+});
+
+test("chavesDescartadas: formato tratado que não rendeu texto aparece (resposta sem texto legível, interactiveMessage vazio ou só com mídia no cabeçalho)", () => {
+  const resposta = mensagemWa({ interactiveResponseMessage: { nativeFlowResponseMessage: { paramsJson: '{"id":"2"}' } } });
+  assert.equal(normalizarMensagem(resposta), null);
+  assert.deepEqual(chavesDescartadas(resposta), ["interactiveResponseMessage"]);
+
+  const vazio = mensagemWa({ interactiveMessage: { nativeFlowMessage: { buttons: [] } } });
+  assert.equal(normalizarMensagem(vazio), null);
+  assert.deepEqual(chavesDescartadas(vazio), ["interactiveMessage"]);
+
+  const soMidia = mensagemWa({ viewOnceMessage: { message: { interactiveMessage: { header: { imageMessage: { mimetype: "image/jpeg" } } } } } });
+  assert.equal(normalizarMensagem(soMidia), null);
+  assert.deepEqual(chavesDescartadas(soMidia), ["interactiveMessage"]);
+});
+
+test("chavesDescartadas: chat que a entrada ignora (status, broadcast, conversa do número com ele mesmo, sem id) não gera log", () => {
+  const texto = { conversation: "oi" };
+  assert.deepEqual(chavesDescartadas(mensagemWa(texto, { key: { remoteJid: "status@broadcast", participant: JID_CLIENTE } })), []);
+  assert.deepEqual(chavesDescartadas(mensagemWa(texto, { key: { remoteJid: "120363000000000009@newsletter" } })), []);
+  assert.deepEqual(chavesDescartadas(mensagemWa(texto, { key: { id: "" } })), []);
+  const propria = mensagemWa(texto, { key: { remoteJid: `${TELEFONE_EQUIPE}@s.whatsapp.net`, fromMe: true } });
+  assert.deepEqual(chavesDescartadas(propria, { eu: EU }), []);
+  assert.deepEqual(chavesDescartadas(mensagemWa({ conversation: "" , eventMessage: {} })), ["conversation", "eventMessage"]);
+});
