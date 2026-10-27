@@ -280,3 +280,45 @@ test("mensagem de botões chega ao back como TEXTO", async () => {
   assert.equal(registradas[0].mensagem.tipo, "TEXTO");
   assert.equal(registradas[0].mensagem.texto, "Bem-vindo(a)!\n\n[Opções]\n• Já sou cliente");
 });
+
+test("stub CIPHERTEXT (falha de decifração) loga uma linha com os campos esperados, sem JID, telefone, nome nem conteúdo; mensagem normal não gera a linha", async (t) => {
+  const { registradas, receber } = await adapterConectado();
+  const linhas = /** @type {string[]} */ ([]);
+  t.mock.method(console, "log", (/** @type {any[]} */ ...args) => linhas.push(args.join(" ")));
+  const stub = (/** @type {Record<string, any>} */ key, /** @type {any} */ parametros) => ({
+    ...mensagemWa(undefined, { key }),
+    messageStubType: 2,
+    messageStubParameters: parametros,
+  });
+
+  const privada = stub({}, ["Bad MAC"]);
+  const grupo = stub({ remoteJid: JID_GRUPO, participant: JID_PARTICIPANTE }, ["No matching sessions found for message"]);
+  const lid = stub({ remoteJid: LID_CLIENTE, fromMe: true }, ["linha 1\nlinha 2 " + "x".repeat(100)]);
+  const outro = stub({ remoteJid: "120363@newsletter" }, []);
+  await receber([privada, grupo]);
+  await receber([lid, outro], "append");
+  const disco = stub({}, ["ENOSPC: no space left on device, open '/x/sessoes-baileys/1/session-5544998131290.0.json'"]);
+  const disco2 = stub({}, ["EACCES: permission denied, open 'C:\\x\\sender-key-120363000000000001@g.us--5511900000001.json'"]);
+  const numero = stub({}, ["falha com 5544998131290 e 12345 no meio"]);
+  const idComQuebra = stub({ id: "ABC123\nINJETADA [ENTRADA] falsa" }, ["Bad MAC"]);
+  await receber([disco, disco2, numero, idComQuebra]);
+  await receber([mensagemWa({ conversation: "normal" }), { ...mensagemWa(undefined), messageStubType: 1 }]);
+
+  const entrada = linhas.filter((l) => l.startsWith("[ENTRADA]"));
+  assert.equal(entrada.length, 8);
+  assert.equal(entrada[0], `[ENTRADA] Equipe 21: mensagem não decifrada (CIPHERTEXT) id=${privada.key.id} chat=PN fromMe=N lote=notify motivo=Bad MAC`);
+  assert.equal(entrada[1], `[ENTRADA] Equipe 21: mensagem não decifrada (CIPHERTEXT) id=${grupo.key.id} chat=GRUPO fromMe=N lote=notify motivo=No matching sessions found for message`);
+  assert.equal(entrada[2], `[ENTRADA] Equipe 21: mensagem não decifrada (CIPHERTEXT) id=${lid.key.id} chat=LID fromMe=S lote=append motivo=linha 1 linha 2 ${"x".repeat(80 - "linha 1 linha 2 ".length)}`);
+  assert.equal(entrada[3], `[ENTRADA] Equipe 21: mensagem não decifrada (CIPHERTEXT) id=${outro.key.id} chat=OUTRO fromMe=N lote=append motivo=?`);
+  const fim = (/** @type {string} */ id, /** @type {string} */ motivo) => `id=${id} chat=PN fromMe=N lote=notify motivo=${motivo}`;
+  assert.ok(entrada[4].endsWith(fim(disco.key.id, "ENOSPC: no space left on device, open")), entrada[4]);
+  assert.ok(entrada[5].endsWith(fim(disco2.key.id, "EACCES: permission denied, open")), entrada[5]);
+  assert.ok(entrada[6].endsWith(fim(numero.key.id, "falha com # e 12345 no meio")), entrada[6]);
+  assert.ok(entrada[7].endsWith(fim("ABC123INJETADAENTRADAfalsa", "Bad MAC")), entrada[7]);
+  assert.equal(linhas.filter((l) => l.includes("INJETADA")).length, 1, "o id com quebra de linha não vira duas linhas de log");
+  assert.equal(registradas.length, 1, "só a mensagem normal vai ao back");
+  const tudo = entrada.join("\n");
+  for (const proibido of ["5544998131290", "5511900000001", "session-", "sender-key", "120363000", "/", "\\", "'", TELEFONE_CLIENTE, JID_CLIENTE, LID_CLIENTE, JID_GRUPO, JID_PARTICIPANTE, "Cliente Teste", "@"]) {
+    assert.ok(!tudo.includes(proibido), `o log não pode ter ${proibido}`);
+  }
+});

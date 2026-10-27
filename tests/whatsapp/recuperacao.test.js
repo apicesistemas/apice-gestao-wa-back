@@ -17,7 +17,7 @@ const {
 } = require("../../src/whatsapp/recuperacao");
 
 const pasta = fs.mkdtempSync(path.join(os.tmpdir(), "wa-back-recuperacao-"));
-after(() => fs.rmSync(pasta, { recursive: true, force: true }));
+after(() => fs.rmSync(pasta, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }));
 
 /** Relógio falso em ms. */
 function relogio(inicioMs = 1_800_000_000_000) {

@@ -570,6 +570,19 @@ function criarAdapter({
     resolvedorLid.aprenderDaMensagem(waMessage);
     const normalizada = normalizarMensagem(waMessage, { eu: { jid: s.user?.id, lid: s.user?.lid } });
     if (!normalizada) {
+      // 2 = proto.WebMessageInfo.StubType.CIPHERTEXT (o Baileys é carregado sob demanda): falha de decifração do libsignal.
+      if (Number(waMessage?.messageStubType) === 2) {
+        const dominio = String(waMessage?.key?.remoteJid ?? "").split("@")[1];
+        const chat = dominio === "g.us" ? "GRUPO" : dominio === "lid" ? "LID" : dominio === "s.whatsapp.net" ? "PN" : "OUTRO";
+        // Erro de disco traz o caminho do arquivo da sessão (telefone, id de grupo): corta antes dele e esconde números longos.
+        const motivo =
+          String(waMessage?.messageStubParameters?.[0] ?? "").split(/['/\\@]/)[0].replace(/\d{6,}/g, "#").replace(/\s+/g, " ").trim().slice(0, 80) || "?";
+        const id = String(waMessage?.key?.id ?? "").replace(/[^A-Za-z0-9]/g, "") || "?";
+        console.log(
+          `[ENTRADA] Equipe ${cod}: mensagem não decifrada (CIPHERTEXT) id=${id} chat=${chat} fromMe=${waMessage?.key?.fromMe ? "S" : "N"} lote=${tipoLote === "append" ? "append" : "notify"} motivo=${motivo}`,
+        );
+        return;
+      }
       // Só os nomes das chaves: formato novo não some sem rastro, e nada da mensagem vai ao log.
       const chaves = chavesDescartadas(waMessage, { eu: { jid: s.user?.id, lid: s.user?.lid } });
       if (chaves.length > 0) console.log(`[ENTRADA] Equipe ${cod}: mensagem descartada, formato não suportado ou sem texto (${chaves.join(", ")})`);

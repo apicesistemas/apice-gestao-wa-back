@@ -3,6 +3,17 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.35.1] - 2026-10-27
+
+### Adicionado
+
+- Log da mensagem recebida que o Baileys não conseguiu decifrar. No 6.7.24, a falha do libsignal (`Bad MAC`, `No matching sessions found for message`) chega como `messages.upsert` com `messageStubType === 2` (`StubType.CIPHERTEXT`), sem `message`, e antes sumia sem rastro. O `BaileysAdapter` escreve `[ENTRADA] Equipe <cod>: mensagem não decifrada (CIPHERTEXT) id=<id> chat=<GRUPO|LID|PN|OUTRO> fromMe=<S|N> lote=<notify|append> motivo=<messageStubParameters[0], até 80 caracteres, sem quebra de linha, ou "?">`. O tipo do chat sai só do domínio do `remoteJid`: nunca vão ao log JID, LID, telefone, participante, nome nem conteúdo da mensagem. O motivo é saneado: cortado antes do primeiro `'`, `/`, `\` ou `@` (erro de disco traz o caminho do arquivo da sessão, com telefone ou id de grupo), com sequências de 6 ou mais dígitos trocadas por `#`. O `id` fica só com letras e números (sem quebra de linha). Ao contrário do log de "formato não suportado", este log leva o id da mensagem.
+
+### Observações
+
+- Só diagnóstico: decifração, sessões, retry e a versão do Baileys não mudaram. Sem contrato novo com o back nem com o front.
+- Teste: o `after()` de `tests/whatsapp/recuperacao.test.js` apaga a pasta temporária com `maxRetries: 5` e `retryDelay: 50`, porque no Windows o `rmSync` às vezes falhava com `ENOTEMPTY` (arquivo do armazém ainda sendo gravado) e reprovava o Gate. Só teste, sem mudança em `src/`.
+
 ## [0.35.0] - 2026-10-26
 
 ### Adicionado
