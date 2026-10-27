@@ -12,7 +12,7 @@ const { spawnSync } = require("node:child_process");
 
 const SCRIPT = path.join(__dirname, "..", "deploy.sh");
 const raiz = fs.mkdtempSync(path.join(os.tmpdir(), "wa-back-deploy-"));
-after(() => fs.rmSync(raiz, { recursive: true, force: true }));
+after(() => fs.rmSync(raiz, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }));
 
 /** @returns {string | null} bash utilizável (no Windows, só o do Git/MSYS) */
 function localizarBash() {

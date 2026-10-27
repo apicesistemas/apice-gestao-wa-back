@@ -20,7 +20,7 @@ const arquivos = require("../helpers/arquivosMidia");
 const { ultimoSocket, drenar, definirDownload, definirSaveCreds, DisconnectReason } = baileysFalso;
 
 const diretorioSessoes = fs.mkdtempSync(path.join(os.tmpdir(), "wa-back-recuperacao-adapter-"));
-after(() => fs.rmSync(diretorioSessoes, { recursive: true, force: true }));
+after(() => fs.rmSync(diretorioSessoes, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }));
 
 beforeEach(() => baileysFalso.limparHistorico());
 

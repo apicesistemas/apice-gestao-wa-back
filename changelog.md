@@ -3,6 +3,21 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.35.2] - 2026-10-27
+
+### Corrigido
+
+- Buffer de eventos do Baileys 6.7.24 retendo o `messages.upsert` de uma equipe para sempre. O Baileys liga o `ev.buffer()` no boot com credenciais e o `upsertMessage` o religa a cada mensagem, mas só o nó `CB:ib,,offline` ou um nó online chama o `ev.flush()` (os nós offline não chamam). Com a fila offline presa, a equipe envia normalmente e aparece CONECTADO, mas não recebe nada. O `BaileysAdapter` agora vigia o socket aberto: ao abrir a conexão, um intervalo `unref()` de 5 s confere `ev.isBuffering()` (ignorado se o `ev` não tiver a função) e, com o buffer retido em 2 tiques seguidos (5 a 10 s), chama `ev.flush()`. A cada nova retenção ele libera de novo, então cada mensagem espera no máximo 10 s. Buffer liberado antes do 2º tique zera a contagem.
+- Log só no 1º flush forçado de cada socket (`console.log`): `[BAILEYS] Equipe <cod>: buffer de eventos do Baileys retido; liberado à força (só o 1º flush deste socket é logado; após envio sem tráfego é normal, mensagens só chegando assim = fila offline presa).` Sem JID, telefone nem conteúdo. Exceção no tique só loga o nome do erro e a vigia continua.
+- Guarda de socket: o tique para a vigia se o socket não é mais o do adapter, e o `fecharSocket` só a para quando fecha o socket vigiado (um `close` tardio do socket antigo não derruba a vigia do novo). Um novo `open` reinicia a vigia, sem dois intervalos.
+- Desligamento gracioso: o `pararSocket` chama `ev.flush()` (try/catch) antes de fechar o socket, com os listeners ainda ligados, porque o Baileys já confirmou ao WhatsApp as mensagens que estão no buffer e elas se perderiam. A mensagem solta entra na `filaEntrada`, que o `pararSocket` já espera.
+
+### Observações
+
+- `MS_TIQUE_BUFFER` (5 s) e `TIQUES_RETIDO` (2) são constantes técnicas de protocolo do Baileys, como as das chamadas (Fase 34), não parâmetros de negócio.
+- Decifração, retry, sessões, processamento das mensagens e a versão do Baileys não mudaram. Sem contrato novo com o back nem com o front.
+- Teste: todo `fs.rmSync(..., { recursive: true, force: true })` de `tests/` ganhou `maxRetries: 5` e `retryDelay: 50` (o do `recuperacao.test.js` já tinha), porque no Windows o teardown de outras suítes (ex.: `tests/http/ConexaoController.test.js`, pasta `wa-back-conexao-*/cache`) também falhava com `ENOTEMPTY` e reprovava o Gate. Só teste, sem mudança em `src/`.
+
 ## [0.35.1] - 2026-10-27
 
 ### Adicionado

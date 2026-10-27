@@ -27,7 +27,7 @@ after(() => {
     if (envOriginal[nome] === undefined) delete process.env[nome];
     else process.env[nome] = envOriginal[nome];
   }
-  fs.rmSync(raizTeste, { recursive: true, force: true });
+  fs.rmSync(raizTeste, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
 });
 
 /** @param {string} sufixo */

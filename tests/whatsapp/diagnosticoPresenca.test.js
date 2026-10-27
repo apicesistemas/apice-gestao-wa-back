@@ -17,7 +17,7 @@ const { mensagemWa, JID_CLIENTE, LID_CLIENTE, JID_GRUPO, JID_PARTICIPANTE, EU } 
 const { ultimoSocket, drenar } = baileysFalso;
 const PREFIXO = diagnostico.PREFIXO;
 const diretorioSessoes = fs.mkdtempSync(path.join(os.tmpdir(), "wa-back-diagpresenca-"));
-after(() => fs.rmSync(diretorioSessoes, { recursive: true, force: true, maxRetries: 3 }));
+after(() => fs.rmSync(diretorioSessoes, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }));
 
 const VARIAVEIS = ["DIAGNOSTICO_PRESENCA", "DIAGNOSTICO_PRESENCA_EQUIPES", "DIAGNOSTICO_PRESENCA_ONLINE"];
 /** @type {Record<string, string | undefined>} */

@@ -24,7 +24,7 @@ async function esperarAte(condicao, prazoMs = 5000) {
 }
 
 const pastaTeste = fs.mkdtempSync(path.join(os.tmpdir(), "wa-back-index-"));
-after(() => fs.rmSync(pastaTeste, { recursive: true, force: true }));
+after(() => fs.rmSync(pastaTeste, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }));
 
 test("validarVariaveisDeAmbiente lista as variáveis obrigatórias ausentes", () => {
   assert.deepEqual(validarVariaveisDeAmbiente({}), [

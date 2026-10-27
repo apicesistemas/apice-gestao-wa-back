@@ -15,7 +15,7 @@ const { mensagemWa, JID_CLIENTE, TELEFONE_CLIENTE, EU, TELEFONE_EQUIPE } = requi
 
 const { ultimoSocket, drenar, espiarSaidas } = baileysFalso;
 const diretorioSessoes = fs.mkdtempSync(path.join(os.tmpdir(), "wa-back-chamadas-"));
-after(() => fs.rmSync(diretorioSessoes, { recursive: true, force: true }));
+after(() => fs.rmSync(diretorioSessoes, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }));
 beforeEach(() => baileysFalso.limparHistorico());
 
 const LID = "100000000000001@lid";

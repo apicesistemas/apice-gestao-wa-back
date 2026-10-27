@@ -17,7 +17,7 @@ const { sockets, drenar } = baileysFalso;
 const JID_FALSO = "5500000000001:7@s.whatsapp.net";
 const QR_FALSO = "2@qr-falso-nao-vazar";
 const raiz = fs.mkdtempSync(path.join(os.tmpdir(), "wa-back-remover-"));
-after(() => fs.rmSync(raiz, { recursive: true, force: true }));
+after(() => fs.rmSync(raiz, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }));
 
 let contador = 0;
 beforeEach(() => baileysFalso.limparHistorico());

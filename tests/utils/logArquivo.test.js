@@ -58,7 +58,7 @@ test("ativarLogEmArquivo grava em LOGS/ com o telefone mascarado e pode ser desa
   // o console também recebe a versão mascarada
   assert.ok(saidaConsole.some((linha) => linha.includes("55449****1290")));
   assert.ok(!saidaConsole.some((linha) => linha.includes("5544998131290")));
-  fs.rmSync(diretorio, { recursive: true, force: true });
+  fs.rmSync(diretorio, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
 });
 
 test("limparLogsAntigos remove só logs com mais de 10 dias", () => {
@@ -79,7 +79,7 @@ test("limparLogsAntigos remove só logs com mais de 10 dias", () => {
   const restantes = fs.readdirSync(diretorio).sort();
   assert.deepEqual(removidos, [antigo]);
   assert.deepEqual(restantes, [limite, recente, "outro-arquivo.txt"].sort());
-  fs.rmSync(diretorio, { recursive: true, force: true });
+  fs.rmSync(diretorio, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
 });
 
 test("limparLogsAntigos não falha quando o diretório não existe", () => {

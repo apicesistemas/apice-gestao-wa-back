@@ -14,7 +14,7 @@ const { criarInstanciaHealth, MS_INTERVALO_HEARTBEAT } = require("../../src/what
 const { criarInstanciaManager } = require("../../src/whatsapp/instanciaManager");
 
 const raiz = fs.mkdtempSync(path.join(os.tmpdir(), "wa-back-health-"));
-after(() => fs.rmSync(raiz, { recursive: true, force: true }));
+after(() => fs.rmSync(raiz, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }));
 beforeEach(() => baileysFalso.limparHistorico());
 
 /**

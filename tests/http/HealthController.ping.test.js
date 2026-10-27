@@ -20,7 +20,7 @@ const { EU, TELEFONE_EQUIPE } = require("../helpers/mensagensWa");
 const { version } = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "..", "package.json"), "utf8"));
 
 const raiz = fs.mkdtempSync(path.join(os.tmpdir(), "wa-back-ping-"));
-after(() => fs.rmSync(raiz, { recursive: true, force: true }));
+after(() => fs.rmSync(raiz, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }));
 
 const HASH_A = "hash-empresa-a-1234567890";
 const HASH_B = "hash-empresa-b-0987654321";

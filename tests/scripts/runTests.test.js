@@ -37,7 +37,7 @@ test("listarArquivosDeTeste acha só *.test.js, em subpastas, relativos à raiz"
     fs.writeFileSync(path.join(raiz, "tests", "ajuda.js"), "");
     assert.deepEqual(listarArquivosDeTeste(raiz).sort(), [path.join("tests", "a.test.js"), path.join("tests", "sub", "b.test.js")]);
   } finally {
-    fs.rmSync(raiz, { recursive: true, force: true });
+    fs.rmSync(raiz, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   }
 });
 
@@ -58,7 +58,7 @@ function rodarProjeto(codigoAlvo, codigoTeste) {
     delete env.NODE_V8_COVERAGE;
     return spawnSync(process.execPath, [SCRIPT, "--cobertura"], { cwd: raiz, env, encoding: "utf8", timeout: 60_000 });
   } finally {
-    fs.rmSync(raiz, { recursive: true, force: true });
+    fs.rmSync(raiz, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   }
 }
 

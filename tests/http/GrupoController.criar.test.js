@@ -72,7 +72,7 @@ before(async () => {
 
 after(async () => {
   await new Promise((resolve) => servidor.close(() => resolve(undefined)));
-  fs.rmSync(raiz, { recursive: true, force: true });
+  fs.rmSync(raiz, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   if (tokenOriginal === undefined) delete process.env.WA_BACK_ADMIN_TOKEN;
   else process.env.WA_BACK_ADMIN_TOKEN = tokenOriginal;
 });

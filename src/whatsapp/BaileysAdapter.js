@@ -99,6 +99,14 @@ const MS_RECONEXAO = 5000;
 const MS_PRAZO_LOGOUT = 3000;
 /** Quanto o desconectar espera a gravação de credenciais em andamento antes de apagar a pasta. */
 const MS_PRAZO_CREDENCIAIS = 1500;
+/**
+ * Vigia do buffer de eventos do Baileys 6.7.24 (constantes técnicas de protocolo, não parâmetros de negócio).
+ * Com a fila offline presa, cada `upsertMessage` religa o `ev.buffer()` e só o `CB:ib,,offline` ou um nó
+ * online o libera (`ev.flush()`): a mensagem fica retida para sempre. A cada `MS_TIQUE_BUFFER` o adapter
+ * confere `ev.isBuffering()`; verdadeiro em `TIQUES_RETIDO` tiques seguidos (5 a 10 s), chama `ev.flush()`.
+ */
+const MS_TIQUE_BUFFER = 5_000;
+const TIQUES_RETIDO = 2;
 /** A versão do WhatsApp Web é a mesma para todas as equipes: cache no módulo, não por adapter. */
 const MS_CACHE_VERSAO = 6 * 60 * 60 * 1000;
 /** `cod_equipe` é PK numérica: só dígitos, o que também impede caminho fora do diretório base. */
@@ -343,6 +351,10 @@ function criarAdapter({
   let iniciando = null;
   /** @type {ReturnType<typeof setTimeout> | null} */
   let timerReconexao = null;
+  /** @type {ReturnType<typeof setInterval> | null} vigia do buffer de eventos do socket aberto */
+  let timerBuffer = null;
+  /** @type {SocketBaileys | null} socket que a vigia acompanha (só o fechamento dele a para) */
+  let socketVigiado = null;
   /** @type {EstadoConexao} */
   let estado = { status_conexao: "DESCONECTADO", ultimo_erro_conexao: null };
   /** @type {string | null} */
@@ -401,6 +413,47 @@ function criarAdapter({
     timerReconexao = null;
   }
 
+  function pararVigiaBuffer() {
+    if (timerBuffer) clearInterval(timerBuffer);
+    timerBuffer = null;
+    socketVigiado = null;
+  }
+
+  /**
+   * Libera (`ev.flush()`) o buffer de eventos do Baileys quando `isBuffering()` fica verdadeiro em
+   * `TIQUES_RETIDO` tiques seguidos. Só o 1º flush forçado de cada socket é logado (sem JID nem telefone).
+   * @param {SocketBaileys} s
+   */
+  function iniciarVigiaBuffer(s) {
+    pararVigiaBuffer();
+    socketVigiado = s;
+    let tiquesRetido = 0;
+    let logado = false;
+    timerBuffer = setInterval(() => {
+      if (s !== socket) return pararVigiaBuffer(); // socket já substituído ou fechado
+      try {
+        // O `typeof` existe só por causa do socket falso dos testes; o `ev` do Baileys sempre tem `isBuffering`.
+        if (typeof s.ev.isBuffering !== "function" || !s.ev.isBuffering()) {
+          tiquesRetido = 0;
+          return;
+        }
+        tiquesRetido += 1;
+        if (tiquesRetido < TIQUES_RETIDO) return;
+        tiquesRetido = 0;
+        if (!logado) {
+          logado = true;
+          console.log(
+            `[BAILEYS] Equipe ${cod}: buffer de eventos do Baileys retido; liberado à força (só o 1º flush deste socket é logado; após envio sem tráfego é normal, mensagens só chegando assim = fila offline presa).`
+          );
+        }
+        s.ev.flush();
+      } catch (erro) {
+        console.error(`[BAILEYS] Falha ao vigiar o buffer de eventos da equipe ${cod}:`, nomeDoErro(erro));
+      }
+    }, MS_TIQUE_BUFFER);
+    timerBuffer.unref?.();
+  }
+
   /** @param {SocketBaileys} alvo */
   function removerListeners(alvo) {
     for (const evento of EVENTOS_SOCKET) {
@@ -453,6 +506,7 @@ function criarAdapter({
    */
   function fecharSocket(alvo) {
     if (!alvo) return;
+    if (alvo === socketVigiado) pararVigiaBuffer();
     removerListeners(alvo);
     consolidadorChamadas.limpar(); // nenhuma chamada pendente é publicada depois do socket fechado
     try {
@@ -494,6 +548,7 @@ function criarAdapter({
       presenca.limparInscricoes(); // sessão nova no WhatsApp: as inscrições de presença não valem mais
       void diagnosticoPresenca.aoAbrir(cod, s); // só log/online de teste (DIAGNOSTICO_PRESENCA*=S, desligado por padrão)
       atualizarStatus({ status_conexao: "CONECTADO", ultimo_erro_conexao: null });
+      iniciarVigiaBuffer(s);
     }
 
     if (connection === "close") {
@@ -962,6 +1017,12 @@ function criarAdapter({
     const estavaConectado = estado.status_conexao === "CONECTADO";
     socket = null;
     qrAtual = null;
+    // O Baileys já confirmou ao WhatsApp o que está no buffer: solta com os listeners ainda ligados, senão se perde.
+    try {
+      alvo?.ev.flush?.(); // `?.`: o socket falso dos testes pode não ter flush; o do Baileys sempre tem
+    } catch (erro) {
+      console.error(`[BAILEYS] Falha ao liberar o buffer de eventos da equipe ${cod} no desligamento:`, nomeDoErro(erro));
+    }
     fecharSocket(alvo);
     if (estavaConectado) recuperacao.registrarAtividade({ forcar: true });
     await filaCredenciais;
@@ -1163,4 +1224,6 @@ module.exports = {
   MS_RECONEXAO,
   MS_PRAZO_LOGOUT,
   MS_PRAZO_CREDENCIAIS,
+  MS_TIQUE_BUFFER,
+  TIQUES_RETIDO,
 };

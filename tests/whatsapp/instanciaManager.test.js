@@ -13,7 +13,7 @@ const { criarInstanciaManager } = require("../../src/whatsapp/instanciaManager")
 
 const { sockets, DisconnectReason } = baileysFalso;
 const raiz = fs.mkdtempSync(path.join(os.tmpdir(), "wa-back-manager-"));
-after(() => fs.rmSync(raiz, { recursive: true, force: true }));
+after(() => fs.rmSync(raiz, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }));
 
 let contador = 0;
 beforeEach(() => baileysFalso.limparHistorico());

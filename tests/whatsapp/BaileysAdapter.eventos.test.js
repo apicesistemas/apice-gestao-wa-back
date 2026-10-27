@@ -15,7 +15,7 @@ const { mensagemWa, mensagemGrupo, JID_CLIENTE, JID_GRUPO, JID_PARTICIPANTE, EU,
 
 const { ultimoSocket, drenar, espiarSaidas } = baileysFalso;
 const diretorioSessoes = fs.mkdtempSync(path.join(os.tmpdir(), "wa-back-eventos-"));
-after(() => fs.rmSync(diretorioSessoes, { recursive: true, force: true }));
+after(() => fs.rmSync(diretorioSessoes, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }));
 beforeEach(() => baileysFalso.limparHistorico());
 
 const READ = 4;

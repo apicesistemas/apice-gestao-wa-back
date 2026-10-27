@@ -20,7 +20,7 @@ const { criarFilaTranscricao } = require("../../src/audio/filaTranscricao");
 const { ultimoSocket, drenar, definirDownload } = baileysFalso;
 
 const diretorioSessoes = fs.mkdtempSync(path.join(os.tmpdir(), "wa-back-midia-"));
-after(() => fs.rmSync(diretorioSessoes, { recursive: true, force: true }));
+after(() => fs.rmSync(diretorioSessoes, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }));
 
 beforeEach(() => baileysFalso.limparHistorico());
 
