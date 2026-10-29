@@ -139,3 +139,29 @@ test("duração do Ogg/Opus é nula para outros tipos, página final truncada, v
   curto.write("OpusHead", 28, "latin1");
   assert.equal(duracaoOggOpusSegundos(curto), null, "menor que 40 bytes");
 });
+
+/** Página EOS vazia como a do opus-recorder: header type 4, granule -1 e 0 segmentos. */
+const paginaEosVazia = () => {
+  const pagina = Buffer.alloc(27);
+  pagina.write("OggS", 0, "latin1");
+  pagina[5] = 0x04;
+  pagina.writeBigInt64LE(-1n, 6);
+  return pagina;
+};
+
+test("página final EOS vazia (granule -1) é pulada: vale o granule da página anterior", () => {
+  assert.equal(duracaoOggOpusSegundos(Buffer.concat([arquivos.oggOpus(7), paginaEosVazia()])), 7);
+  assert.equal(duracaoOggOpusSegundos(Buffer.concat([arquivos.oggOpus(7), paginaEosVazia(), paginaEosVazia()])), 7, "várias");
+});
+
+test("só páginas de granule -1 depois do cabeçalho, ou cabeçalho incompleto/versão inválida na EOS, é nulo", () => {
+  const cabecalho = arquivos.oggOpus(1).subarray(0, arquivos.oggOpus(1).indexOf("OggS", 4));
+  assert.equal(duracaoOggOpusSegundos(Buffer.concat([cabecalho, paginaEosVazia()])), null);
+  assert.equal(duracaoOggOpusSegundos(Buffer.concat([arquivos.oggOpus(7), paginaEosVazia().subarray(0, 20)])), null, "EOS truncada");
+  const todasMenos1 = Buffer.concat([cabecalho, paginaEosVazia()]);
+  todasMenos1.writeBigInt64LE(-1n, 6);
+  assert.equal(duracaoOggOpusSegundos(todasMenos1), null, "nenhuma página com granule válido");
+  const versao = paginaEosVazia();
+  versao[4] = 1;
+  assert.equal(duracaoOggOpusSegundos(Buffer.concat([arquivos.oggOpus(7), versao])), null, "versão inválida na EOS");
+});

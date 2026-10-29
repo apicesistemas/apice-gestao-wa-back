@@ -115,6 +115,16 @@ test("um áudio gravado vira { audio, ptt: true } em ogg/opus com a duração re
   assert.deepEqual(conteudo, { audio: buffer, mimetype: "audio/ogg; codecs=opus", ptt: true, seconds: 5 });
 });
 
+test("nota de voz com página final EOS vazia (granule -1, como a do opus-recorder) usa a duração real, sem CONTEUDO_INVALIDO", () => {
+  const eos = Buffer.alloc(27);
+  eos.write("OggS", 0, "latin1");
+  eos[5] = 0x04;
+  eos.writeBigInt64LE(-1n, 6);
+  const buffer = Buffer.concat([arquivos.oggOpus(7), eos]);
+  const conteudo = montarConteudo({ midia: { buffer, mimetype: "audio/ogg", ptt: true } });
+  assert.deepEqual(conteudo, { audio: buffer, mimetype: "audio/ogg; codecs=opus", ptt: true, seconds: 7 });
+});
+
 test("uma nota de voz que não é ogg/opus legível é recusada sem montar conteúdo", () => {
   assert.throws(
     () => montarConteudo({ midia: { buffer: arquivos.mp3(), mimetype: "audio/mpeg", ptt: true } }),

@@ -251,16 +251,21 @@ function validarMidia(buffer, mimetypeDeclarado, tetoBytes, opcoes = {}) {
 /**
  * Duração REAL de um Ogg/Opus pelo conteúdo (o `seconds` do WhatsApp é declarado pelo remetente e
  * pode faltar ou mentir): granule position (int64 LE no byte 6) da ÚLTIMA página, menos o pre-skip
- * do OpusHead (uint16 LE no byte 38), em 48 kHz (RFC 7845). `null` se ilegível.
+ * do OpusHead (uint16 LE no byte 38), em 48 kHz (RFC 7845). `null` se ilegível. Página com granule -1
+ * ("nenhum pacote termina nela", ex.: EOS vazia do opus-recorder) é pulada para a anterior.
  * @param {Buffer} buffer
  * @returns {number | null} segundos
  */
 function duracaoOggOpusSegundos(buffer) {
   if (detectarTipoPorConteudo(buffer) !== "audio/ogg" || buffer.length < 40) return null;
-  const ultima = buffer.lastIndexOf("OggS");
-  if (ultima + 27 > buffer.length || buffer[ultima + 4] !== 0) return null;
-  const amostras = buffer.readBigInt64LE(ultima + 6) - BigInt(buffer.readUInt16LE(38));
-  return amostras < 0n ? null : Number(amostras) / 48000;
+  for (let pagina = buffer.lastIndexOf("OggS"); pagina >= 0; pagina = pagina > 0 ? buffer.lastIndexOf("OggS", pagina - 1) : -1) {
+    if (pagina + 27 > buffer.length || buffer[pagina + 4] !== 0) return null;
+    const granule = buffer.readBigInt64LE(pagina + 6);
+    if (granule === -1n) continue;
+    const amostras = granule - BigInt(buffer.readUInt16LE(38));
+    return amostras < 0n ? null : Number(amostras) / 48000;
+  }
+  return null;
 }
 
 module.exports = { detectarTipoPorConteudo, validarMidia, duracaoOggOpusSegundos, normalizarMimetype, MIME_DOCX, MIME_XLSX, MIME_DOC, MIME_XLS, MIME_PKCS12 };

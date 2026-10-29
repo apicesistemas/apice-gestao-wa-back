@@ -3,6 +3,16 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.35.4] - 2026-10-29
+
+### Corrigido
+
+- Nota de voz gravada no CRM recusada às vezes com 400 `CONTEUDO_INVALIDO` ("A nota de voz precisa ser um áudio ogg/opus válido."), com o back já tendo enviado o "*Nome*". O opus-recorder (`maxFramesPerPage` 40) termina sempre com uma página EOS; quando a gravação para exatamente na virada de página (~1 em 40), essa página sai vazia com granule position -1 (no Ogg, "nenhum pacote termina nesta página"). `duracaoOggOpusSegundos` lia o granule só da última `OggS`, obtinha -1, subtraía o pre-skip e devolvia `null`. Agora ela volta, página a página, até a primeira com granule diferente de -1 (cada página visitada continua exigindo versão 0 e o cabeçalho de 27 bytes dentro do buffer; sem página válida, `null`). Vale também na entrada (`midiaEntrada`).
+
+### Observações
+
+- Sem contrato novo com o back nem com o front. Deploy só do wa-back.
+
 ## [0.35.3] - 2026-10-28
 
 ### Corrigido
