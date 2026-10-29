@@ -90,7 +90,7 @@ No servidor `192.168.1.167`, na pasta do submódulo: `bash deploy.sh`.
   - [ ] `/editar` e `/apagar` recusam com 400, sem tocar no Baileys, campo fora da allowlist e key que não é `fromMe`. O eco da edição e da exclusão feitas pelo CRM não volta ao back.
   - [ ] Uma mensagem enviada pelo aparelho é registrada com origem "aparelho", e o eco de uma mensagem enviada pelo CRM não é registrado de novo.
   - [ ] Depois de reiniciar, as instâncias reconectam sem novo QR Code, e as mensagens recebidas durante a reinicialização são recuperadas.
-  - [ ] Um arquivo acima do tamanho máximo, ou com conteúdo diferente do tipo declarado, é recusado.
+  - [ ] Um arquivo acima do tamanho máximo, ou uma foto, vídeo, áudio ou figurinha com conteúdo diferente do tipo declarado, é recusado. Um documento de tipo não reconhecido, ou divergente do declarado, segue como `application/octet-stream`, com o nome original.
   - [ ] Uma falha na transcrição não impede o registro da mensagem.
   - [ ] Cada chamada recebida é publicada uma única vez (perdida, atendida em outro aparelho, recusada ou, sem desfecho, encerrada), mesmo com eventos repetidos. O alerta de toque não passa pela `filaEntrada`, e a chamada offline não alerta. Nenhuma chamada gera `rejectCall` ou `sendMessage`, e nenhuma vai por `/interno/mensagem-recebida`.
 

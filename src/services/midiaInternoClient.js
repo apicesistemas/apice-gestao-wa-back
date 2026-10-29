@@ -9,7 +9,8 @@
 // com o que chegou antes do arquivo):
 // - `hash_empresa`, `cod_equipe`, `mensagem_wa_id`: tenant, equipe e mensagem já registrada em
 //   `/interno/mensagem-recebida` (a mídia é associada pelo `mensagem_wa_id`);
-// - `mimetype`: tipo DETECTADO pelo conteúdo (magic bytes), não o declarado pelo remetente;
+// - `mimetype`: tipo DETECTADO pelo conteúdo (magic bytes), não o declarado pelo remetente. Só na mensagem
+//   DOCUMENTO, conteúdo não reconhecido ou divergente do declarado vai como `application/octet-stream`;
 // - `tamanho_bytes`: tamanho real do buffer;
 // - `nome_arquivo` (opcional): nome declarado, em UTF-8 (o `originalname` do multer chega em latin1);
 // - `duracao_segundos` (opcional): real no OGG/Opus, declarada nos demais;

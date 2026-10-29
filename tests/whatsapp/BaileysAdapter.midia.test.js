@@ -146,9 +146,10 @@ test("um download que estoura o prazo registra a mensagem com midia_pendente (PR
 });
 
 test("conteúdo divergente do tipo declarado e arquivo acima do teto são recusados, e a mensagem continua registrada", async () => {
-  definirDownload(async () => streamDe(arquivos.jpeg()));
   const divergente = await adapterConectado();
-  await divergente.receber([documentoWa("application/pdf")]);
+  // imagem declarada JPEG com conteúdo PDF (DOCUMENTO divergente é aceito como octet-stream: ver o fim do arquivo)
+  definirDownload(async () => streamDe(arquivos.pdf()));
+  await divergente.receber([mensagemWa({ imageMessage: { mimetype: "image/jpeg", fileLength: long(60), url: "https://mmg.whatsapp.net/teste" } })]);
   assert.deepEqual(divergente.registradas[0].estadoMidia, { midia_pendente: true, midia_motivo_pendencia: "TIPO_DIVERGENTE" });
   assert.equal(divergente.midiasEnviadas.length, 0);
 
@@ -351,5 +352,52 @@ test("uma falha da MiniMax (429/timeout) envia status PENDENTE, e a mensagem con
       if (envOriginal[nome] === undefined) delete process.env[nome];
       else process.env[nome] = envOriginal[nome];
     }
+  }
+});
+
+// ---- DOCUMENTO de qualquer tipo é aceito; os demais tipos seguem rígidos ----
+
+const XML_NFE = Buffer.from('<?xml version="1.0" encoding="UTF-8"?><nfeProc></nfeProc>');
+
+test("DOCUMENTO XML (conteúdo não reconhecido) é registrado sem pendência e a mídia vai ao back como octet-stream", async () => {
+  definirDownload(async () => streamDe(XML_NFE));
+  const { registradas, midiasEnviadas, receber } = await adapterConectado();
+  await receber([mensagemWa({ documentMessage: { mimetype: "text/xml", fileName: "nfe.xml", fileLength: long(60), url: "https://mmg.whatsapp.net/teste" } })]);
+  assert.deepEqual(registradas[0].estadoMidia, { midia_pendente: false, midia_motivo_pendencia: null });
+  assert.equal(midiasEnviadas.length, 1);
+  assert.deepEqual(midiasEnviadas[0].buffer, XML_NFE);
+  assert.equal(midiasEnviadas[0].metadados.mimetype, "application/octet-stream");
+  assert.equal(midiasEnviadas[0].metadados.nome_arquivo, "nfe.xml");
+});
+
+test("DOCUMENTO com PDF divergente do declarado é aceito como octet-stream; o PDF compatível segue application/pdf", async () => {
+  definirDownload(async () => streamDe(arquivos.jpeg()));
+  const divergente = await adapterConectado();
+  await divergente.receber([documentoWa("application/pdf")]);
+  assert.deepEqual(divergente.registradas[0].estadoMidia, { midia_pendente: false, midia_motivo_pendencia: null });
+  assert.equal(divergente.midiasEnviadas[0].metadados.mimetype, "application/octet-stream");
+
+  baileysFalso.limparHistorico();
+  definirDownload(async () => streamDe(arquivos.pdf()));
+  const compativel = await adapterConectado();
+  await compativel.receber([documentoWa("application/pdf")]);
+  assert.equal(compativel.midiasEnviadas[0].metadados.mimetype, "application/pdf");
+});
+
+test("o mesmo conteúdo desconhecido como IMAGEM, VÍDEO, ÁUDIO ou FIGURINHA continua pendente (TIPO_NAO_RECONHECIDO)", async () => {
+  const url = "https://mmg.whatsapp.net/teste";
+  const mensagens = [
+    { imageMessage: { mimetype: "image/jpeg", fileLength: long(60), url } },
+    { videoMessage: { mimetype: "video/mp4", seconds: 3, fileLength: long(60), url } },
+    { audioMessage: { mimetype: "audio/ogg; codecs=opus", seconds: 3, ptt: true, fileLength: long(60), url } },
+    { stickerMessage: { mimetype: "image/webp", fileLength: long(60), url } },
+  ];
+  for (const conteudo of mensagens) {
+    baileysFalso.limparHistorico();
+    definirDownload(async () => streamDe(XML_NFE));
+    const { registradas, midiasEnviadas, receber } = await adapterConectado();
+    await receber([mensagemWa(conteudo)]);
+    assert.deepEqual(registradas[0].estadoMidia, { midia_pendente: true, midia_motivo_pendencia: "TIPO_NAO_RECONHECIDO" }, Object.keys(conteudo)[0]);
+    assert.equal(midiasEnviadas.length, 0);
   }
 });

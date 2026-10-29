@@ -687,7 +687,7 @@ function criarAdapter({
     let midia = null;
     if (normalizada.midia) {
       try {
-        midia = await midiaEntrada.obterMidiaValidada(s, waMessage, normalizada.midia, obterLimitesMidia());
+        midia = await midiaEntrada.obterMidiaValidada(s, waMessage, normalizada.midia, { ...obterLimitesMidia(), documentoGenerico: normalizada.tipo === "DOCUMENTO" });
       } catch {
         midia = { ok: false, motivo: "DOWNLOAD_FALHOU" }; // defesa: nada aqui pode perder a mensagem
       }

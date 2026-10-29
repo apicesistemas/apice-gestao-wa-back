@@ -579,3 +579,10 @@ test("apagar: 401 sem token, 404 de outro tenant, 409 desconectada e 502 em falh
   const falha = await esperarErro(await postApagar("7", { ...BASE, key: KEY_EDITAR }), 502);
   assert.doesNotMatch(falha.msg, /@s\.whatsapp\.net/);
 });
+
+test("o ENVIO segue rígido: XML como DOCUMENTO é recusado com 400 e não toca o socket (o modo permissivo é só da entrada)", async () => {
+  const antes = envios.length;
+  const xml = { buffer: Buffer.from('<?xml version="1.0"?><nfeProc/>'), mimetype: "text/xml", nome: "nfe.xml" };
+  await esperarErro(await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO" }, xml)), 400);
+  assert.equal(envios.length, antes);
+});

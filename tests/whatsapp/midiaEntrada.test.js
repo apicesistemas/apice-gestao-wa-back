@@ -253,3 +253,33 @@ test("obterLimitesMidia lê MIDIA_TETO_BYTES e MIDIA_PRAZO_MS, com padrão de 10
   process.env.MIDIA_PRAZO_MS = "-1";
   assert.deepEqual(obterLimitesMidia(), { tetoBytes: 100 * 1024 * 1024, prazoMs: 60_000 });
 });
+
+// ---- documentoGenerico: só a mensagem DOCUMENTO aceita qualquer arquivo ----
+
+const XML_NFE = Buffer.from('<?xml version="1.0" encoding="UTF-8"?><nfeProc></nfeProc>');
+
+test("obterMidiaValidada com documentoGenerico aceita XML como octet-stream e mantém o nome do arquivo", async () => {
+  const resultado = await obterMidiaValidada(socketFalso, imagemWa(), metadados({ mimetype: "text/xml", nome_arquivo: "nfe.xml" }), {
+    tetoBytes: 1024,
+    prazoMs: 1000,
+    documentoGenerico: true,
+    baixar: async () => streamDe(XML_NFE),
+  });
+  assert.deepEqual(resultado, {
+    ok: true,
+    buffer: XML_NFE,
+    mimetype: "application/octet-stream",
+    tamanho_bytes: XML_NFE.length,
+    nome_arquivo: "nfe.xml",
+    duracao_segundos: null,
+  });
+});
+
+test("obterMidiaValidada sem documentoGenerico segue recusando o XML", async () => {
+  const resultado = await obterMidiaValidada(socketFalso, imagemWa(), metadados({ mimetype: "text/xml", nome_arquivo: "nfe.xml" }), {
+    tetoBytes: 1024,
+    prazoMs: 1000,
+    baixar: async () => streamDe(XML_NFE),
+  });
+  assert.deepEqual(resultado, { ok: false, motivo: "TIPO_NAO_RECONHECIDO" });
+});

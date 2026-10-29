@@ -120,3 +120,44 @@ test("PKCS#12: a janela do OID é [p+3, p+67), igual à do back (último offset 
   assert.equal(detectarTipoPorConteudo(comOidEm(p + 58)), null, "OID que ultrapassa a janela em 1 byte");
   assert.equal(detectarTipoPorConteudo(comOidEm(p + 4)), "application/x-pkcs12", "OID logo depois do `30` do ContentInfo");
 });
+
+// ---- DOCUMENTO genérico na entrada (opt-in `documentoGenerico`): qualquer arquivo é aceito ----
+
+const GENERICO = { documentoGenerico: true };
+const OCTET = "application/octet-stream";
+
+test("documentoGenerico: XML, TXT e ZIP comum viram application/octet-stream, e o tamanho é o real", () => {
+  const xml = Buffer.from('<?xml version="1.0" encoding="UTF-8"?><nfeProc></nfeProc>');
+  assert.deepEqual(validarMidia(xml, "text/xml", TETO, GENERICO), { ok: true, mimetype: OCTET, tamanho_bytes: xml.length });
+  assert.deepEqual(validarMidia(xml, "", TETO, GENERICO), { ok: true, mimetype: OCTET, tamanho_bytes: xml.length });
+  const txt = Buffer.from("só texto");
+  assert.deepEqual(validarMidia(txt, "text/plain", TETO, GENERICO), { ok: true, mimetype: OCTET, tamanho_bytes: txt.length });
+  const zip = arquivos.zipComum();
+  assert.deepEqual(validarMidia(zip, "application/zip", TETO, GENERICO), { ok: true, mimetype: OCTET, tamanho_bytes: zip.length });
+});
+
+test("documentoGenerico: conteúdo reconhecido e compatível mantém o mimetype detectado", () => {
+  const pdf = arquivos.pdf();
+  assert.deepEqual(validarMidia(pdf, "application/pdf", TETO, GENERICO), { ok: true, mimetype: "application/pdf", tamanho_bytes: pdf.length });
+  const docx = arquivos.docx();
+  assert.equal(validarMidia(docx, arquivos.MIME_DOCX, TETO, GENERICO).ok && /** @type {any} */ (validarMidia(docx, arquivos.MIME_DOCX, TETO, GENERICO)).mimetype, arquivos.MIME_DOCX);
+});
+
+test("documentoGenerico: tipo divergente (DOCX declarado como application/zip, JPEG como PDF) é aceito como octet-stream", () => {
+  const docx = arquivos.docx();
+  assert.deepEqual(validarMidia(docx, "application/zip", TETO, GENERICO), { ok: true, mimetype: OCTET, tamanho_bytes: docx.length });
+  const jpeg = arquivos.jpeg();
+  assert.deepEqual(validarMidia(jpeg, "application/pdf", TETO, GENERICO), { ok: true, mimetype: OCTET, tamanho_bytes: jpeg.length });
+});
+
+test("documentoGenerico: mídia vazia e acima do teto continuam recusadas", () => {
+  assert.deepEqual(validarMidia(Buffer.alloc(0), "text/xml", TETO, GENERICO), { ok: false, motivo: "MIDIA_VAZIA" });
+  assert.deepEqual(validarMidia(Buffer.from("<a/>"), "text/xml", 2, GENERICO), { ok: false, motivo: "ACIMA_DO_TETO" });
+});
+
+test("sem a opção (envio e demais tipos) o conteúdo desconhecido segue recusado", () => {
+  const xml = Buffer.from('<?xml version="1.0"?><a/>');
+  assert.deepEqual(validarMidia(xml, "text/xml", TETO), { ok: false, motivo: "TIPO_NAO_RECONHECIDO" });
+  assert.deepEqual(validarMidia(xml, "text/xml", TETO, { documentoGenerico: false }), { ok: false, motivo: "TIPO_NAO_RECONHECIDO" });
+  assert.deepEqual(validarMidia(arquivos.docx(), "application/zip", TETO, {}), { ok: false, motivo: "TIPO_DIVERGENTE" });
+});

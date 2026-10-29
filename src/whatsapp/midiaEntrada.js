@@ -163,7 +163,7 @@ async function baixarMidia(sock, waMessage, { tetoBytes, prazoMs, baixar = downl
  * @param {{ updateMediaMessage?: any }} sock
  * @param {any} waMessage
  * @param {MetadadosMidia} midia metadados declarados (da MensagemRecebida)
- * @param {LimitesMidia & { baixar?: FuncaoDownload }} opcoes
+ * @param {LimitesMidia & { baixar?: FuncaoDownload, documentoGenerico?: boolean }} opcoes `documentoGenerico`: mensagem DOCUMENTO aceita qualquer arquivo
  * @returns {Promise<ResultadoMidia>}
  */
 async function obterMidiaValidada(sock, waMessage, midia, opcoes) {
@@ -177,7 +177,7 @@ async function obterMidiaValidada(sock, waMessage, midia, opcoes) {
     return { ok: false, motivo: erro instanceof ErroMidia ? erro.codigo : "DOWNLOAD_FALHOU" };
   }
 
-  const validacao = validarMidia(buffer, midia.mimetype, opcoes.tetoBytes);
+  const validacao = validarMidia(buffer, midia.mimetype, opcoes.tetoBytes, { documentoGenerico: opcoes.documentoGenerico });
   if (!validacao.ok) return validacao;
 
   const duracaoReal = validacao.mimetype === "audio/ogg" ? duracaoOggOpusSegundos(buffer) : null;

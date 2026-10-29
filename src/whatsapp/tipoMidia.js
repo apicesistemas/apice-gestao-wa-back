@@ -201,6 +201,7 @@ const DECLARADOS_ACEITOS = {
 };
 
 /** Declarações que não dizem o tipo: valem pelo conteúdo detectado. */
+const MIME_GENERICO = "application/octet-stream";
 const DECLARADOS_GENERICOS = new Set(["", "application/octet-stream", "binary/octet-stream"]);
 
 /**
@@ -222,24 +223,29 @@ function normalizarMimetype(mimetype) {
  * Valida a mídia baixada: tamanho real até o teto, tipo reconhecido pelo conteúdo e compatível
  * com o declarado. Sem tipo declarado (ou `application/octet-stream`), vale o detectado. Um MP4
  * genérico declarado como `audio/mp4` (m4a) é o mesmo contêiner e sai como `audio/mp4`.
+ * Com `documentoGenerico` (só a entrada de mensagem DOCUMENTO), o conteúdo não reconhecido ou
+ * divergente do declarado é aceito como `application/octet-stream`; vazio e acima do teto seguem recusados.
  * @param {Buffer} buffer
  * @param {string | null | undefined} mimetypeDeclarado
  * @param {number} tetoBytes
+ * @param {{ documentoGenerico?: boolean }} [opcoes]
  * @returns {ResultadoValidacao}
  */
-function validarMidia(buffer, mimetypeDeclarado, tetoBytes) {
+function validarMidia(buffer, mimetypeDeclarado, tetoBytes, opcoes = {}) {
   if (!Buffer.isBuffer(buffer) || buffer.length === 0) return { ok: false, motivo: "MIDIA_VAZIA" };
   if (buffer.length > tetoBytes) return { ok: false, motivo: "ACIMA_DO_TETO" };
   const detectado = detectarTipoPorConteudo(buffer);
-  if (!detectado) return { ok: false, motivo: "TIPO_NAO_RECONHECIDO" };
-
-  const declarado = normalizarMimetype(mimetypeDeclarado);
   /** @param {string} mimetype @returns {ResultadoValidacao} */
   const aceito = (mimetype) => ({ ok: true, mimetype, tamanho_bytes: buffer.length });
+  /** @param {MotivoRecusaMidia} motivo @returns {ResultadoValidacao} */
+  const recusar = (motivo) => (opcoes.documentoGenerico ? aceito(MIME_GENERICO) : { ok: false, motivo });
+  if (!detectado) return recusar("TIPO_NAO_RECONHECIDO");
+
+  const declarado = normalizarMimetype(mimetypeDeclarado);
   if (DECLARADOS_GENERICOS.has(declarado)) return aceito(detectado);
   if (DECLARADOS_ACEITOS[detectado]?.includes(declarado)) return aceito(detectado);
   if (detectado === "video/mp4" && DECLARADOS_ACEITOS["audio/mp4"].includes(declarado)) return aceito("audio/mp4");
-  return { ok: false, motivo: "TIPO_DIVERGENTE" };
+  return recusar("TIPO_DIVERGENTE");
 }
 
 /**

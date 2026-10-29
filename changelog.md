@@ -3,6 +3,18 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.35.3] - 2026-10-28
+
+### Corrigido
+
+- Documento de qualquer tipo recebido do cliente (ex.: `.xml` de NF-e, `.txt`, `.zip` comum) deixa de ficar pendente com `TIPO_NAO_RECONHECIDO`. Na ENTRADA, só para mensagem `DOCUMENTO`, o conteúdo não reconhecido ou divergente do declarado (`TIPO_DIVERGENTE`) é aceito como `application/octet-stream`, com o `nome_arquivo` original. Conteúdo reconhecido e compatível mantém o mimetype detectado (PDF segue `application/pdf`). `MIDIA_VAZIA` e `ACIMA_DO_TETO` continuam recusados. Executáveis também são aceitos (decisão do responsável: o CRM só oferece download).
+- `validarMidia(buffer, declarado, teto, { documentoGenerico })`: modo permissivo opt-in, desligado por padrão. `obterMidiaValidada` repassa a opção e o `BaileysAdapter` a liga só quando `normalizada.tipo === "DOCUMENTO"`. IMAGEM, VIDEO, AUDIO e FIGURINHA seguem rígidos, e o ENVIO (`EnvioController`) não muda: XML enviado pelo CRM continua recusado com 400.
+
+### Contrato para o back (canal C)
+
+- `POST /interno/midia`: corpo inalterado. O `mimetype` pode passar a ser `"application/octet-stream"` somente quando a mensagem gravada é `DOCUMENTO`. O back precisa aceitar isso (e só nesse caso) antes deste deploy.
+- Ordem de deploy: back primeiro, depois o wa-back. Antes disso, o back recusaria o octet-stream e a mídia ficaria pendente.
+
 ## [0.35.2] - 2026-10-27
 
 ### Corrigido
