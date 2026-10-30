@@ -17,13 +17,39 @@
       "source_location": "L68"
     },
     {
+      "id": "src_whatsapp_grupogestao_errogrupo",
+      "label": "ErroGrupo",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "envio.js",
+      "file_type": "code",
+      "norm_label": "errogrupo",
+      "source_file": "src/whatsapp/grupoGestao.js",
+      "source_location": "L56"
+    },
+    {
+      "id": "src_whatsapp_nomegrupo_erroconsultagrupo",
+      "label": "ErroConsultaGrupo",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "envio.js",
+      "file_type": "code",
+      "norm_label": "erroconsultagrupo",
+      "source_file": "src/whatsapp/nomeGrupo.js",
+      "source_location": "L31"
+    },
+    {
       "id": "src_services_internohttpclient_errorotainterna",
       "label": "ErroRotaInterna",
       "_callable": true,
       "_callable_class": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "errorotainterna",
       "source_file": "src/services/internoHttpClient.js",
@@ -43,19 +69,6 @@
       "source_location": "L121"
     },
     {
-      "id": "src_whatsapp_midiaentrada_erromidia",
-      "label": "ErroMidia",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 14,
-      "community_name": "midiaEntrada.js",
-      "file_type": "code",
-      "norm_label": "erromidia",
-      "source_file": "src/whatsapp/midiaEntrada.js",
-      "source_location": "L37"
-    },
-    {
       "id": "src_http_contatocontroller_errorequisicao",
       "label": "ErroRequisicao",
       "_callable": true,
@@ -67,45 +80,6 @@
       "norm_label": "errorequisicao",
       "source_file": "src/http/ContatoController.js",
       "source_location": "L45"
-    },
-    {
-      "id": "src_whatsapp_nomegrupo_erroconsultagrupo",
-      "label": "ErroConsultaGrupo",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 18,
-      "community_name": "criarCacheNomeGrupo",
-      "file_type": "code",
-      "norm_label": "erroconsultagrupo",
-      "source_file": "src/whatsapp/nomeGrupo.js",
-      "source_location": "L31"
-    },
-    {
-      "id": "src_whatsapp_fotoperfil_errofoto",
-      "label": "ErroFoto",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "grupoGestao.js",
-      "file_type": "code",
-      "norm_label": "errofoto",
-      "source_file": "src/whatsapp/fotoPerfil.js",
-      "source_location": "L28"
-    },
-    {
-      "id": "src_whatsapp_grupogestao_errogrupo",
-      "label": "ErroGrupo",
-      "_callable": true,
-      "_callable_class": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "grupoGestao.js",
-      "file_type": "code",
-      "norm_label": "errogrupo",
-      "source_file": "src/whatsapp/grupoGestao.js",
-      "source_location": "L56"
     },
     {
       "id": "src_http_fotoperfilcontroller_errorequisicao",
@@ -160,6 +134,32 @@
       "source_location": "L28"
     },
     {
+      "id": "src_whatsapp_fotoperfil_errofoto",
+      "label": "ErroFoto",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "errofoto",
+      "source_file": "src/whatsapp/fotoPerfil.js",
+      "source_location": "L28"
+    },
+    {
+      "id": "src_whatsapp_midiaentrada_erromidia",
+      "label": "ErroMidia",
+      "_callable": true,
+      "_callable_class": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "erromidia",
+      "source_file": "src/whatsapp/midiaEntrada.js",
+      "source_location": "L37"
+    },
+    {
       "id": "src_http_enviocontroller_errorequisicao",
       "label": "ErroRequisicao",
       "_callable": true,
@@ -173,18 +173,6 @@
       "source_location": "L85"
     },
     {
-      "id": "src_http_enviocontroller_criarenviocontroller",
-      "label": "criarEnvioController()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "envio.js",
-      "file_type": "code",
-      "norm_label": "criarenviocontroller()",
-      "source_file": "src/http/EnvioController.js",
-      "source_location": "L229"
-    },
-    {
       "id": "src_whatsapp_baileysadapter_criaradapter_destinosdochat",
       "label": "destinosDoChat()",
       "_callable": true,
@@ -194,7 +182,19 @@
       "file_type": "code",
       "norm_label": "destinosdochat()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L1012"
+      "source_location": "L1091"
+    },
+    {
+      "id": "src_whatsapp_chamadas_agendarpadrao",
+      "label": "agendarPadrao()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "envio.js",
+      "file_type": "code",
+      "norm_label": "agendarpadrao()",
+      "source_file": "src/whatsapp/chamadas.js",
+      "source_location": "L86"
     },
     {
       "id": "src_whatsapp_edicao_criaredicao",
@@ -219,18 +219,6 @@
       "norm_label": "editar()",
       "source_file": "src/whatsapp/edicao.js",
       "source_location": "L35"
-    },
-    {
-      "id": "src_whatsapp_envio_criarenvio",
-      "label": "criarEnvio()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "envio.js",
-      "file_type": "code",
-      "norm_label": "criarenvio()",
-      "source_file": "src/whatsapp/envio.js",
-      "source_location": "L436"
     },
     {
       "id": "src_whatsapp_envio_criarenvio_enviar",
@@ -353,18 +341,6 @@
       "source_location": "L88"
     },
     {
-      "id": "src_whatsapp_envio_obtersocketdaequipe",
-      "label": "obterSocketDaEquipe()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "envio.js",
-      "file_type": "code",
-      "norm_label": "obtersocketdaequipe()",
-      "source_file": "src/whatsapp/envio.js",
-      "source_location": "L311"
-    },
-    {
       "id": "src_whatsapp_envio_reviverbuffers",
       "label": "reviverBuffers()",
       "_callable": true,
@@ -437,30 +413,6 @@
       "source_location": "L169"
     },
     {
-      "id": "src_whatsapp_exclusao_criarexclusao",
-      "label": "criarExclusao()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "envio.js",
-      "file_type": "code",
-      "norm_label": "criarexclusao()",
-      "source_file": "src/whatsapp/exclusao.js",
-      "source_location": "L20"
-    },
-    {
-      "id": "src_whatsapp_exclusao_criarexclusao_apagar",
-      "label": "apagar()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "envio.js",
-      "file_type": "code",
-      "norm_label": "apagar()",
-      "source_file": "src/whatsapp/exclusao.js",
-      "source_location": "L33"
-    },
-    {
       "id": "src_whatsapp_filtroentrada_identidadede",
       "label": "identidadeDe()",
       "_callable": true,
@@ -470,19 +422,7 @@
       "file_type": "code",
       "norm_label": "identidadede()",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L408"
-    },
-    {
-      "id": "src_whatsapp_filtroentrada_identidadepropria",
-      "label": "identidadePropria()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "envio.js",
-      "file_type": "code",
-      "norm_label": "identidadepropria()",
-      "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L422"
+      "source_location": "L600"
     },
     {
       "id": "src_whatsapp_filtroentrada_lidde",
@@ -495,6 +435,18 @@
       "norm_label": "lidde()",
       "source_file": "src/whatsapp/filtroEntrada.js",
       "source_location": "L129"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_mensagemwaidvalido",
+      "label": "mensagemWaIdValido()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "envio.js",
+      "file_type": "code",
+      "norm_label": "mensagemwaidvalido()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L106"
     },
     {
       "id": "src_whatsapp_filtroentrada_normalizarjid",
@@ -521,6 +473,18 @@
       "source_location": "L139"
     },
     {
+      "id": "src_whatsapp_grupogestao_acharaddrequest",
+      "label": "acharAddRequest()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "envio.js",
+      "file_type": "code",
+      "norm_label": "acharaddrequest()",
+      "source_file": "src/whatsapp/grupoGestao.js",
+      "source_location": "L169"
+    },
+    {
       "id": "src_whatsapp_grupogestao_acharparticipante",
       "label": "acharParticipante()",
       "_callable": true,
@@ -533,6 +497,126 @@
       "source_location": "L283"
     },
     {
+      "id": "src_whatsapp_grupogestao_adicionaremserie",
+      "label": "adicionarEmSerie()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "envio.js",
+      "file_type": "code",
+      "norm_label": "adicionaremserie()",
+      "source_file": "src/whatsapp/grupoGestao.js",
+      "source_location": "L391"
+    },
+    {
+      "id": "src_whatsapp_grupogestao_codigodoerro",
+      "label": "codigoDoErro()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "envio.js",
+      "file_type": "code",
+      "norm_label": "codigodoerro()",
+      "source_file": "src/whatsapp/grupoGestao.js",
+      "source_location": "L74"
+    },
+    {
+      "id": "src_whatsapp_grupogestao_comprazo",
+      "label": "comPrazo()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "envio.js",
+      "file_type": "code",
+      "norm_label": "comprazo()",
+      "source_file": "src/whatsapp/grupoGestao.js",
+      "source_location": "L108"
+    },
+    {
+      "id": "src_whatsapp_grupogestao_consultarnumero",
+      "label": "consultarNumero()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "envio.js",
+      "file_type": "code",
+      "norm_label": "consultarnumero()",
+      "source_file": "src/whatsapp/grupoGestao.js",
+      "source_location": "L149"
+    },
+    {
+      "id": "src_whatsapp_grupogestao_criargrupo",
+      "label": "criarGrupo()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "envio.js",
+      "file_type": "code",
+      "norm_label": "criargrupo()",
+      "source_file": "src/whatsapp/grupoGestao.js",
+      "source_location": "L485"
+    },
+    {
+      "id": "src_whatsapp_grupogestao_dormirpadrao",
+      "label": "dormirPadrao()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "envio.js",
+      "file_type": "code",
+      "norm_label": "dormirpadrao()",
+      "source_file": "src/whatsapp/grupoGestao.js",
+      "source_location": "L125"
+    },
+    {
+      "id": "src_whatsapp_grupogestao_enviarconvitev4",
+      "label": "enviarConviteV4()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "envio.js",
+      "file_type": "code",
+      "norm_label": "enviarconvitev4()",
+      "source_file": "src/whatsapp/grupoGestao.js",
+      "source_location": "L231"
+    },
+    {
+      "id": "src_whatsapp_grupogestao_errogrupo_constructor",
+      "label": ".constructor()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "envio.js",
+      "file_type": "code",
+      "norm_label": ".constructor()",
+      "source_file": "src/whatsapp/grupoGestao.js",
+      "source_location": "L61"
+    },
+    {
+      "id": "src_whatsapp_grupogestao_indexarparticipantes",
+      "label": "indexarParticipantes()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "envio.js",
+      "file_type": "code",
+      "norm_label": "indexarparticipantes()",
+      "source_file": "src/whatsapp/grupoGestao.js",
+      "source_location": "L251"
+    },
+    {
+      "id": "src_whatsapp_grupogestao_mapearstatusadicao",
+      "label": "mapearStatusAdicao()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "envio.js",
+      "file_type": "code",
+      "norm_label": "mapearstatusadicao()",
+      "source_file": "src/whatsapp/grupoGestao.js",
+      "source_location": "L194"
+    },
+    {
       "id": "src_whatsapp_grupogestao_resolvercontatoparticipante",
       "label": "resolverContatoParticipante()",
       "_callable": true,
@@ -543,6 +627,18 @@
       "norm_label": "resolvercontatoparticipante()",
       "source_file": "src/whatsapp/grupoGestao.js",
       "source_location": "L304"
+    },
+    {
+      "id": "src_whatsapp_grupogestao_resolvercontatotelefone",
+      "label": "resolverContatoTelefone()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "envio.js",
+      "file_type": "code",
+      "norm_label": "resolvercontatotelefone()",
+      "source_file": "src/whatsapp/grupoGestao.js",
+      "source_location": "L350"
     },
     {
       "id": "src_whatsapp_mencoesentrada_detalharmencoes",
@@ -567,6 +663,18 @@
       "norm_label": "ehproprio()",
       "source_file": "src/whatsapp/mencoesEntrada.js",
       "source_location": "L25"
+    },
+    {
+      "id": "src_whatsapp_nomegrupo_erroconsultagrupo_constructor",
+      "label": ".constructor()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "envio.js",
+      "file_type": "code",
+      "norm_label": ".constructor()",
+      "source_file": "src/whatsapp/nomeGrupo.js",
+      "source_location": "L33"
     },
     {
       "id": "src_whatsapp_nomegrupo_mapearparticipante",
@@ -617,136 +725,16 @@
       "source_location": "L17"
     },
     {
-      "id": "src_whatsapp_resolverlid_comprazo",
-      "label": "comPrazo()",
+      "id": "src_whatsapp_tipomidia_normalizarmimetype",
+      "label": "normalizarMimetype()",
       "_callable": true,
       "_origin": "ast",
       "community": 0,
       "community_name": "envio.js",
       "file_type": "code",
-      "norm_label": "comprazo()",
-      "source_file": "src/whatsapp/resolverLid.js",
-      "source_location": "L43"
-    },
-    {
-      "id": "src_whatsapp_resolverlid_criarresolvedorlid",
-      "label": "criarResolvedorLid()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "envio.js",
-      "file_type": "code",
-      "norm_label": "criarresolvedorlid()",
-      "source_file": "src/whatsapp/resolverLid.js",
-      "source_location": "L56"
-    },
-    {
-      "id": "src_whatsapp_resolverlid_criarresolvedorlid_aprendercontatos",
-      "label": "aprenderContatos()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "envio.js",
-      "file_type": "code",
-      "norm_label": "aprendercontatos()",
-      "source_file": "src/whatsapp/resolverLid.js",
-      "source_location": "L121"
-    },
-    {
-      "id": "src_whatsapp_resolverlid_criarresolvedorlid_aprenderdamensagem",
-      "label": "aprenderDaMensagem()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "envio.js",
-      "file_type": "code",
-      "norm_label": "aprenderdamensagem()",
-      "source_file": "src/whatsapp/resolverLid.js",
-      "source_location": "L104"
-    },
-    {
-      "id": "src_whatsapp_resolverlid_criarresolvedorlid_aprenderpar",
-      "label": "aprenderPar()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "envio.js",
-      "file_type": "code",
-      "norm_label": "aprenderpar()",
-      "source_file": "src/whatsapp/resolverLid.js",
-      "source_location": "L77"
-    },
-    {
-      "id": "src_whatsapp_resolverlid_criarresolvedorlid_completaridentidade",
-      "label": "completarIdentidade()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "envio.js",
-      "file_type": "code",
-      "norm_label": "completaridentidade()",
-      "source_file": "src/whatsapp/resolverLid.js",
-      "source_location": "L155"
-    },
-    {
-      "id": "src_whatsapp_resolverlid_criarresolvedorlid_consultarliddotelefone",
-      "label": "consultarLidDoTelefone()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "envio.js",
-      "file_type": "code",
-      "norm_label": "consultarliddotelefone()",
-      "source_file": "src/whatsapp/resolverLid.js",
-      "source_location": "L171"
-    },
-    {
-      "id": "src_whatsapp_resolverlid_criarresolvedorlid_liddotelefone",
-      "label": "lidDoTelefone()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "envio.js",
-      "file_type": "code",
-      "norm_label": "liddotelefone()",
-      "source_file": "src/whatsapp/resolverLid.js",
-      "source_location": "L144"
-    },
-    {
-      "id": "src_whatsapp_resolverlid_criarresolvedorlid_limpar",
-      "label": "limpar()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "envio.js",
-      "file_type": "code",
-      "norm_label": "limpar()",
-      "source_file": "src/whatsapp/resolverLid.js",
-      "source_location": "L198"
-    },
-    {
-      "id": "src_whatsapp_resolverlid_criarresolvedorlid_telefonedolid",
-      "label": "telefoneDoLid()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "envio.js",
-      "file_type": "code",
-      "norm_label": "telefonedolid()",
-      "source_file": "src/whatsapp/resolverLid.js",
-      "source_location": "L135"
-    },
-    {
-      "id": "src_whatsapp_resolverlid_telefonedevalor",
-      "label": "telefoneDeValor()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "envio.js",
-      "file_type": "code",
-      "norm_label": "telefonedevalor()",
-      "source_file": "src/whatsapp/resolverLid.js",
-      "source_location": "L32"
+      "norm_label": "normalizarmimetype()",
+      "source_file": "src/whatsapp/tipoMidia.js",
+      "source_location": "L212"
     },
     {
       "id": "src_services_chamadainternoclient_alertarchamada",
@@ -754,7 +742,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "alertarchamada()",
       "source_file": "src/services/chamadaInternoClient.js",
@@ -766,7 +754,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "registrarchamada()",
       "source_file": "src/services/chamadaInternoClient.js",
@@ -778,7 +766,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "valenovatentativa()",
       "source_file": "src/services/chamadaInternoClient.js",
@@ -790,7 +778,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "chamarrotainterna()",
       "source_file": "src/services/internoHttpClient.js",
@@ -802,7 +790,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "chamarrotainternamultipart()",
       "source_file": "src/services/internoHttpClient.js",
@@ -814,7 +802,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "ehtimeout()",
       "source_file": "src/services/internoHttpClient.js",
@@ -826,7 +814,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "enviarpost()",
       "source_file": "src/services/internoHttpClient.js",
@@ -838,7 +826,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": ".constructor()",
       "source_file": "src/services/internoHttpClient.js",
@@ -850,7 +838,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "exigirhashempresa()",
       "source_file": "src/services/internoHttpClient.js",
@@ -862,7 +850,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "montarurl()",
       "source_file": "src/services/internoHttpClient.js",
@@ -874,7 +862,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "obtertimeoutms()",
       "source_file": "src/services/internoHttpClient.js",
@@ -886,7 +874,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "obtertokenservico()",
       "source_file": "src/services/internoHttpClient.js",
@@ -898,7 +886,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "registrarmensagem()",
       "source_file": "src/services/mensagemInternoClient.js",
@@ -910,7 +898,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "destinatariovalido()",
       "source_file": "src/services/mensagemReciboInternoClient.js",
@@ -922,7 +910,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "epochvalido()",
       "source_file": "src/services/mensagemReciboInternoClient.js",
@@ -934,7 +922,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "itemvalido()",
       "source_file": "src/services/mensagemReciboInternoClient.js",
@@ -946,7 +934,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "registrarrecibos()",
       "source_file": "src/services/mensagemReciboInternoClient.js",
@@ -958,7 +946,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "requisicaoinvalida()",
       "source_file": "src/services/mensagemReciboInternoClient.js",
@@ -970,7 +958,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "registrarstatusmensagem()",
       "source_file": "src/services/mensagemStatusInternoClient.js",
@@ -982,7 +970,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "requisicaoinvalida()",
       "source_file": "src/services/mensagemStatusInternoClient.js",
@@ -994,11 +982,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "enviarmidia()",
       "source_file": "src/services/midiaInternoClient.js",
-      "source_location": "L40"
+      "source_location": "L41"
     },
     {
       "id": "src_services_presencainternoclient_registrarpresenca",
@@ -1006,7 +994,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "registrarpresenca()",
       "source_file": "src/services/presencaInternoClient.js",
@@ -1018,7 +1006,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "requisicaoinvalida()",
       "source_file": "src/services/presencaInternoClient.js",
@@ -1030,7 +1018,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "registrartranscricao()",
       "source_file": "src/services/transcricaoInternoClient.js",
@@ -1042,203 +1030,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "requisicaoinvalida()",
       "source_file": "src/services/transcricaoInternoClient.js",
       "source_location": "L24"
-    },
-    {
-      "id": "src_whatsapp_filtroentrada_contexto",
-      "label": "contexto()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 1,
-      "community_name": "filtroEntrada.js",
-      "file_type": "code",
-      "norm_label": "contexto()",
-      "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L283"
-    },
-    {
-      "id": "src_whatsapp_filtroentrada_copiarkey",
-      "label": "copiarKey()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 1,
-      "community_name": "filtroEntrada.js",
-      "file_type": "code",
-      "norm_label": "copiarkey()",
-      "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L430"
-    },
-    {
-      "id": "src_whatsapp_filtroentrada_desembrulhar",
-      "label": "desembrulhar()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 1,
-      "community_name": "filtroEntrada.js",
-      "file_type": "code",
-      "norm_label": "desembrulhar()",
-      "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L243"
-    },
-    {
-      "id": "src_whatsapp_filtroentrada_ehlong",
-      "label": "ehLong()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 1,
-      "community_name": "filtroEntrada.js",
-      "file_type": "code",
-      "norm_label": "ehlong()",
-      "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L176"
-    },
-    {
-      "id": "src_whatsapp_filtroentrada_extrairconteudo",
-      "label": "extrairConteudo()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 1,
-      "community_name": "filtroEntrada.js",
-      "file_type": "code",
-      "norm_label": "extrairconteudo()",
-      "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L334"
-    },
-    {
-      "id": "src_whatsapp_filtroentrada_inteirode",
-      "label": "inteiroDe()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 1,
-      "community_name": "filtroEntrada.js",
-      "file_type": "code",
-      "norm_label": "inteirode()",
-      "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L191"
-    },
-    {
-      "id": "src_whatsapp_filtroentrada_legendade",
-      "label": "legendaDe()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 1,
-      "community_name": "filtroEntrada.js",
-      "file_type": "code",
-      "norm_label": "legendade()",
-      "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L310"
-    },
-    {
-      "id": "src_whatsapp_filtroentrada_mencoesdaedicao",
-      "label": "mencoesDaEdicao()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 1,
-      "community_name": "filtroEntrada.js",
-      "file_type": "code",
-      "norm_label": "mencoesdaedicao()",
-      "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L297"
-    },
-    {
-      "id": "src_whatsapp_filtroentrada_mensagemwaidvalido",
-      "label": "mensagemWaIdValido()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 1,
-      "community_name": "filtroEntrada.js",
-      "file_type": "code",
-      "norm_label": "mensagemwaidvalido()",
-      "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L106"
-    },
-    {
-      "id": "src_whatsapp_filtroentrada_metadadosmidia",
-      "label": "metadadosMidia()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 1,
-      "community_name": "filtroEntrada.js",
-      "file_type": "code",
-      "norm_label": "metadadosmidia()",
-      "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L267"
-    },
-    {
-      "id": "src_whatsapp_filtroentrada_normalizarmensagem",
-      "label": "normalizarMensagem()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 1,
-      "community_name": "filtroEntrada.js",
-      "file_type": "code",
-      "norm_label": "normalizarmensagem()",
-      "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L446"
-    },
-    {
-      "id": "src_whatsapp_filtroentrada_numero",
-      "label": "numero()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 1,
-      "community_name": "filtroEntrada.js",
-      "file_type": "code",
-      "norm_label": "numero()",
-      "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L167"
-    },
-    {
-      "id": "src_whatsapp_filtroentrada_parajson",
-      "label": "paraJson()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 1,
-      "community_name": "filtroEntrada.js",
-      "file_type": "code",
-      "norm_label": "parajson()",
-      "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L208"
-    },
-    {
-      "id": "src_whatsapp_filtroentrada_texto",
-      "label": "texto()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 1,
-      "community_name": "filtroEntrada.js",
-      "file_type": "code",
-      "norm_label": "texto()",
-      "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L159"
-    },
-    {
-      "id": "src_whatsapp_filtroentrada_textode",
-      "label": "textoDe()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 1,
-      "community_name": "filtroEntrada.js",
-      "file_type": "code",
-      "norm_label": "textode()",
-      "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L257"
-    },
-    {
-      "id": "src_whatsapp_filtroentrada_tipodochat",
-      "label": "tipoDoChat()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 1,
-      "community_name": "filtroEntrada.js",
-      "file_type": "code",
-      "norm_label": "tipodochat()",
-      "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L148"
     },
     {
       "id": "src_whatsapp_presenca_criarpresenca",
@@ -1246,7 +1042,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "criarpresenca()",
       "source_file": "src/whatsapp/presenca.js",
@@ -1258,7 +1054,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "inscrever()",
       "source_file": "src/whatsapp/presenca.js",
@@ -1270,7 +1066,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "trataratualizacao()",
       "source_file": "src/whatsapp/presenca.js",
@@ -1282,7 +1078,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "estadodapresenca()",
       "source_file": "src/whatsapp/presenca.js",
@@ -1294,7 +1090,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "respostadoback()",
       "source_file": "src/whatsapp/presenca.js",
@@ -1306,7 +1102,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "resumoerro()",
       "source_file": "src/whatsapp/presenca.js",
@@ -1371,18 +1167,6 @@
       "norm_label": "validarritmo()",
       "source_file": "src/http/GrupoController.js",
       "source_location": "L131"
-    },
-    {
-      "id": "src_whatsapp_travagrupo_criartravagrupo",
-      "label": "criarTravaGrupo()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 10,
-      "community_name": "GrupoController.js",
-      "file_type": "code",
-      "norm_label": "criartravagrupo()",
-      "source_file": "src/whatsapp/travaGrupo.js",
-      "source_location": "L13"
     },
     {
       "id": "src_whatsapp_diagnosticochamadas_diagnosticoligado",
@@ -1586,7 +1370,7 @@
       "file_type": "code",
       "norm_label": "carregarbaileys()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L145"
+      "source_location": "L153"
     },
     {
       "id": "src_whatsapp_baileysadapter_criaradapter",
@@ -1598,7 +1382,7 @@
       "file_type": "code",
       "norm_label": "criaradapter()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L314"
+      "source_location": "L322"
     },
     {
       "id": "src_whatsapp_baileysadapter_criaradapter_abrirsocket",
@@ -1610,7 +1394,7 @@
       "file_type": "code",
       "norm_label": "abrirsocket()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L850"
+      "source_location": "L923"
     },
     {
       "id": "src_whatsapp_baileysadapter_criaradapter_agendarreconexao",
@@ -1622,7 +1406,7 @@
       "file_type": "code",
       "norm_label": "agendarreconexao()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L465"
+      "source_location": "L519"
     },
     {
       "id": "src_whatsapp_baileysadapter_criaradapter_apagarsessaolocal",
@@ -1634,7 +1418,7 @@
       "file_type": "code",
       "norm_label": "apagarsessaolocal()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L421"
+      "source_location": "L474"
     },
     {
       "id": "src_whatsapp_baileysadapter_criaradapter_atualizarstatus",
@@ -1646,7 +1430,7 @@
       "file_type": "code",
       "norm_label": "atualizarstatus()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L390"
+      "source_location": "L402"
     },
     {
       "id": "src_whatsapp_baileysadapter_criaradapter_cancelarreconexao",
@@ -1658,7 +1442,7 @@
       "file_type": "code",
       "norm_label": "cancelarreconexao()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L399"
+      "source_location": "L411"
     },
     {
       "id": "src_whatsapp_baileysadapter_criaradapter_desconectar",
@@ -1670,7 +1454,7 @@
       "file_type": "code",
       "norm_label": "desconectar()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L963"
+      "source_location": "L1042"
     },
     {
       "id": "src_whatsapp_baileysadapter_criaradapter_enfileirarchamada",
@@ -1682,7 +1466,7 @@
       "file_type": "code",
       "norm_label": "enfileirarchamada()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L735"
+      "source_location": "L808"
     },
     {
       "id": "src_whatsapp_baileysadapter_criaradapter_enfileirarentrada",
@@ -1694,7 +1478,7 @@
       "file_type": "code",
       "norm_label": "enfileirarentrada()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L803"
+      "source_location": "L876"
     },
     {
       "id": "src_whatsapp_baileysadapter_criaradapter_enfileirarrecibos",
@@ -1706,7 +1490,7 @@
       "file_type": "code",
       "norm_label": "enfileirarrecibos()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L824"
+      "source_location": "L897"
     },
     {
       "id": "src_whatsapp_baileysadapter_criaradapter_enfileirartarefa",
@@ -1718,7 +1502,7 @@
       "file_type": "code",
       "norm_label": "enfileirartarefa()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L837"
+      "source_location": "L910"
     },
     {
       "id": "src_whatsapp_baileysadapter_criaradapter_fachadagrupo",
@@ -1730,7 +1514,7 @@
       "file_type": "code",
       "norm_label": "fachadagrupo()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L1031"
+      "source_location": "L1110"
     },
     {
       "id": "src_whatsapp_baileysadapter_criaradapter_fecharsocket",
@@ -1742,7 +1526,7 @@
       "file_type": "code",
       "norm_label": "fecharsocket()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L454"
+      "source_location": "L507"
     },
     {
       "id": "src_whatsapp_baileysadapter_criaradapter_identidadedequemliga",
@@ -1754,7 +1538,7 @@
       "file_type": "code",
       "norm_label": "identidadedequemliga()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L688"
+      "source_location": "L761"
     },
     {
       "id": "src_whatsapp_baileysadapter_criaradapter_iniciar",
@@ -1766,7 +1550,19 @@
       "file_type": "code",
       "norm_label": "iniciar()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L921"
+      "source_location": "L994"
+    },
+    {
+      "id": "src_whatsapp_baileysadapter_criaradapter_iniciarvigiabuffer",
+      "label": "iniciarVigiaBuffer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 12,
+      "community_name": "criarAdapter",
+      "file_type": "code",
+      "norm_label": "iniciarvigiabuffer()",
+      "source_file": "src/whatsapp/BaileysAdapter.js",
+      "source_location": "L427"
     },
     {
       "id": "src_whatsapp_baileysadapter_criaradapter_liberarrecibosdamensagem",
@@ -1778,7 +1574,7 @@
       "file_type": "code",
       "norm_label": "liberarrecibosdamensagem()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L545"
+      "source_location": "L600"
     },
     {
       "id": "src_whatsapp_baileysadapter_criaradapter_pararsocket",
@@ -1790,7 +1586,19 @@
       "file_type": "code",
       "norm_label": "pararsocket()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L939"
+      "source_location": "L1012"
+    },
+    {
+      "id": "src_whatsapp_baileysadapter_criaradapter_pararvigiabuffer",
+      "label": "pararVigiaBuffer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 12,
+      "community_name": "criarAdapter",
+      "file_type": "code",
+      "norm_label": "pararvigiabuffer()",
+      "source_file": "src/whatsapp/BaileysAdapter.js",
+      "source_location": "L416"
     },
     {
       "id": "src_whatsapp_baileysadapter_criaradapter_processarmensagem",
@@ -1802,7 +1610,7 @@
       "file_type": "code",
       "norm_label": "processarmensagem()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L566"
+      "source_location": "L621"
     },
     {
       "id": "src_whatsapp_baileysadapter_criaradapter_publicaralertachamada",
@@ -1814,7 +1622,7 @@
       "file_type": "code",
       "norm_label": "publicaralertachamada()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L752"
+      "source_location": "L825"
     },
     {
       "id": "src_whatsapp_baileysadapter_criaradapter_publicarchamada",
@@ -1826,7 +1634,7 @@
       "file_type": "code",
       "norm_label": "publicarchamada()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L699"
+      "source_location": "L772"
     },
     {
       "id": "src_whatsapp_baileysadapter_criaradapter_removerlisteners",
@@ -1838,7 +1646,7 @@
       "file_type": "code",
       "norm_label": "removerlisteners()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L405"
+      "source_location": "L458"
     },
     {
       "id": "src_whatsapp_baileysadapter_criaradapter_tratarcall",
@@ -1850,7 +1658,7 @@
       "file_type": "code",
       "norm_label": "tratarcall()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L782"
+      "source_location": "L855"
     },
     {
       "id": "src_whatsapp_baileysadapter_criaradapter_tratarconexao",
@@ -1862,7 +1670,7 @@
       "file_type": "code",
       "norm_label": "tratarconexao()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L482"
+      "source_location": "L536"
     },
     {
       "id": "src_whatsapp_baileysadapter_nomedoerro",
@@ -1874,7 +1682,7 @@
       "file_type": "code",
       "norm_label": "nomedoerro()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L174"
+      "source_location": "L182"
     },
     {
       "id": "src_whatsapp_baileysadapter_obterversaowaweb",
@@ -1886,7 +1694,7 @@
       "file_type": "code",
       "norm_label": "obterversaowaweb()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L157"
+      "source_location": "L165"
     },
     {
       "id": "src_whatsapp_baileysadapter_resumofalha",
@@ -1898,7 +1706,7 @@
       "file_type": "code",
       "norm_label": "resumofalha()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L189"
+      "source_location": "L197"
     },
     {
       "id": "src_whatsapp_recibos_criarrecibos",
@@ -2285,100 +2093,400 @@
       "source_location": "L50"
     },
     {
-      "id": "src_whatsapp_midiaentrada_baixarmidia",
-      "label": "baixarMidia()",
+      "id": "src_whatsapp_filtroentrada_chatregistravel",
+      "label": "chatRegistravel()",
       "_callable": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "midiaEntrada.js",
+      "community_name": "filtroEntrada.js",
       "file_type": "code",
-      "norm_label": "baixarmidia()",
-      "source_file": "src/whatsapp/midiaEntrada.js",
-      "source_location": "L111"
+      "norm_label": "chatregistravel()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L486"
     },
     {
-      "id": "src_whatsapp_midiaentrada_baixarmidia_operar",
-      "label": "operar()",
+      "id": "src_whatsapp_filtroentrada_chavesdescartadas",
+      "label": "chavesDescartadas()",
       "_callable": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "midiaEntrada.js",
+      "community_name": "filtroEntrada.js",
       "file_type": "code",
-      "norm_label": "operar()",
-      "source_file": "src/whatsapp/midiaEntrada.js",
-      "source_location": "L126"
+      "norm_label": "chavesdescartadas()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L511"
     },
     {
-      "id": "src_whatsapp_midiaentrada_destruir",
-      "label": "destruir()",
+      "id": "src_whatsapp_filtroentrada_combotoes",
+      "label": "comBotoes()",
       "_callable": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "midiaEntrada.js",
+      "community_name": "filtroEntrada.js",
       "file_type": "code",
-      "norm_label": "destruir()",
-      "source_file": "src/whatsapp/midiaEntrada.js",
-      "source_location": "L76"
+      "norm_label": "combotoes()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L419"
     },
     {
-      "id": "src_whatsapp_midiaentrada_downloaddobaileys",
-      "label": "downloadDoBaileys()",
+      "id": "src_whatsapp_filtroentrada_contexto",
+      "label": "contexto()",
       "_callable": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "midiaEntrada.js",
+      "community_name": "filtroEntrada.js",
       "file_type": "code",
-      "norm_label": "downloaddobaileys()",
-      "source_file": "src/whatsapp/midiaEntrada.js",
-      "source_location": "L70"
+      "norm_label": "contexto()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L283"
     },
     {
-      "id": "src_whatsapp_midiaentrada_erromidia_constructor",
-      "label": ".constructor()",
+      "id": "src_whatsapp_filtroentrada_copiarkey",
+      "label": "copiarKey()",
       "_callable": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "midiaEntrada.js",
+      "community_name": "filtroEntrada.js",
       "file_type": "code",
-      "norm_label": ".constructor()",
-      "source_file": "src/whatsapp/midiaEntrada.js",
-      "source_location": "L42"
+      "norm_label": "copiarkey()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L622"
     },
     {
-      "id": "src_whatsapp_midiaentrada_lercomteto",
-      "label": "lerComTeto()",
+      "id": "src_whatsapp_filtroentrada_desembrulhar",
+      "label": "desembrulhar()",
       "_callable": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "midiaEntrada.js",
+      "community_name": "filtroEntrada.js",
       "file_type": "code",
-      "norm_label": "lercomteto()",
-      "source_file": "src/whatsapp/midiaEntrada.js",
-      "source_location": "L86"
+      "norm_label": "desembrulhar()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L243"
     },
     {
-      "id": "src_whatsapp_midiaentrada_obtermidiavalidada",
-      "label": "obterMidiaValidada()",
+      "id": "src_whatsapp_filtroentrada_ehlong",
+      "label": "ehLong()",
       "_callable": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "midiaEntrada.js",
+      "community_name": "filtroEntrada.js",
       "file_type": "code",
-      "norm_label": "obtermidiavalidada()",
-      "source_file": "src/whatsapp/midiaEntrada.js",
-      "source_location": "L169"
+      "norm_label": "ehlong()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L176"
     },
     {
-      "id": "src_whatsapp_tipomidia_duracaooggopussegundos",
-      "label": "duracaoOggOpusSegundos()",
+      "id": "src_whatsapp_filtroentrada_extrairconteudo",
+      "label": "extrairConteudo()",
       "_callable": true,
       "_origin": "ast",
       "community": 14,
-      "community_name": "midiaEntrada.js",
+      "community_name": "filtroEntrada.js",
       "file_type": "code",
-      "norm_label": "duracaooggopussegundos()",
-      "source_file": "src/whatsapp/tipoMidia.js",
-      "source_location": "L252"
+      "norm_label": "extrairconteudo()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L526"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_extrairinterativo",
+      "label": "extrairInterativo()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "extrairinterativo()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L469"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_hidratado",
+      "label": "hidratado()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "hidratado()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L423"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_identidadepropria",
+      "label": "identidadePropria()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "identidadepropria()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L614"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_inteirode",
+      "label": "inteiroDe()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "inteirode()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L191"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_interativa",
+      "label": "interativa()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "interativa()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L411"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_legendade",
+      "label": "legendaDe()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "legendade()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L310"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_lerjson",
+      "label": "lerJson()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "lerjson()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L348"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_limpo",
+      "label": "limpo()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "limpo()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L332"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_lista",
+      "label": "lista()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "lista()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L340"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_listadeopcoes",
+      "label": "listaDeOpcoes()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "listadeopcoes()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L437"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_mencoesdaedicao",
+      "label": "mencoesDaEdicao()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "mencoesdaedicao()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L297"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_metadadosmidia",
+      "label": "metadadosMidia()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "metadadosmidia()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L267"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_modelo",
+      "label": "modelo()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "modelo()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L431"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_normalizarmensagem",
+      "label": "normalizarMensagem()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "normalizarmensagem()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L638"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_numero",
+      "label": "numero()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "numero()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L167"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_opcaodomodelo",
+      "label": "opcaoDoModelo()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "opcaodomodelo()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L403"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_opcoesnativas",
+      "label": "opcoesNativas()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "opcoesnativas()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L390"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_parajson",
+      "label": "paraJson()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "parajson()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L208"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_respostainterativa",
+      "label": "respostaInterativa()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "respostainterativa()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L448"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_rotulocomvalor",
+      "label": "rotuloComValor()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "rotulocomvalor()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L359"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_temmidianocabecalho",
+      "label": "temMidiaNoCabecalho()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "temmidianocabecalho()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L369"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_texto",
+      "label": "texto()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "texto()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L159"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_textode",
+      "label": "textoDe()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "textode()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L257"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_textointerativo",
+      "label": "textoInterativo()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "textointerativo()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L380"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_tipodochat",
+      "label": "tipoDoChat()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "tipodochat()",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L148"
     },
     {
       "id": "src_whatsapp_recuperacao_criararmazematividade",
@@ -2657,18 +2765,6 @@
       "source_location": "L52"
     },
     {
-      "id": "src_http_contatocontroller_criarcontatocontroller",
-      "label": "criarContatoController()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "ContatoController.js",
-      "file_type": "code",
-      "norm_label": "criarcontatocontroller()",
-      "source_file": "src/http/ContatoController.js",
-      "source_location": "L71"
-    },
-    {
       "id": "src_http_contatocontroller_validarcorpo",
       "label": "validarCorpo()",
       "_callable": true,
@@ -2847,18 +2943,6 @@
       "norm_label": "ehgrupo()",
       "source_file": "src/whatsapp/nomeGrupo.js",
       "source_location": "L51"
-    },
-    {
-      "id": "src_whatsapp_nomegrupo_erroconsultagrupo_constructor",
-      "label": ".constructor()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 18,
-      "community_name": "criarCacheNomeGrupo",
-      "file_type": "code",
-      "norm_label": ".constructor()",
-      "source_file": "src/whatsapp/nomeGrupo.js",
-      "source_location": "L33"
     },
     {
       "id": "src_whatsapp_nomegrupo_limparsubject",
@@ -3065,256 +3149,136 @@
       "source_location": "L18"
     },
     {
-      "id": "src_whatsapp_fotoperfil_baixarimagem",
-      "label": "baixarImagem()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "grupoGestao.js",
-      "file_type": "code",
-      "norm_label": "baixarimagem()",
-      "source_file": "src/whatsapp/fotoPerfil.js",
-      "source_location": "L100"
-    },
-    {
-      "id": "src_whatsapp_fotoperfil_baixarpadrao",
-      "label": "baixarPadrao()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "grupoGestao.js",
-      "file_type": "code",
-      "norm_label": "baixarpadrao()",
-      "source_file": "src/whatsapp/fotoPerfil.js",
-      "source_location": "L63"
-    },
-    {
-      "id": "src_whatsapp_fotoperfil_errofoto_constructor",
-      "label": ".constructor()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "grupoGestao.js",
-      "file_type": "code",
-      "norm_label": ".constructor()",
-      "source_file": "src/whatsapp/fotoPerfil.js",
-      "source_location": "L30"
-    },
-    {
-      "id": "src_whatsapp_fotoperfil_foiredirecionamento",
-      "label": "foiRedirecionamento()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "grupoGestao.js",
-      "file_type": "code",
-      "norm_label": "foiredirecionamento()",
-      "source_file": "src/whatsapp/fotoPerfil.js",
-      "source_location": "L69"
-    },
-    {
-      "id": "src_whatsapp_fotoperfil_lercomteto",
-      "label": "lerComTeto()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "grupoGestao.js",
-      "file_type": "code",
-      "norm_label": "lercomteto()",
-      "source_file": "src/whatsapp/fotoPerfil.js",
-      "source_location": "L80"
-    },
-    {
-      "id": "src_whatsapp_fotoperfil_obterpreview",
-      "label": "obterPreview()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "grupoGestao.js",
-      "file_type": "code",
-      "norm_label": "obterpreview()",
-      "source_file": "src/whatsapp/fotoPerfil.js",
-      "source_location": "L142"
-    },
-    {
-      "id": "src_whatsapp_fotoperfil_urlpermitida",
-      "label": "urlPermitida()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "grupoGestao.js",
-      "file_type": "code",
-      "norm_label": "urlpermitida()",
-      "source_file": "src/whatsapp/fotoPerfil.js",
-      "source_location": "L51"
-    },
-    {
-      "id": "src_whatsapp_grupogestao_acharaddrequest",
-      "label": "acharAddRequest()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "grupoGestao.js",
-      "file_type": "code",
-      "norm_label": "acharaddrequest()",
-      "source_file": "src/whatsapp/grupoGestao.js",
-      "source_location": "L169"
-    },
-    {
-      "id": "src_whatsapp_grupogestao_adicionaremserie",
-      "label": "adicionarEmSerie()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "grupoGestao.js",
-      "file_type": "code",
-      "norm_label": "adicionaremserie()",
-      "source_file": "src/whatsapp/grupoGestao.js",
-      "source_location": "L391"
-    },
-    {
-      "id": "src_whatsapp_grupogestao_codigodoerro",
-      "label": "codigoDoErro()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "grupoGestao.js",
-      "file_type": "code",
-      "norm_label": "codigodoerro()",
-      "source_file": "src/whatsapp/grupoGestao.js",
-      "source_location": "L74"
-    },
-    {
-      "id": "src_whatsapp_grupogestao_comprazo",
+      "id": "src_whatsapp_resolverlid_comprazo",
       "label": "comPrazo()",
       "_callable": true,
       "_origin": "ast",
       "community": 20,
-      "community_name": "grupoGestao.js",
+      "community_name": "criarResolvedorLid",
       "file_type": "code",
       "norm_label": "comprazo()",
-      "source_file": "src/whatsapp/grupoGestao.js",
-      "source_location": "L108"
+      "source_file": "src/whatsapp/resolverLid.js",
+      "source_location": "L43"
     },
     {
-      "id": "src_whatsapp_grupogestao_consultarnumero",
-      "label": "consultarNumero()",
+      "id": "src_whatsapp_resolverlid_criarresolvedorlid",
+      "label": "criarResolvedorLid()",
       "_callable": true,
       "_origin": "ast",
       "community": 20,
-      "community_name": "grupoGestao.js",
+      "community_name": "criarResolvedorLid",
       "file_type": "code",
-      "norm_label": "consultarnumero()",
-      "source_file": "src/whatsapp/grupoGestao.js",
-      "source_location": "L149"
+      "norm_label": "criarresolvedorlid()",
+      "source_file": "src/whatsapp/resolverLid.js",
+      "source_location": "L56"
     },
     {
-      "id": "src_whatsapp_grupogestao_criargrupo",
-      "label": "criarGrupo()",
+      "id": "src_whatsapp_resolverlid_criarresolvedorlid_aprendercontatos",
+      "label": "aprenderContatos()",
       "_callable": true,
       "_origin": "ast",
       "community": 20,
-      "community_name": "grupoGestao.js",
+      "community_name": "criarResolvedorLid",
       "file_type": "code",
-      "norm_label": "criargrupo()",
-      "source_file": "src/whatsapp/grupoGestao.js",
-      "source_location": "L485"
+      "norm_label": "aprendercontatos()",
+      "source_file": "src/whatsapp/resolverLid.js",
+      "source_location": "L121"
     },
     {
-      "id": "src_whatsapp_grupogestao_dormirpadrao",
-      "label": "dormirPadrao()",
+      "id": "src_whatsapp_resolverlid_criarresolvedorlid_aprenderdamensagem",
+      "label": "aprenderDaMensagem()",
       "_callable": true,
       "_origin": "ast",
       "community": 20,
-      "community_name": "grupoGestao.js",
+      "community_name": "criarResolvedorLid",
       "file_type": "code",
-      "norm_label": "dormirpadrao()",
-      "source_file": "src/whatsapp/grupoGestao.js",
-      "source_location": "L125"
+      "norm_label": "aprenderdamensagem()",
+      "source_file": "src/whatsapp/resolverLid.js",
+      "source_location": "L104"
     },
     {
-      "id": "src_whatsapp_grupogestao_enviarconvitev4",
-      "label": "enviarConviteV4()",
+      "id": "src_whatsapp_resolverlid_criarresolvedorlid_aprenderpar",
+      "label": "aprenderPar()",
       "_callable": true,
       "_origin": "ast",
       "community": 20,
-      "community_name": "grupoGestao.js",
+      "community_name": "criarResolvedorLid",
       "file_type": "code",
-      "norm_label": "enviarconvitev4()",
-      "source_file": "src/whatsapp/grupoGestao.js",
-      "source_location": "L231"
+      "norm_label": "aprenderpar()",
+      "source_file": "src/whatsapp/resolverLid.js",
+      "source_location": "L77"
     },
     {
-      "id": "src_whatsapp_grupogestao_errogrupo_constructor",
-      "label": ".constructor()",
+      "id": "src_whatsapp_resolverlid_criarresolvedorlid_completaridentidade",
+      "label": "completarIdentidade()",
       "_callable": true,
       "_origin": "ast",
       "community": 20,
-      "community_name": "grupoGestao.js",
+      "community_name": "criarResolvedorLid",
       "file_type": "code",
-      "norm_label": ".constructor()",
-      "source_file": "src/whatsapp/grupoGestao.js",
-      "source_location": "L61"
+      "norm_label": "completaridentidade()",
+      "source_file": "src/whatsapp/resolverLid.js",
+      "source_location": "L155"
     },
     {
-      "id": "src_whatsapp_grupogestao_indexarparticipantes",
-      "label": "indexarParticipantes()",
+      "id": "src_whatsapp_resolverlid_criarresolvedorlid_consultarliddotelefone",
+      "label": "consultarLidDoTelefone()",
       "_callable": true,
       "_origin": "ast",
       "community": 20,
-      "community_name": "grupoGestao.js",
+      "community_name": "criarResolvedorLid",
       "file_type": "code",
-      "norm_label": "indexarparticipantes()",
-      "source_file": "src/whatsapp/grupoGestao.js",
-      "source_location": "L251"
+      "norm_label": "consultarliddotelefone()",
+      "source_file": "src/whatsapp/resolverLid.js",
+      "source_location": "L171"
     },
     {
-      "id": "src_whatsapp_grupogestao_mapearstatusadicao",
-      "label": "mapearStatusAdicao()",
+      "id": "src_whatsapp_resolverlid_criarresolvedorlid_liddotelefone",
+      "label": "lidDoTelefone()",
       "_callable": true,
       "_origin": "ast",
       "community": 20,
-      "community_name": "grupoGestao.js",
+      "community_name": "criarResolvedorLid",
       "file_type": "code",
-      "norm_label": "mapearstatusadicao()",
-      "source_file": "src/whatsapp/grupoGestao.js",
-      "source_location": "L194"
+      "norm_label": "liddotelefone()",
+      "source_file": "src/whatsapp/resolverLid.js",
+      "source_location": "L144"
     },
     {
-      "id": "src_whatsapp_grupogestao_resolvercontatotelefone",
-      "label": "resolverContatoTelefone()",
+      "id": "src_whatsapp_resolverlid_criarresolvedorlid_limpar",
+      "label": "limpar()",
       "_callable": true,
       "_origin": "ast",
       "community": 20,
-      "community_name": "grupoGestao.js",
+      "community_name": "criarResolvedorLid",
       "file_type": "code",
-      "norm_label": "resolvercontatotelefone()",
-      "source_file": "src/whatsapp/grupoGestao.js",
-      "source_location": "L350"
+      "norm_label": "limpar()",
+      "source_file": "src/whatsapp/resolverLid.js",
+      "source_location": "L198"
     },
     {
-      "id": "src_whatsapp_grupogestao_statusdoerro",
-      "label": "statusDoErro()",
+      "id": "src_whatsapp_resolverlid_criarresolvedorlid_telefonedolid",
+      "label": "telefoneDoLid()",
       "_callable": true,
       "_origin": "ast",
       "community": 20,
-      "community_name": "grupoGestao.js",
+      "community_name": "criarResolvedorLid",
       "file_type": "code",
-      "norm_label": "statusdoerro()",
-      "source_file": "src/whatsapp/grupoGestao.js",
-      "source_location": "L90"
+      "norm_label": "telefonedolid()",
+      "source_file": "src/whatsapp/resolverLid.js",
+      "source_location": "L135"
     },
     {
-      "id": "src_http_fotoperfilcontroller_criarfotoperfilcontroller",
-      "label": "criarFotoPerfilController()",
+      "id": "src_whatsapp_resolverlid_telefonedevalor",
+      "label": "telefoneDeValor()",
       "_callable": true,
       "_origin": "ast",
-      "community": 21,
-      "community_name": "FotoPerfilController.js",
+      "community": 20,
+      "community_name": "criarResolvedorLid",
       "file_type": "code",
-      "norm_label": "criarfotoperfilcontroller()",
-      "source_file": "src/http/FotoPerfilController.js",
-      "source_location": "L69"
+      "norm_label": "telefonedevalor()",
+      "source_file": "src/whatsapp/resolverLid.js",
+      "source_location": "L32"
     },
     {
       "id": "src_http_fotoperfilcontroller_validarcorpo",
@@ -3327,18 +3291,6 @@
       "norm_label": "validarcorpo()",
       "source_file": "src/http/FotoPerfilController.js",
       "source_location": "L52"
-    },
-    {
-      "id": "src_whatsapp_chamadas_agendarpadrao",
-      "label": "agendarPadrao()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 22,
-      "community_name": "criarConsolidadorChamadas",
-      "file_type": "code",
-      "norm_label": "agendarpadrao()",
-      "source_file": "src/whatsapp/chamadas.js",
-      "source_location": "L86"
     },
     {
       "id": "src_whatsapp_chamadas_criarconsolidadorchamadas",
@@ -3713,16 +3665,28 @@
       "source_location": "L61"
     },
     {
-      "id": "src_http_enviocontroller_codequipevalido",
-      "label": "codEquipeValido()",
+      "id": "src_http_contatocontroller_criarcontatocontroller",
+      "label": "criarContatoController()",
       "_callable": true,
       "_origin": "ast",
       "community": 28,
-      "community_name": "normalizarCodEquipe",
+      "community_name": "obterSocketDaEquipe",
       "file_type": "code",
-      "norm_label": "codequipevalido()",
-      "source_file": "src/http/EnvioController.js",
-      "source_location": "L94"
+      "norm_label": "criarcontatocontroller()",
+      "source_file": "src/http/ContatoController.js",
+      "source_location": "L71"
+    },
+    {
+      "id": "src_http_fotoperfilcontroller_criarfotoperfilcontroller",
+      "label": "criarFotoPerfilController()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 28,
+      "community_name": "obterSocketDaEquipe",
+      "file_type": "code",
+      "norm_label": "criarfotoperfilcontroller()",
+      "source_file": "src/http/FotoPerfilController.js",
+      "source_location": "L69"
     },
     {
       "id": "src_http_grupocontroller_criargrupocontroller",
@@ -3730,7 +3694,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 28,
-      "community_name": "normalizarCodEquipe",
+      "community_name": "obterSocketDaEquipe",
       "file_type": "code",
       "norm_label": "criargrupocontroller()",
       "source_file": "src/http/GrupoController.js",
@@ -3742,7 +3706,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 28,
-      "community_name": "normalizarCodEquipe",
+      "community_name": "obterSocketDaEquipe",
       "file_type": "code",
       "norm_label": "operacaodegrupo()",
       "source_file": "src/http/GrupoController.js",
@@ -3754,7 +3718,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 28,
-      "community_name": "normalizarCodEquipe",
+      "community_name": "obterSocketDaEquipe",
       "file_type": "code",
       "norm_label": "responder409()",
       "source_file": "src/http/GrupoController.js",
@@ -3766,59 +3730,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 28,
-      "community_name": "normalizarCodEquipe",
+      "community_name": "obterSocketDaEquipe",
       "file_type": "code",
       "norm_label": "respondererrogrupo()",
       "source_file": "src/http/GrupoController.js",
       "source_location": "L220"
-    },
-    {
-      "id": "src_utils_desligamento_criardesligamento",
-      "label": "criarDesligamento()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 28,
-      "community_name": "normalizarCodEquipe",
-      "file_type": "code",
-      "norm_label": "criardesligamento()",
-      "source_file": "src/utils/desligamento.js",
-      "source_location": "L12"
-    },
-    {
-      "id": "src_utils_desligamento_criardesligamento_aguardaremandamento",
-      "label": "aguardarEmAndamento()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 28,
-      "community_name": "normalizarCodEquipe",
-      "file_type": "code",
-      "norm_label": "aguardaremandamento()",
-      "source_file": "src/utils/desligamento.js",
-      "source_location": "L51"
-    },
-    {
-      "id": "src_utils_desligamento_criardesligamento_avisarsevazio",
-      "label": "avisarSeVazio()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 28,
-      "community_name": "normalizarCodEquipe",
-      "file_type": "code",
-      "norm_label": "avisarsevazio()",
-      "source_file": "src/utils/desligamento.js",
-      "source_location": "L20"
-    },
-    {
-      "id": "src_utils_desligamento_criardesligamento_recusarduranteencerramento",
-      "label": "recusarDuranteEncerramento()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 28,
-      "community_name": "normalizarCodEquipe",
-      "file_type": "code",
-      "norm_label": "recusarduranteencerramento()",
-      "source_file": "src/utils/desligamento.js",
-      "source_location": "L31"
     },
     {
       "id": "src_whatsapp_baileysadapter_normalizarcodequipe",
@@ -3826,11 +3742,23 @@
       "_callable": true,
       "_origin": "ast",
       "community": 28,
-      "community_name": "normalizarCodEquipe",
+      "community_name": "obterSocketDaEquipe",
       "file_type": "code",
       "norm_label": "normalizarcodequipe()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L203"
+      "source_location": "L211"
+    },
+    {
+      "id": "src_whatsapp_envio_obtersocketdaequipe",
+      "label": "obterSocketDaEquipe()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 28,
+      "community_name": "obterSocketDaEquipe",
+      "file_type": "code",
+      "norm_label": "obtersocketdaequipe()",
+      "source_file": "src/whatsapp/envio.js",
+      "source_location": "L311"
     },
     {
       "id": "src_whatsapp_baileysadapter_apagarsessaoemdisco",
@@ -3842,7 +3770,7 @@
       "file_type": "code",
       "norm_label": "apagarsessaoemdisco()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L235"
+      "source_location": "L243"
     },
     {
       "id": "src_whatsapp_baileysadapter_diretoriosessao",
@@ -3854,7 +3782,7 @@
       "file_type": "code",
       "norm_label": "diretoriosessao()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L214"
+      "source_location": "L222"
     },
     {
       "id": "src_whatsapp_baileysadapter_existesessaoemdisco",
@@ -3866,7 +3794,7 @@
       "file_type": "code",
       "norm_label": "existesessaoemdisco()",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L224"
+      "source_location": "L232"
     },
     {
       "id": "src_http_iacontroller_criariacontroller",
@@ -4121,28 +4049,52 @@
       "source_location": "L118"
     },
     {
-      "id": "src_whatsapp_tipomidia_normalizarmimetype",
-      "label": "normalizarMimetype()",
+      "id": "src_utils_desligamento_criardesligamento",
+      "label": "criarDesligamento()",
       "_callable": true,
       "_origin": "ast",
       "community": 30,
-      "community_name": "validarMidia",
+      "community_name": "criarDesligamento",
       "file_type": "code",
-      "norm_label": "normalizarmimetype()",
-      "source_file": "src/whatsapp/tipoMidia.js",
-      "source_location": "L211"
+      "norm_label": "criardesligamento()",
+      "source_file": "src/utils/desligamento.js",
+      "source_location": "L12"
     },
     {
-      "id": "src_whatsapp_tipomidia_validarmidia",
-      "label": "validarMidia()",
+      "id": "src_utils_desligamento_criardesligamento_aguardaremandamento",
+      "label": "aguardarEmAndamento()",
       "_callable": true,
       "_origin": "ast",
       "community": 30,
-      "community_name": "validarMidia",
+      "community_name": "criarDesligamento",
       "file_type": "code",
-      "norm_label": "validarmidia()",
-      "source_file": "src/whatsapp/tipoMidia.js",
-      "source_location": "L230"
+      "norm_label": "aguardaremandamento()",
+      "source_file": "src/utils/desligamento.js",
+      "source_location": "L51"
+    },
+    {
+      "id": "src_utils_desligamento_criardesligamento_avisarsevazio",
+      "label": "avisarSeVazio()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 30,
+      "community_name": "criarDesligamento",
+      "file_type": "code",
+      "norm_label": "avisarsevazio()",
+      "source_file": "src/utils/desligamento.js",
+      "source_location": "L20"
+    },
+    {
+      "id": "src_utils_desligamento_criardesligamento_recusarduranteencerramento",
+      "label": "recusarDuranteEncerramento()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 30,
+      "community_name": "criarDesligamento",
+      "file_type": "code",
+      "norm_label": "recusarduranteencerramento()",
+      "source_file": "src/utils/desligamento.js",
+      "source_location": "L31"
     },
     {
       "id": "src_services_conexaointernoclient_reportarstatus",
@@ -4479,6 +4431,18 @@
       "norm_label": ".constructor()",
       "source_file": "src/whatsapp/instanciaManager.js",
       "source_location": "L39"
+    },
+    {
+      "id": "src_whatsapp_travagrupo_criartravagrupo",
+      "label": "criarTravaGrupo()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 4,
+      "community_name": "instanciaManager.js",
+      "file_type": "code",
+      "norm_label": "criartravagrupo()",
+      "source_file": "src/whatsapp/travaGrupo.js",
+      "source_location": "L13"
     },
     {
       "id": "src_audio_filatranscricao_criarfilatranscricao",
@@ -5117,6 +5081,186 @@
       "source_location": "L162"
     },
     {
+      "id": "src_whatsapp_fotoperfil_baixarimagem",
+      "label": "baixarImagem()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "baixarimagem()",
+      "source_file": "src/whatsapp/fotoPerfil.js",
+      "source_location": "L100"
+    },
+    {
+      "id": "src_whatsapp_fotoperfil_baixarpadrao",
+      "label": "baixarPadrao()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "baixarpadrao()",
+      "source_file": "src/whatsapp/fotoPerfil.js",
+      "source_location": "L63"
+    },
+    {
+      "id": "src_whatsapp_fotoperfil_errofoto_constructor",
+      "label": ".constructor()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": ".constructor()",
+      "source_file": "src/whatsapp/fotoPerfil.js",
+      "source_location": "L30"
+    },
+    {
+      "id": "src_whatsapp_fotoperfil_foiredirecionamento",
+      "label": "foiRedirecionamento()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "foiredirecionamento()",
+      "source_file": "src/whatsapp/fotoPerfil.js",
+      "source_location": "L69"
+    },
+    {
+      "id": "src_whatsapp_fotoperfil_lercomteto",
+      "label": "lerComTeto()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "lercomteto()",
+      "source_file": "src/whatsapp/fotoPerfil.js",
+      "source_location": "L80"
+    },
+    {
+      "id": "src_whatsapp_fotoperfil_obterpreview",
+      "label": "obterPreview()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "obterpreview()",
+      "source_file": "src/whatsapp/fotoPerfil.js",
+      "source_location": "L142"
+    },
+    {
+      "id": "src_whatsapp_fotoperfil_urlpermitida",
+      "label": "urlPermitida()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "urlpermitida()",
+      "source_file": "src/whatsapp/fotoPerfil.js",
+      "source_location": "L51"
+    },
+    {
+      "id": "src_whatsapp_grupogestao_statusdoerro",
+      "label": "statusDoErro()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "statusdoerro()",
+      "source_file": "src/whatsapp/grupoGestao.js",
+      "source_location": "L90"
+    },
+    {
+      "id": "src_whatsapp_midiaentrada_baixarmidia",
+      "label": "baixarMidia()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "baixarmidia()",
+      "source_file": "src/whatsapp/midiaEntrada.js",
+      "source_location": "L111"
+    },
+    {
+      "id": "src_whatsapp_midiaentrada_baixarmidia_operar",
+      "label": "operar()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "operar()",
+      "source_file": "src/whatsapp/midiaEntrada.js",
+      "source_location": "L126"
+    },
+    {
+      "id": "src_whatsapp_midiaentrada_destruir",
+      "label": "destruir()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "destruir()",
+      "source_file": "src/whatsapp/midiaEntrada.js",
+      "source_location": "L76"
+    },
+    {
+      "id": "src_whatsapp_midiaentrada_downloaddobaileys",
+      "label": "downloadDoBaileys()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "downloaddobaileys()",
+      "source_file": "src/whatsapp/midiaEntrada.js",
+      "source_location": "L70"
+    },
+    {
+      "id": "src_whatsapp_midiaentrada_erromidia_constructor",
+      "label": ".constructor()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": ".constructor()",
+      "source_file": "src/whatsapp/midiaEntrada.js",
+      "source_location": "L42"
+    },
+    {
+      "id": "src_whatsapp_midiaentrada_lercomteto",
+      "label": "lerComTeto()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "lercomteto()",
+      "source_file": "src/whatsapp/midiaEntrada.js",
+      "source_location": "L86"
+    },
+    {
+      "id": "src_whatsapp_midiaentrada_obtermidiavalidada",
+      "label": "obterMidiaValidada()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "obtermidiavalidada()",
+      "source_file": "src/whatsapp/midiaEntrada.js",
+      "source_location": "L169"
+    },
+    {
       "id": "src_whatsapp_tipomidia_ascii",
       "label": "ascii()",
       "_callable": true,
@@ -5139,6 +5283,18 @@
       "norm_label": "detectartipoporconteudo()",
       "source_file": "src/whatsapp/tipoMidia.js",
       "source_location": "L166"
+    },
+    {
+      "id": "src_whatsapp_tipomidia_duracaooggopussegundos",
+      "label": "duracaoOggOpusSegundos()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "duracaooggopussegundos()",
+      "source_file": "src/whatsapp/tipoMidia.js",
+      "source_location": "L259"
     },
     {
       "id": "src_whatsapp_tipomidia_ehpkcs12",
@@ -5237,6 +5393,42 @@
       "source_location": "L104"
     },
     {
+      "id": "src_whatsapp_tipomidia_validarmidia",
+      "label": "validarMidia()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "validarmidia()",
+      "source_file": "src/whatsapp/tipoMidia.js",
+      "source_location": "L234"
+    },
+    {
+      "id": "src_http_enviocontroller_codequipevalido",
+      "label": "codEquipeValido()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 9,
+      "community_name": "EnvioController.js",
+      "file_type": "code",
+      "norm_label": "codequipevalido()",
+      "source_file": "src/http/EnvioController.js",
+      "source_location": "L94"
+    },
+    {
+      "id": "src_http_enviocontroller_criarenviocontroller",
+      "label": "criarEnvioController()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 9,
+      "community_name": "EnvioController.js",
+      "file_type": "code",
+      "norm_label": "criarenviocontroller()",
+      "source_file": "src/http/EnvioController.js",
+      "source_location": "L229"
+    },
+    {
       "id": "src_http_enviocontroller_dadosdoformulario",
       "label": "dadosDoFormulario()",
       "_callable": true,
@@ -5297,6 +5489,42 @@
       "source_location": "L204"
     },
     {
+      "id": "src_whatsapp_envio_criarenvio",
+      "label": "criarEnvio()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 9,
+      "community_name": "EnvioController.js",
+      "file_type": "code",
+      "norm_label": "criarenvio()",
+      "source_file": "src/whatsapp/envio.js",
+      "source_location": "L436"
+    },
+    {
+      "id": "src_whatsapp_exclusao_criarexclusao",
+      "label": "criarExclusao()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 9,
+      "community_name": "EnvioController.js",
+      "file_type": "code",
+      "norm_label": "criarexclusao()",
+      "source_file": "src/whatsapp/exclusao.js",
+      "source_location": "L20"
+    },
+    {
+      "id": "src_whatsapp_exclusao_criarexclusao_apagar",
+      "label": "apagar()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 9,
+      "community_name": "EnvioController.js",
+      "file_type": "code",
+      "norm_label": "apagar()",
+      "source_file": "src/whatsapp/exclusao.js",
+      "source_location": "L33"
+    },
+    {
       "id": "src_whatsapp_midiaentrada_inteiropositivo",
       "label": "inteiroPositivo()",
       "_callable": true,
@@ -5319,6 +5547,28 @@
       "norm_label": "obterlimitesmidia()",
       "source_file": "src/whatsapp/midiaEntrada.js",
       "source_location": "L62"
+    },
+    {
+      "id": "src_whatsapp_chamadas",
+      "label": "chamadas.js",
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "envio.js",
+      "file_type": "code",
+      "norm_label": "chamadas.js",
+      "source_file": "src/whatsapp/chamadas.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "src_whatsapp_chamadas_normalizarjid_lidde_telefonede_mensagemwaidvalido",
+      "label": "{ normalizarJid, lidDe, telefoneDe, mensagemWaIdValido }",
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "envio.js",
+      "file_type": "code",
+      "norm_label": "{ normalizarjid, lidde, telefonede, mensagemwaidvalido }",
+      "source_file": "src/whatsapp/chamadas.js",
+      "source_location": "L16"
     },
     {
       "id": "src_whatsapp_edicao",
@@ -5497,6 +5747,61 @@
       "source_location": "L8"
     },
     {
+      "id": "src_whatsapp_grupogestao",
+      "label": "grupoGestao.js",
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "envio.js",
+      "file_type": "code",
+      "norm_label": "grupogestao.js",
+      "source_file": "src/whatsapp/grupoGestao.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "src_whatsapp_grupogestao_ehproprio",
+      "label": "{ ehProprio }",
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "envio.js",
+      "file_type": "code",
+      "norm_label": "{ ehproprio }",
+      "source_file": "src/whatsapp/grupoGestao.js",
+      "source_location": "L26"
+    },
+    {
+      "id": "src_whatsapp_grupogestao_erroconsultagrupo",
+      "label": "{ ErroConsultaGrupo }",
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "envio.js",
+      "file_type": "code",
+      "norm_label": "{ erroconsultagrupo }",
+      "source_file": "src/whatsapp/grupoGestao.js",
+      "source_location": "L27"
+    },
+    {
+      "id": "src_whatsapp_grupogestao_mensagens_erro_grupo",
+      "label": "MENSAGENS_ERRO_GRUPO",
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "envio.js",
+      "file_type": "code",
+      "norm_label": "mensagens_erro_grupo",
+      "source_file": "src/whatsapp/grupoGestao.js",
+      "source_location": "L45"
+    },
+    {
+      "id": "src_whatsapp_grupogestao_normalizarjid_lidde_telefonede",
+      "label": "{ normalizarJid, lidDe, telefoneDe }",
+      "_origin": "ast",
+      "community": 0,
+      "community_name": "envio.js",
+      "file_type": "code",
+      "norm_label": "{ normalizarjid, lidde, telefonede }",
+      "source_file": "src/whatsapp/grupoGestao.js",
+      "source_location": "L25"
+    },
+    {
       "id": "src_whatsapp_mencoesentrada",
       "label": "mencoesEntrada.js",
       "_origin": "ast",
@@ -5585,33 +5890,11 @@
       "source_location": "L5"
     },
     {
-      "id": "src_whatsapp_resolverlid",
-      "label": "resolverLid.js",
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "envio.js",
-      "file_type": "code",
-      "norm_label": "resolverlid.js",
-      "source_file": "src/whatsapp/resolverLid.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "src_whatsapp_resolverlid_lidde_telefonede",
-      "label": "{ lidDe, telefoneDe }",
-      "_origin": "ast",
-      "community": 0,
-      "community_name": "envio.js",
-      "file_type": "code",
-      "norm_label": "{ lidde, telefonede }",
-      "source_file": "src/whatsapp/resolverLid.js",
-      "source_location": "L16"
-    },
-    {
       "id": "src_services_chamadainternoclient",
       "label": "chamadaInternoClient.js",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "chamadainternoclient.js",
       "source_file": "src/services/chamadaInternoClient.js",
@@ -5622,7 +5905,7 @@
       "label": "{ chamarRotaInterna }",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "{ chamarrotainterna }",
       "source_file": "src/services/chamadaInternoClient.js",
@@ -5633,7 +5916,7 @@
       "label": "internoHttpClient.js",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "internohttpclient.js",
       "source_file": "src/services/internoHttpClient.js",
@@ -5644,7 +5927,7 @@
       "label": "mensagemInternoClient.js",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "mensageminternoclient.js",
       "source_file": "src/services/mensagemInternoClient.js",
@@ -5655,7 +5938,7 @@
       "label": "{ chamarRotaInterna }",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "{ chamarrotainterna }",
       "source_file": "src/services/mensagemInternoClient.js",
@@ -5666,7 +5949,7 @@
       "label": "SEM_PENDENCIA",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "sem_pendencia",
       "source_file": "src/services/mensagemInternoClient.js",
@@ -5677,7 +5960,7 @@
       "label": "mensagemReciboInternoClient.js",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "mensagemrecibointernoclient.js",
       "source_file": "src/services/mensagemReciboInternoClient.js",
@@ -5688,7 +5971,7 @@
       "label": "{ chamarRotaInterna, ErroRotaInterna }",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "{ chamarrotainterna, errorotainterna }",
       "source_file": "src/services/mensagemReciboInternoClient.js",
@@ -5699,7 +5982,7 @@
       "label": "{ mensagemWaIdValido }",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "{ mensagemwaidvalido }",
       "source_file": "src/services/mensagemReciboInternoClient.js",
@@ -5710,7 +5993,7 @@
       "label": "mensagemStatusInternoClient.js",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "mensagemstatusinternoclient.js",
       "source_file": "src/services/mensagemStatusInternoClient.js",
@@ -5721,7 +6004,7 @@
       "label": "{ chamarRotaInterna, ErroRotaInterna }",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "{ chamarrotainterna, errorotainterna }",
       "source_file": "src/services/mensagemStatusInternoClient.js",
@@ -5732,7 +6015,7 @@
       "label": "{ mensagemWaIdValido }",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "{ mensagemwaidvalido }",
       "source_file": "src/services/mensagemStatusInternoClient.js",
@@ -5743,7 +6026,7 @@
       "label": "STATUS",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "status",
       "source_file": "src/services/mensagemStatusInternoClient.js",
@@ -5754,7 +6037,7 @@
       "label": "midiaInternoClient.js",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "midiainternoclient.js",
       "source_file": "src/services/midiaInternoClient.js",
@@ -5765,18 +6048,18 @@
       "label": "{ chamarRotaInternaMultipart, ErroRotaInterna }",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "{ chamarrotainternamultipart, errorotainterna }",
       "source_file": "src/services/midiaInternoClient.js",
-      "source_location": "L17"
+      "source_location": "L18"
     },
     {
       "id": "src_services_presencainternoclient",
       "label": "presencaInternoClient.js",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "presencainternoclient.js",
       "source_file": "src/services/presencaInternoClient.js",
@@ -5787,7 +6070,7 @@
       "label": "{ chamarRotaInterna, ErroRotaInterna }",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "{ chamarrotainterna, errorotainterna }",
       "source_file": "src/services/presencaInternoClient.js",
@@ -5798,7 +6081,7 @@
       "label": "ESTADOS",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "estados",
       "source_file": "src/services/presencaInternoClient.js",
@@ -5809,7 +6092,7 @@
       "label": "transcricaoInternoClient.js",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "transcricaointernoclient.js",
       "source_file": "src/services/transcricaoInternoClient.js",
@@ -5820,7 +6103,7 @@
       "label": "{ chamarRotaInterna, ErroRotaInterna }",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "{ chamarrotainterna, errorotainterna }",
       "source_file": "src/services/transcricaoInternoClient.js",
@@ -5831,62 +6114,18 @@
       "label": "STATUS",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "status",
       "source_file": "src/services/transcricaoInternoClient.js",
       "source_location": "L17"
     },
     {
-      "id": "src_whatsapp_filtroentrada",
-      "label": "filtroEntrada.js",
-      "_origin": "ast",
-      "community": 1,
-      "community_name": "filtroEntrada.js",
-      "file_type": "code",
-      "norm_label": "filtroentrada.js",
-      "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "src_whatsapp_filtroentrada_envelopes",
-      "label": "ENVELOPES",
-      "_origin": "ast",
-      "community": 1,
-      "community_name": "filtroEntrada.js",
-      "file_type": "code",
-      "norm_label": "envelopes",
-      "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L86"
-    },
-    {
-      "id": "src_whatsapp_filtroentrada_protocolo_edicao",
-      "label": "PROTOCOLO_EDICAO",
-      "_origin": "ast",
-      "community": 1,
-      "community_name": "filtroEntrada.js",
-      "file_type": "code",
-      "norm_label": "protocolo_edicao",
-      "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L97"
-    },
-    {
-      "id": "src_whatsapp_filtroentrada_protocolo_revoke",
-      "label": "PROTOCOLO_REVOKE",
-      "_origin": "ast",
-      "community": 1,
-      "community_name": "filtroEntrada.js",
-      "file_type": "code",
-      "norm_label": "protocolo_revoke",
-      "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L96"
-    },
-    {
       "id": "src_whatsapp_presenca",
       "label": "presenca.js",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "presenca.js",
       "source_file": "src/whatsapp/presenca.js",
@@ -5897,7 +6136,7 @@
       "label": "diagnostico",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "diagnostico",
       "source_file": "src/whatsapp/presenca.js",
@@ -5908,7 +6147,7 @@
       "label": "ESTADO_DA_PRESENCA",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "estado_da_presenca",
       "source_file": "src/whatsapp/presenca.js",
@@ -5919,7 +6158,7 @@
       "label": "NodeCache",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "nodecache",
       "source_file": "src/whatsapp/presenca.js",
@@ -5930,7 +6169,7 @@
       "label": "{ normalizarJid }",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "{ normalizarjid }",
       "source_file": "src/whatsapp/presenca.js",
@@ -5941,7 +6180,7 @@
       "label": "presencaInternoClient",
       "_origin": "ast",
       "community": 1,
-      "community_name": "filtroEntrada.js",
+      "community_name": "chamarRotaInterna",
       "file_type": "code",
       "norm_label": "presencainternoclient",
       "source_file": "src/whatsapp/presenca.js",
@@ -6111,28 +6350,6 @@
       "norm_label": "status_do_erro",
       "source_file": "src/http/GrupoController.js",
       "source_location": "L106"
-    },
-    {
-      "id": "src_whatsapp_travagrupo",
-      "label": "travaGrupo.js",
-      "_origin": "ast",
-      "community": 10,
-      "community_name": "GrupoController.js",
-      "file_type": "code",
-      "norm_label": "travagrupo.js",
-      "source_file": "src/whatsapp/travaGrupo.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "src_whatsapp_travagrupo_padrao",
-      "label": "padrao",
-      "_origin": "ast",
-      "community": 10,
-      "community_name": "GrupoController.js",
-      "file_type": "code",
-      "norm_label": "padrao",
-      "source_file": "src/whatsapp/travaGrupo.js",
-      "source_location": "L79"
     },
     {
       "id": "src_whatsapp_diagnosticochamadas",
@@ -6333,48 +6550,59 @@
       "source_location": "L23"
     },
     {
-      "id": "src_whatsapp_midiaentrada",
-      "label": "midiaEntrada.js",
+      "id": "src_whatsapp_filtroentrada",
+      "label": "filtroEntrada.js",
       "_origin": "ast",
       "community": 14,
-      "community_name": "midiaEntrada.js",
+      "community_name": "filtroEntrada.js",
       "file_type": "code",
-      "norm_label": "midiaentrada.js",
-      "source_file": "src/whatsapp/midiaEntrada.js",
+      "norm_label": "filtroentrada.js",
+      "source_file": "src/whatsapp/filtroEntrada.js",
       "source_location": "L1"
     },
     {
-      "id": "src_whatsapp_midiaentrada_loggerbaileys",
-      "label": "loggerBaileys",
+      "id": "src_whatsapp_filtroentrada_chaves_ruido",
+      "label": "CHAVES_RUIDO",
       "_origin": "ast",
       "community": 14,
-      "community_name": "midiaEntrada.js",
+      "community_name": "filtroEntrada.js",
       "file_type": "code",
-      "norm_label": "loggerbaileys",
-      "source_file": "src/whatsapp/midiaEntrada.js",
-      "source_location": "L25"
+      "norm_label": "chaves_ruido",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L497"
     },
     {
-      "id": "src_whatsapp_midiaentrada_pino",
-      "label": "pino",
+      "id": "src_whatsapp_filtroentrada_envelopes",
+      "label": "ENVELOPES",
       "_origin": "ast",
       "community": 14,
-      "community_name": "midiaEntrada.js",
+      "community_name": "filtroEntrada.js",
       "file_type": "code",
-      "norm_label": "pino",
-      "source_file": "src/whatsapp/midiaEntrada.js",
-      "source_location": "L17"
+      "norm_label": "envelopes",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L86"
     },
     {
-      "id": "src_whatsapp_midiaentrada_validarmidia_duracaooggopussegundos",
-      "label": "{ validarMidia, duracaoOggOpusSegundos }",
+      "id": "src_whatsapp_filtroentrada_protocolo_edicao",
+      "label": "PROTOCOLO_EDICAO",
       "_origin": "ast",
       "community": 14,
-      "community_name": "midiaEntrada.js",
+      "community_name": "filtroEntrada.js",
       "file_type": "code",
-      "norm_label": "{ validarmidia, duracaooggopussegundos }",
-      "source_file": "src/whatsapp/midiaEntrada.js",
-      "source_location": "L18"
+      "norm_label": "protocolo_edicao",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L97"
+    },
+    {
+      "id": "src_whatsapp_filtroentrada_protocolo_revoke",
+      "label": "PROTOCOLO_REVOKE",
+      "_origin": "ast",
+      "community": 14,
+      "community_name": "filtroEntrada.js",
+      "file_type": "code",
+      "norm_label": "protocolo_revoke",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L96"
     },
     {
       "id": "src_whatsapp_recuperacao",
@@ -6894,114 +7122,26 @@
       "source_location": "L8"
     },
     {
-      "id": "src_whatsapp_fotoperfil",
-      "label": "fotoPerfil.js",
+      "id": "src_whatsapp_resolverlid",
+      "label": "resolverLid.js",
       "_origin": "ast",
       "community": 20,
-      "community_name": "grupoGestao.js",
+      "community_name": "criarResolvedorLid",
       "file_type": "code",
-      "norm_label": "fotoperfil.js",
-      "source_file": "src/whatsapp/fotoPerfil.js",
+      "norm_label": "resolverlid.js",
+      "source_file": "src/whatsapp/resolverLid.js",
       "source_location": "L1"
     },
     {
-      "id": "src_whatsapp_fotoperfil_comprazo_statusdoerro",
-      "label": "{ comPrazo, statusDoErro }",
+      "id": "src_whatsapp_resolverlid_lidde_telefonede",
+      "label": "{ lidDe, telefoneDe }",
       "_origin": "ast",
       "community": 20,
-      "community_name": "grupoGestao.js",
+      "community_name": "criarResolvedorLid",
       "file_type": "code",
-      "norm_label": "{ comprazo, statusdoerro }",
-      "source_file": "src/whatsapp/fotoPerfil.js",
-      "source_location": "L11"
-    },
-    {
-      "id": "src_whatsapp_fotoperfil_detectartipoporconteudo",
-      "label": "{ detectarTipoPorConteudo }",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "grupoGestao.js",
-      "file_type": "code",
-      "norm_label": "{ detectartipoporconteudo }",
-      "source_file": "src/whatsapp/fotoPerfil.js",
-      "source_location": "L10"
-    },
-    {
-      "id": "src_whatsapp_fotoperfil_mensagens_erro_foto",
-      "label": "MENSAGENS_ERRO_FOTO",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "grupoGestao.js",
-      "file_type": "code",
-      "norm_label": "mensagens_erro_foto",
-      "source_file": "src/whatsapp/fotoPerfil.js",
-      "source_location": "L21"
-    },
-    {
-      "id": "src_whatsapp_fotoperfil_tipos_aceitos",
-      "label": "TIPOS_ACEITOS",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "grupoGestao.js",
-      "file_type": "code",
-      "norm_label": "tipos_aceitos",
-      "source_file": "src/whatsapp/fotoPerfil.js",
-      "source_location": "L19"
-    },
-    {
-      "id": "src_whatsapp_grupogestao",
-      "label": "grupoGestao.js",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "grupoGestao.js",
-      "file_type": "code",
-      "norm_label": "grupogestao.js",
-      "source_file": "src/whatsapp/grupoGestao.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "src_whatsapp_grupogestao_ehproprio",
-      "label": "{ ehProprio }",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "grupoGestao.js",
-      "file_type": "code",
-      "norm_label": "{ ehproprio }",
-      "source_file": "src/whatsapp/grupoGestao.js",
-      "source_location": "L26"
-    },
-    {
-      "id": "src_whatsapp_grupogestao_erroconsultagrupo",
-      "label": "{ ErroConsultaGrupo }",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "grupoGestao.js",
-      "file_type": "code",
-      "norm_label": "{ erroconsultagrupo }",
-      "source_file": "src/whatsapp/grupoGestao.js",
-      "source_location": "L27"
-    },
-    {
-      "id": "src_whatsapp_grupogestao_mensagens_erro_grupo",
-      "label": "MENSAGENS_ERRO_GRUPO",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "grupoGestao.js",
-      "file_type": "code",
-      "norm_label": "mensagens_erro_grupo",
-      "source_file": "src/whatsapp/grupoGestao.js",
-      "source_location": "L45"
-    },
-    {
-      "id": "src_whatsapp_grupogestao_normalizarjid_lidde_telefonede",
-      "label": "{ normalizarJid, lidDe, telefoneDe }",
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "grupoGestao.js",
-      "file_type": "code",
-      "norm_label": "{ normalizarjid, lidde, telefonede }",
-      "source_file": "src/whatsapp/grupoGestao.js",
-      "source_location": "L25"
+      "norm_label": "{ lidde, telefonede }",
+      "source_file": "src/whatsapp/resolverLid.js",
+      "source_location": "L16"
     },
     {
       "id": "src_http_fotoperfilcontroller",
@@ -7125,28 +7265,6 @@
       "source_location": "L34"
     },
     {
-      "id": "src_whatsapp_chamadas",
-      "label": "chamadas.js",
-      "_origin": "ast",
-      "community": 22,
-      "community_name": "criarConsolidadorChamadas",
-      "file_type": "code",
-      "norm_label": "chamadas.js",
-      "source_file": "src/whatsapp/chamadas.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "src_whatsapp_chamadas_normalizarjid_lidde_telefonede_mensagemwaidvalido",
-      "label": "{ normalizarJid, lidDe, telefoneDe, mensagemWaIdValido }",
-      "_origin": "ast",
-      "community": 22,
-      "community_name": "criarConsolidadorChamadas",
-      "file_type": "code",
-      "norm_label": "{ normalizarjid, lidde, telefonede, mensagemwaidvalido }",
-      "source_file": "src/whatsapp/chamadas.js",
-      "source_location": "L16"
-    },
-    {
       "id": "src_http_healthcontroller",
       "label": "HealthController.js",
       "_origin": "ast",
@@ -7222,28 +7340,6 @@
       "norm_label": "{ version: versao }",
       "source_file": "src/http/HealthController.js",
       "source_location": "L17"
-    },
-    {
-      "id": "src_utils_desligamento",
-      "label": "desligamento.js",
-      "_origin": "ast",
-      "community": 23,
-      "community_name": "HealthController.js",
-      "file_type": "code",
-      "norm_label": "desligamento.js",
-      "source_file": "src/utils/desligamento.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "src_utils_desligamento_padrao",
-      "label": "padrao",
-      "_origin": "ast",
-      "community": 23,
-      "community_name": "HealthController.js",
-      "file_type": "code",
-      "norm_label": "padrao",
-      "source_file": "src/utils/desligamento.js",
-      "source_location": "L85"
     },
     {
       "id": "scripts_run_tests",
@@ -7387,6 +7483,28 @@
       "norm_label": "crypto",
       "source_file": "src/http/exigirTokenServico.js",
       "source_location": "L2"
+    },
+    {
+      "id": "src_utils_desligamento",
+      "label": "desligamento.js",
+      "_origin": "ast",
+      "community": 25,
+      "community_name": "ConexaoController.js",
+      "file_type": "code",
+      "norm_label": "desligamento.js",
+      "source_file": "src/utils/desligamento.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "src_utils_desligamento_padrao",
+      "label": "padrao",
+      "_origin": "ast",
+      "community": 25,
+      "community_name": "ConexaoController.js",
+      "file_type": "code",
+      "norm_label": "padrao",
+      "source_file": "src/utils/desligamento.js",
+      "source_location": "L85"
     },
     {
       "id": "src_whatsapp_registroaparelho",
@@ -7827,6 +7945,28 @@
       "norm_label": "status_saudavel",
       "source_file": "src/whatsapp/instanciaManager.js",
       "source_location": "L26"
+    },
+    {
+      "id": "src_whatsapp_travagrupo",
+      "label": "travaGrupo.js",
+      "_origin": "ast",
+      "community": 4,
+      "community_name": "instanciaManager.js",
+      "file_type": "code",
+      "norm_label": "travagrupo.js",
+      "source_file": "src/whatsapp/travaGrupo.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "src_whatsapp_travagrupo_padrao",
+      "label": "padrao",
+      "_origin": "ast",
+      "community": 4,
+      "community_name": "instanciaManager.js",
+      "file_type": "code",
+      "norm_label": "padrao",
+      "source_file": "src/whatsapp/travaGrupo.js",
+      "source_location": "L79"
     },
     {
       "id": "src_audio_filatranscricao",
@@ -8321,7 +8461,7 @@
       "file_type": "code",
       "norm_label": "loggerbaileys",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L109"
+      "source_location": "L117"
     },
     {
       "id": "src_whatsapp_baileysadapter_mensageminternoclient",
@@ -8390,13 +8530,13 @@
       "source_location": "L63"
     },
     {
-      "id": "src_whatsapp_baileysadapter_normalizarmensagem_normalizarjid_lidde_telefonede",
-      "label": "{ normalizarMensagem, normalizarJid, lidDe, telefoneDe }",
+      "id": "src_whatsapp_baileysadapter_normalizarmensagem_chavesdescartadas_normalizarjid_lidde_telefonede",
+      "label": "{ normalizarMensagem, chavesDescartadas, normalizarJid, lidDe, telefoneDe }",
       "_origin": "ast",
       "community": 7,
       "community_name": "BaileysAdapter.js",
       "file_type": "code",
-      "norm_label": "{ normalizarmensagem, normalizarjid, lidde, telefonede }",
+      "norm_label": "{ normalizarmensagem, chavesdescartadas, normalizarjid, lidde, telefonede }",
       "source_file": "src/whatsapp/BaileysAdapter.js",
       "source_location": "L66"
     },
@@ -8464,7 +8604,7 @@
       "file_type": "code",
       "norm_label": "stubs_participantes_grupo",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L132"
+      "source_location": "L140"
     },
     {
       "id": "src_whatsapp_baileysadapter_tipos_transcritos",
@@ -8475,7 +8615,106 @@
       "file_type": "code",
       "norm_label": "tipos_transcritos",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L107"
+      "source_location": "L115"
+    },
+    {
+      "id": "src_whatsapp_fotoperfil",
+      "label": "fotoPerfil.js",
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "fotoperfil.js",
+      "source_file": "src/whatsapp/fotoPerfil.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "src_whatsapp_fotoperfil_comprazo_statusdoerro",
+      "label": "{ comPrazo, statusDoErro }",
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "{ comprazo, statusdoerro }",
+      "source_file": "src/whatsapp/fotoPerfil.js",
+      "source_location": "L11"
+    },
+    {
+      "id": "src_whatsapp_fotoperfil_detectartipoporconteudo",
+      "label": "{ detectarTipoPorConteudo }",
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "{ detectartipoporconteudo }",
+      "source_file": "src/whatsapp/fotoPerfil.js",
+      "source_location": "L10"
+    },
+    {
+      "id": "src_whatsapp_fotoperfil_mensagens_erro_foto",
+      "label": "MENSAGENS_ERRO_FOTO",
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "mensagens_erro_foto",
+      "source_file": "src/whatsapp/fotoPerfil.js",
+      "source_location": "L21"
+    },
+    {
+      "id": "src_whatsapp_fotoperfil_tipos_aceitos",
+      "label": "TIPOS_ACEITOS",
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "tipos_aceitos",
+      "source_file": "src/whatsapp/fotoPerfil.js",
+      "source_location": "L19"
+    },
+    {
+      "id": "src_whatsapp_midiaentrada",
+      "label": "midiaEntrada.js",
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "midiaentrada.js",
+      "source_file": "src/whatsapp/midiaEntrada.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "src_whatsapp_midiaentrada_loggerbaileys",
+      "label": "loggerBaileys",
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "loggerbaileys",
+      "source_file": "src/whatsapp/midiaEntrada.js",
+      "source_location": "L25"
+    },
+    {
+      "id": "src_whatsapp_midiaentrada_pino",
+      "label": "pino",
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "pino",
+      "source_file": "src/whatsapp/midiaEntrada.js",
+      "source_location": "L17"
+    },
+    {
+      "id": "src_whatsapp_midiaentrada_validarmidia_duracaooggopussegundos",
+      "label": "{ validarMidia, duracaoOggOpusSegundos }",
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tipoMidia.js",
+      "file_type": "code",
+      "norm_label": "{ validarmidia, duracaooggopussegundos }",
+      "source_file": "src/whatsapp/midiaEntrada.js",
+      "source_location": "L18"
     },
     {
       "id": "src_whatsapp_tipomidia",
@@ -8563,7 +8802,7 @@
       "file_type": "code",
       "norm_label": "declarados_genericos",
       "source_file": "src/whatsapp/tipoMidia.js",
-      "source_location": "L204"
+      "source_location": "L205"
     },
     {
       "id": "src_whatsapp_tipomidia_oid_pkcs7",
@@ -8607,7 +8846,7 @@
       "file_type": "concept",
       "norm_label": "rfc-7845",
       "source_file": "src/whatsapp/tipoMidia.js",
-      "source_location": "L248"
+      "source_location": "L254"
     },
     {
       "id": "src_http_enviocontroller",
@@ -11348,7 +11587,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/services/midiaInternoClient.js",
-      "source_location": "L42",
+      "source_location": "L43",
       "weight": 1.0
     },
     {
@@ -11360,7 +11599,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/services/midiaInternoClient.js",
-      "source_location": "L58",
+      "source_location": "L59",
       "weight": 1.0
     },
     {
@@ -11540,7 +11779,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L236",
+      "source_location": "L244",
       "weight": 1.0
     },
     {
@@ -11552,7 +11791,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L337",
+      "source_location": "L345",
       "weight": 1.0
     },
     {
@@ -11564,7 +11803,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L338",
+      "source_location": "L346",
       "weight": 1.0
     },
     {
@@ -11576,7 +11815,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L353",
+      "source_location": "L365",
       "weight": 1.0
     },
     {
@@ -11588,7 +11827,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L356",
+      "source_location": "L368",
       "weight": 1.0
     },
     {
@@ -11600,7 +11839,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L357",
+      "source_location": "L369",
       "weight": 1.0
     },
     {
@@ -11612,7 +11851,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L363",
+      "source_location": "L375",
       "weight": 1.0
     },
     {
@@ -11624,7 +11863,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L364",
+      "source_location": "L376",
       "weight": 1.0
     },
     {
@@ -11636,7 +11875,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L365",
+      "source_location": "L377",
       "weight": 1.0
     },
     {
@@ -11648,7 +11887,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L366",
+      "source_location": "L378",
       "weight": 1.0
     },
     {
@@ -11660,7 +11899,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L369",
+      "source_location": "L381",
       "weight": 1.0
     },
     {
@@ -11672,7 +11911,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L370",
+      "source_location": "L382",
       "weight": 1.0
     },
     {
@@ -11684,7 +11923,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L374",
+      "source_location": "L386",
       "weight": 1.0
     },
     {
@@ -11696,7 +11935,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L379",
+      "source_location": "L391",
       "weight": 1.0
     },
     {
@@ -11708,7 +11947,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L852",
+      "source_location": "L925",
       "weight": 1.0
     },
     {
@@ -11720,7 +11959,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L856",
+      "source_location": "L929",
       "weight": 1.0
     },
     {
@@ -11732,7 +11971,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L858",
+      "source_location": "L931",
       "weight": 1.0
     },
     {
@@ -11744,7 +11983,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L860",
+      "source_location": "L933",
       "weight": 1.0
     },
     {
@@ -11756,7 +11995,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L889",
+      "source_location": "L962",
       "weight": 1.0
     },
     {
@@ -11768,7 +12007,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L892",
+      "source_location": "L965",
       "weight": 1.0
     },
     {
@@ -11780,7 +12019,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L897",
+      "source_location": "L970",
       "weight": 1.0
     },
     {
@@ -11792,7 +12031,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L901",
+      "source_location": "L974",
       "weight": 1.0
     },
     {
@@ -11804,7 +12043,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L901",
+      "source_location": "L974",
       "weight": 1.0
     },
     {
@@ -11816,7 +12055,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L902",
+      "source_location": "L975",
       "weight": 1.0
     },
     {
@@ -11828,7 +12067,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L910",
+      "source_location": "L983",
       "weight": 1.0
     },
     {
@@ -11840,7 +12079,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L469",
+      "source_location": "L523",
       "weight": 1.0
     },
     {
@@ -11852,7 +12091,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L470",
+      "source_location": "L524",
       "weight": 1.0
     },
     {
@@ -11864,7 +12103,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L471",
+      "source_location": "L525",
       "weight": 1.0
     },
     {
@@ -11876,7 +12115,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L472",
+      "source_location": "L526",
       "weight": 1.0
     },
     {
@@ -11888,7 +12127,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L445",
+      "source_location": "L498",
       "weight": 1.0
     },
     {
@@ -11900,19 +12139,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L395",
-      "weight": 1.0
-    },
-    {
-      "source": "src_whatsapp_baileysadapter_criaradapter_desconectar",
-      "target": "src_whatsapp_baileysadapter_criaradapter_apagarsessaolocal",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L1001",
+      "source_location": "L407",
       "weight": 1.0
     },
     {
@@ -11924,7 +12151,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L964",
+      "source_location": "L1043",
       "weight": 1.0
     },
     {
@@ -11936,7 +12163,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L976",
+      "source_location": "L1055",
       "weight": 1.0
     },
     {
@@ -11948,7 +12175,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L987",
+      "source_location": "L1066",
       "weight": 1.0
     },
     {
@@ -11960,7 +12187,19 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L999",
+      "source_location": "L1078",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_baileysadapter_criaradapter_desconectar",
+      "target": "src_whatsapp_baileysadapter_criaradapter_apagarsessaolocal",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/BaileysAdapter.js",
+      "source_location": "L1080",
       "weight": 1.0
     },
     {
@@ -11972,7 +12211,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L1013",
+      "source_location": "L1092",
       "weight": 1.0
     },
     {
@@ -11984,7 +12223,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L1015",
+      "source_location": "L1094",
       "weight": 1.0
     },
     {
@@ -11996,7 +12235,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L1020",
+      "source_location": "L1099",
       "weight": 1.0
     },
     {
@@ -12008,7 +12247,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L739",
+      "source_location": "L812",
       "weight": 1.0
     },
     {
@@ -12020,7 +12259,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L740",
+      "source_location": "L813",
       "weight": 1.0
     },
     {
@@ -12032,7 +12271,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L809",
+      "source_location": "L882",
       "weight": 1.0
     },
     {
@@ -12044,7 +12283,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L811",
+      "source_location": "L884",
       "weight": 1.0
     },
     {
@@ -12056,7 +12295,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L827",
+      "source_location": "L900",
       "weight": 1.0
     },
     {
@@ -12068,7 +12307,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L843",
+      "source_location": "L916",
       "weight": 1.0
     },
     {
@@ -12080,7 +12319,19 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L1044",
+      "source_location": "L1123",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_baileysadapter_criaradapter_fecharsocket",
+      "target": "src_whatsapp_baileysadapter_criaradapter_pararvigiabuffer",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/BaileysAdapter.js",
+      "source_location": "L509",
       "weight": 1.0
     },
     {
@@ -12092,7 +12343,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L456",
+      "source_location": "L510",
       "weight": 1.0
     },
     {
@@ -12104,7 +12355,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L461",
+      "source_location": "L515",
       "weight": 1.0
     },
     {
@@ -12116,7 +12367,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L689",
+      "source_location": "L762",
       "weight": 1.0
     },
     {
@@ -12128,7 +12379,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L689",
+      "source_location": "L762",
       "weight": 1.0
     },
     {
@@ -12140,7 +12391,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L689",
+      "source_location": "L762",
       "weight": 1.0
     },
     {
@@ -12152,7 +12403,31 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L923",
+      "source_location": "L996",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_baileysadapter_criaradapter_iniciarvigiabuffer",
+      "target": "src_whatsapp_baileysadapter_criaradapter_pararvigiabuffer",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/BaileysAdapter.js",
+      "source_location": "L428",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_baileysadapter_criaradapter_iniciarvigiabuffer",
+      "target": "src_whatsapp_baileysadapter_nomedoerro",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/BaileysAdapter.js",
+      "source_location": "L451",
       "weight": 1.0
     },
     {
@@ -12164,7 +12439,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L549",
+      "source_location": "L604",
       "weight": 1.0
     },
     {
@@ -12176,7 +12451,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L556",
+      "source_location": "L611",
       "weight": 1.0
     },
     {
@@ -12188,7 +12463,19 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L940",
+      "source_location": "L1013",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_baileysadapter_criaradapter_pararsocket",
+      "target": "src_whatsapp_baileysadapter_nomedoerro",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/BaileysAdapter.js",
+      "source_location": "L1024",
       "weight": 1.0
     },
     {
@@ -12200,7 +12487,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L947",
+      "source_location": "L1026",
       "weight": 1.0
     },
     {
@@ -12212,7 +12499,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L952",
+      "source_location": "L1031",
       "weight": 1.0
     },
     {
@@ -12224,7 +12511,19 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L571",
+      "source_location": "L626",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_baileysadapter_criaradapter_processarmensagem",
+      "target": "src_whatsapp_filtroentrada_chavesdescartadas",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/BaileysAdapter.js",
+      "source_location": "L642",
       "weight": 1.0
     },
     {
@@ -12236,7 +12535,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L575",
+      "source_location": "L648",
       "weight": 1.0
     },
     {
@@ -12248,7 +12547,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L617",
+      "source_location": "L690",
       "weight": 1.0
     },
     {
@@ -12260,7 +12559,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L635",
+      "source_location": "L708",
       "weight": 1.0
     },
     {
@@ -12272,7 +12571,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L643",
+      "source_location": "L716",
       "weight": 1.0
     },
     {
@@ -12284,7 +12583,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L646",
+      "source_location": "L719",
       "weight": 1.0
     },
     {
@@ -12296,7 +12595,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L655",
+      "source_location": "L728",
       "weight": 1.0
     },
     {
@@ -12308,7 +12607,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L671",
+      "source_location": "L744",
       "weight": 1.0
     },
     {
@@ -12320,7 +12619,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L677",
+      "source_location": "L750",
       "weight": 1.0
     },
     {
@@ -12332,7 +12631,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L757",
+      "source_location": "L830",
       "weight": 1.0
     },
     {
@@ -12344,7 +12643,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L758",
+      "source_location": "L831",
       "weight": 1.0
     },
     {
@@ -12356,7 +12655,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L770",
+      "source_location": "L843",
       "weight": 1.0
     },
     {
@@ -12368,7 +12667,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L772",
+      "source_location": "L845",
       "weight": 1.0
     },
     {
@@ -12380,7 +12679,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L701",
+      "source_location": "L774",
       "weight": 1.0
     },
     {
@@ -12392,7 +12691,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L702",
+      "source_location": "L775",
       "weight": 1.0
     },
     {
@@ -12404,7 +12703,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L724",
+      "source_location": "L797",
       "weight": 1.0
     },
     {
@@ -12416,7 +12715,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L727",
+      "source_location": "L800",
       "weight": 1.0
     },
     {
@@ -12428,7 +12727,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L410",
+      "source_location": "L463",
       "weight": 1.0
     },
     {
@@ -12440,7 +12739,19 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L488",
+      "source_location": "L542",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_baileysadapter_criaradapter_tratarconexao",
+      "target": "src_whatsapp_baileysadapter_criaradapter_iniciarvigiabuffer",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/BaileysAdapter.js",
+      "source_location": "L551",
       "weight": 1.0
     },
     {
@@ -12452,7 +12763,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L500",
+      "source_location": "L555",
       "weight": 1.0
     },
     {
@@ -12464,7 +12775,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L509",
+      "source_location": "L564",
       "weight": 1.0
     },
     {
@@ -12476,7 +12787,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L513",
+      "source_location": "L568",
       "weight": 1.0
     },
     {
@@ -12488,7 +12799,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L517",
+      "source_location": "L572",
       "weight": 1.0
     },
     {
@@ -12500,7 +12811,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L533",
+      "source_location": "L588",
       "weight": 1.0
     },
     {
@@ -12512,7 +12823,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L215",
+      "source_location": "L223",
       "weight": 1.0
     },
     {
@@ -12524,7 +12835,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L225",
+      "source_location": "L233",
       "weight": 1.0
     },
     {
@@ -12536,7 +12847,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L164",
+      "source_location": "L172",
       "weight": 1.0
     },
     {
@@ -12548,7 +12859,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L191",
+      "source_location": "L199",
       "weight": 1.0
     },
     {
@@ -13812,6 +14123,114 @@
       "weight": 1.0
     },
     {
+      "source": "src_whatsapp_filtroentrada_chatregistravel",
+      "target": "src_whatsapp_filtroentrada_mensagemwaidvalido",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L487",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_chatregistravel",
+      "target": "src_whatsapp_filtroentrada_normalizarjid",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L488",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_chatregistravel",
+      "target": "src_whatsapp_filtroentrada_tipodochat",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L489",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_chatregistravel",
+      "target": "src_whatsapp_filtroentrada_identidadepropria",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L491",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_chavesdescartadas",
+      "target": "src_whatsapp_filtroentrada_chatregistravel",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L512",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_chavesdescartadas",
+      "target": "src_whatsapp_filtroentrada_desembrulhar",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L513",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_combotoes",
+      "target": "src_whatsapp_filtroentrada_lista",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L420",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_combotoes",
+      "target": "src_whatsapp_filtroentrada_temmidianocabecalho",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L420",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_combotoes",
+      "target": "src_whatsapp_filtroentrada_textointerativo",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L420",
+      "weight": 1.0
+    },
+    {
       "source": "src_whatsapp_filtroentrada_contexto",
       "target": "src_whatsapp_filtroentrada_mensagemwaidvalido",
       "relation": "calls",
@@ -13832,7 +14251,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L340",
+      "source_location": "L532",
       "weight": 1.0
     },
     {
@@ -13844,7 +14263,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L343",
+      "source_location": "L535",
       "weight": 1.0
     },
     {
@@ -13856,7 +14275,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L346",
+      "source_location": "L538",
       "weight": 1.0
     },
     {
@@ -13868,7 +14287,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L347",
+      "source_location": "L539",
       "weight": 1.0
     },
     {
@@ -13880,7 +14299,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L349",
+      "source_location": "L541",
       "weight": 1.0
     },
     {
@@ -13892,7 +14311,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L364",
+      "source_location": "L556",
       "weight": 1.0
     },
     {
@@ -13904,7 +14323,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L366",
+      "source_location": "L558",
       "weight": 1.0
     },
     {
@@ -13916,7 +14335,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L366",
+      "source_location": "L558",
       "weight": 1.0
     },
     {
@@ -13928,7 +14347,67 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L380",
+      "source_location": "L572",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_extrairconteudo",
+      "target": "src_whatsapp_filtroentrada_extrairinterativo",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L589",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_extrairinterativo",
+      "target": "src_whatsapp_filtroentrada_contexto",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L474",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_hidratado",
+      "target": "src_whatsapp_filtroentrada_textointerativo",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L424",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_hidratado",
+      "target": "src_whatsapp_filtroentrada_lista",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L426",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_hidratado",
+      "target": "src_whatsapp_filtroentrada_temmidianocabecalho",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L427",
       "weight": 1.0
     },
     {
@@ -13940,7 +14419,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L409",
+      "source_location": "L601",
       "weight": 1.0
     },
     {
@@ -13952,7 +14431,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L412",
+      "source_location": "L604",
       "weight": 1.0
     },
     {
@@ -13964,7 +14443,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L413",
+      "source_location": "L605",
       "weight": 1.0
     },
     {
@@ -13976,7 +14455,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L423",
+      "source_location": "L615",
       "weight": 1.0
     },
     {
@@ -13988,7 +14467,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L423",
+      "source_location": "L615",
       "weight": 1.0
     },
     {
@@ -14000,7 +14479,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L423",
+      "source_location": "L615",
       "weight": 1.0
     },
     {
@@ -14013,6 +14492,54 @@
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
       "source_location": "L197",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_interativa",
+      "target": "src_whatsapp_filtroentrada_textointerativo",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L412",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_interativa",
+      "target": "src_whatsapp_filtroentrada_lista",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L414",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_interativa",
+      "target": "src_whatsapp_filtroentrada_opcoesnativas",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L414",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_interativa",
+      "target": "src_whatsapp_filtroentrada_temmidianocabecalho",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L415",
       "weight": 1.0
     },
     {
@@ -14037,6 +14564,42 @@
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
       "source_location": "L130",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_listadeopcoes",
+      "target": "src_whatsapp_filtroentrada_lista",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L438",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_listadeopcoes",
+      "target": "src_whatsapp_filtroentrada_limpo",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L440",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_listadeopcoes",
+      "target": "src_whatsapp_filtroentrada_textointerativo",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L444",
       "weight": 1.0
     },
     {
@@ -14076,39 +14639,39 @@
       "weight": 1.0
     },
     {
-      "source": "src_whatsapp_filtroentrada_normalizarmensagem",
-      "target": "src_whatsapp_filtroentrada_mensagemwaidvalido",
+      "source": "src_whatsapp_filtroentrada_modelo",
+      "target": "src_whatsapp_filtroentrada_interativa",
       "relation": "calls",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L448",
+      "source_location": "L432",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_modelo",
+      "target": "src_whatsapp_filtroentrada_hidratado",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L433",
       "weight": 1.0
     },
     {
       "source": "src_whatsapp_filtroentrada_normalizarmensagem",
-      "target": "src_whatsapp_filtroentrada_normalizarjid",
+      "target": "src_whatsapp_filtroentrada_chatregistravel",
       "relation": "calls",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L450",
-      "weight": 1.0
-    },
-    {
-      "source": "src_whatsapp_filtroentrada_normalizarmensagem",
-      "target": "src_whatsapp_filtroentrada_tipodochat",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L451",
+      "source_location": "L640",
       "weight": 1.0
     },
     {
@@ -14120,7 +14683,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L454",
+      "source_location": "L643",
       "weight": 1.0
     },
     {
@@ -14132,7 +14695,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L457",
+      "source_location": "L645",
       "weight": 1.0
     },
     {
@@ -14144,7 +14707,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L457",
+      "source_location": "L645",
       "weight": 1.0
     },
     {
@@ -14156,7 +14719,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L470",
+      "source_location": "L658",
       "weight": 1.0
     },
     {
@@ -14168,7 +14731,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L500",
+      "source_location": "L688",
       "weight": 1.0
     },
     {
@@ -14180,7 +14743,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L501",
+      "source_location": "L689",
       "weight": 1.0
     },
     {
@@ -14192,7 +14755,55 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L502",
+      "source_location": "L690",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_opcaodomodelo",
+      "target": "src_whatsapp_filtroentrada_rotulocomvalor",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L405",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_opcoesnativas",
+      "target": "src_whatsapp_filtroentrada_lerjson",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L392",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_opcoesnativas",
+      "target": "src_whatsapp_filtroentrada_lista",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L395",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_opcoesnativas",
+      "target": "src_whatsapp_filtroentrada_rotulocomvalor",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L396",
       "weight": 1.0
     },
     {
@@ -14229,6 +14840,42 @@
       "context": "call",
       "source_file": "src/whatsapp/filtroEntrada.js",
       "source_location": "L226",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_respostainterativa",
+      "target": "src_whatsapp_filtroentrada_lerjson",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L449",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_respostainterativa",
+      "target": "src_whatsapp_filtroentrada_limpo",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L450",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_rotulocomvalor",
+      "target": "src_whatsapp_filtroentrada_limpo",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L360",
       "weight": 1.0
     },
     {
@@ -16928,7 +17575,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/tipoMidia.js",
-      "source_location": "L253",
+      "source_location": "L260",
       "weight": 1.0
     },
     {
@@ -17000,7 +17647,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/tipoMidia.js",
-      "source_location": "L233",
+      "source_location": "L237",
       "weight": 1.0
     },
     {
@@ -17012,7 +17659,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/tipoMidia.js",
-      "source_location": "L236",
+      "source_location": "L244",
       "weight": 1.0
     },
     {
@@ -17096,7 +17743,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L735",
+      "source_location": "L808",
       "weight": 1.0
     },
     {
@@ -17108,7 +17755,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L752",
+      "source_location": "L825",
       "weight": 1.0
     },
     {
@@ -17120,7 +17767,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L824",
+      "source_location": "L897",
       "weight": 1.0
     },
     {
@@ -17132,7 +17779,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L837",
+      "source_location": "L910",
       "weight": 1.0
     },
     {
@@ -17912,7 +18559,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "src/services/midiaInternoClient.js",
-      "source_location": "L17",
+      "source_location": "L18",
       "weight": 1.0
     },
     {
@@ -17924,7 +18571,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "src/services/midiaInternoClient.js",
-      "source_location": "L17",
+      "source_location": "L18",
       "weight": 1.0
     },
     {
@@ -17973,6 +18620,18 @@
       "context": "import",
       "source_file": "src/services/transcricaoInternoClient.js",
       "source_location": "L14",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_baileysadapter",
+      "target": "src_whatsapp_filtroentrada_chavesdescartadas",
+      "relation": "imports",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "src/whatsapp/BaileysAdapter.js",
+      "source_location": "L66",
       "weight": 1.0
     },
     {
@@ -19748,7 +20407,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "src/services/midiaInternoClient.js",
-      "source_location": "L17",
+      "source_location": "L18",
       "weight": 1.0
     },
     {
@@ -20467,7 +21126,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/tipoMidia.js",
-      "source_location": "L248",
+      "source_location": "L254",
       "weight": 1.0
     },
     {
@@ -22898,7 +23557,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/services/midiaInternoClient.js",
-      "source_location": "L17",
+      "source_location": "L18",
       "weight": 1.0
     },
     {
@@ -23074,7 +23733,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L107",
+      "source_location": "L115",
       "weight": 1.0
     },
     {
@@ -23085,7 +23744,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L109",
+      "source_location": "L117",
       "weight": 1.0
     },
     {
@@ -23096,7 +23755,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L132",
+      "source_location": "L140",
       "weight": 1.0
     },
     {
@@ -23107,7 +23766,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L145",
+      "source_location": "L153",
       "weight": 1.0
     },
     {
@@ -23118,7 +23777,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L157",
+      "source_location": "L165",
       "weight": 1.0
     },
     {
@@ -23129,7 +23788,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L174",
+      "source_location": "L182",
       "weight": 1.0
     },
     {
@@ -23140,7 +23799,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L189",
+      "source_location": "L197",
       "weight": 1.0
     },
     {
@@ -23222,7 +23881,7 @@
     },
     {
       "source": "src_whatsapp_baileysadapter",
-      "target": "src_whatsapp_baileysadapter_normalizarmensagem_normalizarjid_lidde_telefonede",
+      "target": "src_whatsapp_baileysadapter_normalizarmensagem_chavesdescartadas_normalizarjid_lidde_telefonede",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -23492,7 +24151,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L1012",
+      "source_location": "L1091",
       "weight": 1.0
     },
     {
@@ -23503,7 +24162,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L1031",
+      "source_location": "L1110",
       "weight": 1.0
     },
     {
@@ -23514,7 +24173,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L390",
+      "source_location": "L402",
       "weight": 1.0
     },
     {
@@ -23525,7 +24184,29 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L399",
+      "source_location": "L411",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_baileysadapter_criaradapter",
+      "target": "src_whatsapp_baileysadapter_criaradapter_pararvigiabuffer",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/whatsapp/BaileysAdapter.js",
+      "source_location": "L416",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_baileysadapter_criaradapter",
+      "target": "src_whatsapp_baileysadapter_criaradapter_iniciarvigiabuffer",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/whatsapp/BaileysAdapter.js",
+      "source_location": "L427",
       "weight": 1.0
     },
     {
@@ -23536,7 +24217,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L405",
+      "source_location": "L458",
       "weight": 1.0
     },
     {
@@ -23547,7 +24228,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L421",
+      "source_location": "L474",
       "weight": 1.0
     },
     {
@@ -23558,7 +24239,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L454",
+      "source_location": "L507",
       "weight": 1.0
     },
     {
@@ -23569,7 +24250,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L465",
+      "source_location": "L519",
       "weight": 1.0
     },
     {
@@ -23580,7 +24261,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L482",
+      "source_location": "L536",
       "weight": 1.0
     },
     {
@@ -23591,7 +24272,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L545",
+      "source_location": "L600",
       "weight": 1.0
     },
     {
@@ -23602,7 +24283,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L566",
+      "source_location": "L621",
       "weight": 1.0
     },
     {
@@ -23613,7 +24294,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L688",
+      "source_location": "L761",
       "weight": 1.0
     },
     {
@@ -23624,7 +24305,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L699",
+      "source_location": "L772",
       "weight": 1.0
     },
     {
@@ -23635,7 +24316,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L782",
+      "source_location": "L855",
       "weight": 1.0
     },
     {
@@ -23646,7 +24327,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L803",
+      "source_location": "L876",
       "weight": 1.0
     },
     {
@@ -23657,7 +24338,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L850",
+      "source_location": "L923",
       "weight": 1.0
     },
     {
@@ -24311,13 +24992,145 @@
     },
     {
       "source": "src_whatsapp_filtroentrada",
+      "target": "src_whatsapp_filtroentrada_limpo",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L332",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada",
+      "target": "src_whatsapp_filtroentrada_lista",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L340",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada",
+      "target": "src_whatsapp_filtroentrada_lerjson",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L348",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada",
+      "target": "src_whatsapp_filtroentrada_rotulocomvalor",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L359",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada",
+      "target": "src_whatsapp_filtroentrada_temmidianocabecalho",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L369",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada",
+      "target": "src_whatsapp_filtroentrada_textointerativo",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L380",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada",
+      "target": "src_whatsapp_filtroentrada_opcoesnativas",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L390",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada",
+      "target": "src_whatsapp_filtroentrada_opcaodomodelo",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L403",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada",
+      "target": "src_whatsapp_filtroentrada_hidratado",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L423",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada",
+      "target": "src_whatsapp_filtroentrada_extrairinterativo",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L469",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada",
+      "target": "src_whatsapp_filtroentrada_chatregistravel",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L486",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada",
+      "target": "src_whatsapp_filtroentrada_chaves_ruido",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L497",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada",
       "target": "src_whatsapp_filtroentrada_extrairconteudo",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L334",
+      "source_location": "L526",
       "weight": 1.0
     },
     {
@@ -24328,7 +25141,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L408",
+      "source_location": "L600",
       "weight": 1.0
     },
     {
@@ -24339,7 +25152,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L422",
+      "source_location": "L614",
       "weight": 1.0
     },
     {
@@ -24350,7 +25163,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L430",
+      "source_location": "L622",
       "weight": 1.0
     },
     {
@@ -25593,7 +26406,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/whatsapp/tipoMidia.js",
-      "source_location": "L204",
+      "source_location": "L205",
       "weight": 1.0
     },
     {
@@ -26189,7 +27002,7 @@
       "confidence_score": 0.85,
       "context": "argument",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L553",
+      "source_location": "L608",
       "weight": 1.0
     },
     {
@@ -26201,7 +27014,7 @@
       "confidence_score": 0.85,
       "context": "argument",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L770",
+      "source_location": "L843",
       "weight": 1.0
     },
     {
@@ -26213,7 +27026,7 @@
       "confidence_score": 0.85,
       "context": "argument",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L724",
+      "source_location": "L797",
       "weight": 1.0
     },
     {
@@ -26238,6 +27051,30 @@
       "context": "argument",
       "source_file": "src/whatsapp/filtroEntrada.js",
       "source_location": "L286",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_hidratado",
+      "target": "src_whatsapp_filtroentrada_opcaodomodelo",
+      "relation": "indirect_call",
+      "_origin": "ast",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "context": "argument",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L426",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada_textointerativo",
+      "target": "src_whatsapp_filtroentrada_limpo",
+      "relation": "indirect_call",
+      "_origin": "ast",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "context": "argument",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L381",
       "weight": 1.0
     },
     {
@@ -26945,7 +27782,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "src/services/midiaInternoClient.js",
-      "source_location": "L61",
+      "source_location": "L62",
       "weight": 1.0
     },
     {
@@ -27077,7 +27914,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L1139",
+      "source_location": "L1218",
       "weight": 1.0
     },
     {
@@ -27089,7 +27926,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L1140",
+      "source_location": "L1219",
       "weight": 1.0
     },
     {
@@ -27101,7 +27938,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L1141",
+      "source_location": "L1220",
       "weight": 1.0
     },
     {
@@ -27113,7 +27950,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L1142",
+      "source_location": "L1221",
       "weight": 1.0
     },
     {
@@ -27125,7 +27962,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L1143",
+      "source_location": "L1222",
       "weight": 1.0
     },
     {
@@ -27137,7 +27974,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L1051",
+      "source_location": "L1130",
       "weight": 1.0
     },
     {
@@ -27149,7 +27986,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L1052",
+      "source_location": "L1131",
       "weight": 1.0
     },
     {
@@ -27161,7 +27998,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "src/whatsapp/BaileysAdapter.js",
-      "source_location": "L1053",
+      "source_location": "L1132",
       "weight": 1.0
     },
     {
@@ -27526,6 +28363,78 @@
     },
     {
       "source": "src_whatsapp_filtroentrada",
+      "target": "src_whatsapp_filtroentrada_interativa",
+      "relation": "indirect_call",
+      "_origin": "ast",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "context": "collection",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L455",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada",
+      "target": "src_whatsapp_filtroentrada_combotoes",
+      "relation": "indirect_call",
+      "_origin": "ast",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "context": "collection",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L456",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada",
+      "target": "src_whatsapp_filtroentrada_modelo",
+      "relation": "indirect_call",
+      "_origin": "ast",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "context": "collection",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L457",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada",
+      "target": "src_whatsapp_filtroentrada_listadeopcoes",
+      "relation": "indirect_call",
+      "_origin": "ast",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "context": "collection",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L458",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada",
+      "target": "src_whatsapp_filtroentrada_respostainterativa",
+      "relation": "indirect_call",
+      "_origin": "ast",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "context": "collection",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L462",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada",
+      "target": "src_whatsapp_filtroentrada_chavesdescartadas",
+      "relation": "indirect_call",
+      "_origin": "ast",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "context": "collection",
+      "source_file": "src/whatsapp/filtroEntrada.js",
+      "source_location": "L694",
+      "weight": 1.0
+    },
+    {
+      "source": "src_whatsapp_filtroentrada",
       "target": "src_whatsapp_filtroentrada_desembrulhar",
       "relation": "indirect_call",
       "_origin": "ast",
@@ -27533,7 +28442,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L506",
+      "source_location": "L694",
       "weight": 1.0
     },
     {
@@ -27545,7 +28454,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L506",
+      "source_location": "L694",
       "weight": 1.0
     },
     {
@@ -27557,7 +28466,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L506",
+      "source_location": "L694",
       "weight": 1.0
     },
     {
@@ -27569,7 +28478,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L506",
+      "source_location": "L694",
       "weight": 1.0
     },
     {
@@ -27581,7 +28490,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L506",
+      "source_location": "L694",
       "weight": 1.0
     },
     {
@@ -27593,7 +28502,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L506",
+      "source_location": "L694",
       "weight": 1.0
     },
     {
@@ -27605,7 +28514,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "src/whatsapp/filtroEntrada.js",
-      "source_location": "L506",
+      "source_location": "L694",
       "weight": 1.0
     },
     {
@@ -28697,7 +29606,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "src/whatsapp/tipoMidia.js",
-      "source_location": "L260",
+      "source_location": "L271",
       "weight": 1.0
     },
     {
@@ -28709,7 +29618,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "src/whatsapp/tipoMidia.js",
-      "source_location": "L260",
+      "source_location": "L271",
       "weight": 1.0
     },
     {
@@ -28721,7 +29630,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "src/whatsapp/tipoMidia.js",
-      "source_location": "L260",
+      "source_location": "L271",
       "weight": 1.0
     },
     {
@@ -28733,7 +29642,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "src/whatsapp/tipoMidia.js",
-      "source_location": "L260",
+      "source_location": "L271",
       "weight": 1.0
     },
     {
@@ -28810,5 +29719,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "bd2fc0e8e09e55ebb52bd8515e9ab1dd79b6d52c"
+  "built_at_commit": "556b24e8eaad8aa77bcc19d2e7763da9124a23c8"
 }
