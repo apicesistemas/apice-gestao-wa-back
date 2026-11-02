@@ -23,7 +23,7 @@ apice-gestao-wa-back/
 │   ├── index.js          # boot: TZ, Express, reconexão das instâncias, desligamento gracioso
 │   ├── whatsapp/         # adapter Baileys, instanciaManager (1 instância por equipe), entrada/saída
 │   ├── audio/            # transcrição MiniMax (fila de concorrência)
-│   ├── ia/               # sugestão de texto do ticket pela MiniMax (sugestaoTicketService, portaoIa), rota interna POST /ia/sugestao-ticket
+│   ├── ia/               # sugestão de texto do ticket pela MiniMax (sugestaoTicketService, portaoIa), rota interna POST /ia/sugestao-ticket; no portão de lote, POST /ia/avaliacao-atendimento, POST /ia/classificacao-ticket e POST /ia/avaliacao-comercial (Fase 91, avaliacaoComercialService, com a prévia em /previa)
 │   ├── http/             # controllers internos (envio, QR/conexão, grupos, foto, IA, health) + exigência de token
 │   ├── services/         # clientes HTTP das rotas /interno/* do back
 │   ├── db/               # pool MySQL (fuso -03:00), se necessário
