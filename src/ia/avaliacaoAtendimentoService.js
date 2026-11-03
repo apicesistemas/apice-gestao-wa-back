@@ -7,6 +7,9 @@
 // resposta da IA são conteúdo do cliente: nunca vão a log nem a erro. Este módulo não loga nada.
 // O wa-back NÃO mascara nomes (não os conhece): quem filtra a saída é o back, antes de gravar.
 // Os critérios padrão ficam no back; aqui só se monta o prompt a partir dos critérios do corpo.
+//
+// Fase 91: `montarPedido`, `previa` e `avaliar` aceitam o prompt de sistema (e a prévia, o marcador) por parâmetro,
+// para a avaliação comercial (`avaliacaoComercialService`) reaproveitar tudo. Sem eles, o D1 não muda um byte.
 
 const { conversarJson, cortarNaPalavra } = require("./sugestaoTicketService");
 
@@ -75,9 +78,10 @@ const umaLinha = (/** @type {string} */ texto) => neutralizarDelimitadores(texto
  * Mensagem do usuário (parte variável do prompt): critérios por tipo + conversa delimitada. Critério
  * restrito (NOTA ou ALERTA) leva o marcador [RESTRITO], que as regras 6a e 7 do sistema citam.
  * @param {PedidoAvaliacao} pedido
+ * @param {string} [sistema] prompt de sistema (padrão: o do D1)
  * @returns {{ sistema: string, usuario: string }}
  */
-function montarPedido({ criterios, contexto, total_linhas }) {
+function montarPedido({ criterios, contexto, total_linhas }, sistema = PROMPT_SISTEMA) {
   /** @type {string[]} */
   const linhas = [];
   for (const tipo of /** @type {const} */ (["NOTA", "ALERTA"])) {
@@ -87,14 +91,16 @@ function montarPedido({ criterios, contexto, total_linhas }) {
     for (const c of doTipo) linhas.push(`- ${c.codigo} (${umaLinha(c.nome)})${c.restrito ? " [RESTRITO]" : ""}: ${umaLinha(c.instrucao)}`);
   }
   linhas.push("", `A conversa tem ${total_linhas} linhas.`, "", DELIMITADOR_INICIO, neutralizarDelimitadores(contexto), DELIMITADOR_FIM);
-  return { sistema: PROMPT_SISTEMA, usuario: linhas.join("\n") };
+  return { sistema, usuario: linhas.join("\n") };
 }
 
 /**
  * D2: o prompt exato do D1, com a conversa trocada por um marcador e `total_linhas` = "N". Não chama a MiniMax.
  * @param {CriterioAvaliacao[]} criterios
+ * @param {string} [sistema] prompt de sistema (padrão: o do D1)
+ * @param {string} [marcador] texto no lugar da conversa (padrão: o do D1)
  */
-const previa = (criterios) => montarPedido({ criterios, contexto: CONTEXTO_PREVIA, total_linhas: "N" });
+const previa = (criterios, sistema = PROMPT_SISTEMA, marcador = CONTEXTO_PREVIA) => montarPedido({ criterios, contexto: marcador, total_linhas: "N" }, sistema);
 
 /**
  * Texto da IA: uma linha só, aparado, cortado na palavra. Vazio ou de outro tipo → undefined.
@@ -155,12 +161,12 @@ function validarAvaliacao(objeto, { criterios, total_linhas }) {
 
 /**
  * Pede à MiniMax a avaliação do atendimento. Uma chamada, sem nova tentativa; falha fechada.
- * @param {PedidoAvaliacao & { total_linhas: number, prazoMs: number, fetch?: typeof fetch }} pedido `prazoMs` já desconta a espera do portão
+ * @param {PedidoAvaliacao & { total_linhas: number, prazoMs: number, fetch?: typeof fetch, sistema?: string }} pedido `prazoMs` já desconta a espera do portão; `sistema` (opcional) troca o prompt
  * @returns {Promise<ResultadoAvaliacao>} nunca rejeita
  */
 async function avaliar(pedido) {
   try {
-    const { sistema, usuario } = montarPedido(pedido);
+    const { sistema, usuario } = montarPedido(pedido, pedido.sistema);
     const r = await conversarJson({ sistema, usuario, prazoMs: pedido.prazoMs, fetch: pedido.fetch, maxTokens: MAXIMO_TOKENS_AVALIACAO });
     if ("erro" in r) return r;
     const avaliacao = validarAvaliacao(r.objeto, pedido);
@@ -171,4 +177,4 @@ async function avaliar(pedido) {
   }
 }
 
-module.exports = { avaliar, montarPedido, validarAvaliacao, previa, PROMPT_SISTEMA, CONTEXTO_PREVIA, MAXIMO_RECOMENDACAO, MAXIMO_MOTIVO, MAXIMO_LINHAS_ALERTA };
+module.exports = { avaliar, montarPedido, validarAvaliacao, previa, PROMPT_SISTEMA, CONTEXTO_PREVIA, DELIMITADOR_INICIO, DELIMITADOR_FIM, MAXIMO_RECOMENDACAO, MAXIMO_MOTIVO, MAXIMO_LINHAS_ALERTA };

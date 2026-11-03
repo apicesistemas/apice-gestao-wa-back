@@ -211,3 +211,44 @@ test("avaliar nunca rejeita: pedido quebrado vira RESPOSTA_INVALIDA", async () =
   const quebrado = /** @type {any} */ ({ criterios: null, contexto: "x", total_linhas: 1, prazoMs: 1000 });
   assert.deepEqual(await avaliar(quebrado), { erro: "RESPOSTA_INVALIDA" });
 });
+
+test("regressão (Fase 91): o prompt, o usuário e a prévia do D1 continuam byte a byte iguais (sha256 do estado anterior à 0.36.0)", () => {
+  const sha = (/** @type {string} */ t) => require("node:crypto").createHash("sha256").update(t).digest("hex");
+  const criterios = [
+    { codigo: "CORDIALIDADE", tipo: /** @type {const} */ ("NOTA"), nome: "Cordialidade", instrucao: "O Suporte foi educado e respeitoso?", restrito: false },
+    { codigo: "PEDIU_DADO", tipo: /** @type {const} */ ("ALERTA"), nome: "Pediu dado", instrucao: "O Suporte pediu algo que o cliente já enviou.", restrito: true },
+  ];
+  assert.equal(sha(PROMPT_SISTEMA), "18282aaf32e11cbc2b553a0bd590f042e98fb5c385fd4327ce9d96dbc26eb064");
+  assert.equal(sha(montarPedido({ criterios, contexto: "[L1] [14/10 09:02] Cliente: oi", total_linhas: 6 }).usuario), "c0f8c72665ee4b3a0adda787271a3a94f9ff913ba18dfb31f9cafa3fdf44375d");
+  const p = previa(criterios);
+  assert.equal(sha(p.sistema), "18282aaf32e11cbc2b553a0bd590f042e98fb5c385fd4327ce9d96dbc26eb064");
+  assert.equal(sha(p.usuario), "e2595c7bf0fe6415164ecc361ae94d68037d9ec8b03ad7c32b282e1d673c66a1");
+  assert.equal(sha(CONTEXTO_PREVIA), "18b19734015c680158a1b739300ea3cba8426aab2b884e8e2f1c0ce823750b99");
+});
+
+test("montarPedido e previa aceitam o prompt e o marcador por parâmetro; sem eles usam os do D1", () => {
+  const pedido = { ...PEDIDO, contexto: "[L1] x" };
+  assert.deepEqual(montarPedido(pedido), montarPedido(pedido, PROMPT_SISTEMA));
+  assert.equal(montarPedido(pedido, "SISTEMA DE OUTRA AVALIAÇÃO").sistema, "SISTEMA DE OUTRA AVALIAÇÃO");
+  assert.equal(montarPedido(pedido, "S").usuario, montarPedido(pedido).usuario);
+  assert.deepEqual(previa(CRITERIOS), previa(CRITERIOS, PROMPT_SISTEMA, CONTEXTO_PREVIA));
+  const outra = previa(CRITERIOS, "S2", "(marcador próprio)");
+  assert.equal(outra.sistema, "S2");
+  assert.ok(outra.usuario.includes("<<<CONVERSA_DO_ATENDIMENTO\n(marcador próprio)\nFIM_CONVERSA_DO_ATENDIMENTO>>>"));
+  assert.ok(outra.usuario.includes("A conversa tem N linhas."));
+});
+
+test("avaliar usa o `sistema` do pedido quando vem, e o do D1 quando não vem", async () => {
+  /** @type {string[]} */
+  const sistemas = [];
+  const fetchFalso = /** @type {typeof fetch} */ (
+    async (_url, init) => {
+      sistemas.push(JSON.parse(String(init?.body)).messages[0].content);
+      return chat(JSON.stringify({ notas: { CORDIALIDADE: 4 } }));
+    }
+  );
+  const base = { criterios: CRITERIOS, contexto: "[L1] x", total_linhas: 1, prazoMs: 5000, fetch: fetchFalso };
+  await avaliar(base);
+  await avaliar({ ...base, sistema: "SISTEMA PRÓPRIO" });
+  assert.deepEqual(sistemas, [PROMPT_SISTEMA, "SISTEMA PRÓPRIO"]);
+});

@@ -54,6 +54,31 @@
 // Erros: 400 { msg } · 401 · 503 + Retry-After
 // Efeitos: nenhum; não chama a MiniMax.
 //
+// Avaliação da IA do atendimento comercial (Fase 91, Task 91.1), contratos DC1 e DC2. Só o back chama (mesmo token antes do corpo,
+// mesmo 503 + Retry-After no desligamento, mesmo teto de corpo). Nenhuma das duas rotas grava, toca no Baileys ou chama o back.
+//
+// Canal: D
+// Método e caminho: POST /ia/avaliacao-comercial (DC1)
+// Quem chama / quem expõe: back waIaService.avaliarComercial (job) → wa-back IaController
+// Entrada: a mesma allowlist do D1 (ALLOWLIST_AVALIACAO: criterios, contexto, total_linhas, prazo_ms; chave desconhecida → 400 sem
+//   chamar a MiniMax, inclusive hash_empresa, cod_*, titulo, descricao, nome_usuario, valores e nota_interna), com UMA diferença:
+//   critério com restrito: true → 400 { msg: "Critério restrito não existe na avaliação comercial." } (D91.4). `restrito` continua
+//   obrigatório (boolean) e o back manda sempre false.
+// Fluxo: o do D1 (portão de LOTE, o mesmo da avaliação do suporte e da classificação), mas com PROMPT_SISTEMA_COMERCIAL
+//   (rótulos "Empresa", "Contato" e "Registro do comercial").
+// Saída 2xx e erros: os do D1 (200 { notas, alertas, recomendacao? } · 400 · 401 · 502 RESPOSTA_INVALIDA · 503 IA_INDISPONIVEL ·
+//   503 + Retry-After · 504 PRAZO · 500 { msg: "Erro interno ao avaliar o atendimento comercial." }).
+// Efeitos: nenhum. O log leva só o número de critérios, o código e os ms ("[IA] Avaliação comercial: criterios=N codigo=C ms=N").
+// Compatibilidade: rota nova; publicar o wa-back antes do back (com o wa-back antigo, o 404 vira INDISPONIVEL no back, nada gravado).
+//
+// Canal: D
+// Método e caminho: POST /ia/avaliacao-comercial/previa (DC2)
+// Quem chama / quem expõe: back AvaliacaoComercialCriterio.previa → wa-back IaController
+// Entrada: { criterios } (a validação do DC1, inclusive a recusa de restrito: true; qualquer outra chave → 400)
+// Saída 2xx: 200 { sistema, usuario } (o prompt exato do DC1, com a linha do tempo trocada por
+//   "(aqui entra a linha do tempo da oportunidade, mascarada e numerada)" e total_linhas = "N")
+// Erros: 400 { msg } · 401 · 503 + Retry-After. Efeitos: nenhum; não chama a MiniMax.
+//
 // Classificação dos tickets (Fase 57, Task 57.1), contrato D1 (alterado) e D3 (novo). Só o back chama; as mesmas garantias
 // (token antes do corpo, 503 + Retry-After no desligamento, nada de Baileys, back ou log com contexto, nomes ou resposta).
 //
@@ -84,6 +109,7 @@ const express = require("express");
 const exigirTokenServico = require("./exigirTokenServico");
 const sugestaoTicketService = require("../ia/sugestaoTicketService");
 const avaliacaoAtendimentoService = require("../ia/avaliacaoAtendimentoService");
+const avaliacaoComercialService = require("../ia/avaliacaoComercialService");
 const classificacaoTicketService = require("../ia/classificacaoTicketService");
 const { portaoPadrao, portaoLote: portaoLoteDoProcesso } = require("../ia/portaoIa");
 const desligamentoDoProcesso = require("../utils/desligamento").padrao;
@@ -123,6 +149,7 @@ const ALLOWLIST_CRITERIO = new Set(["codigo", "tipo", "nome", "instrucao", "rest
 const ALLOWLIST_PREVIA = new Set(["criterios"]);
 
 const MSG_INDISPONIVEL = "IA indisponível no momento.";
+const MSG_RESTRITO_COMERCIAL = "Critério restrito não existe na avaliação comercial.";
 const MSG_INVALIDA = "A resposta da IA não pôde ser usada.";
 const MSG_PRAZO = "A IA não respondeu no prazo.";
 
@@ -219,12 +246,13 @@ const textoNoLimite = (valor, [minimo, maximo]) => {
 };
 
 /**
- * Valida a lista de critérios (D1 e D2).
+ * Valida a lista de critérios (D1, D2, DC1 e DC2).
  * @param {unknown} lista
+ * @param {{ aceitarRestrito?: boolean }} [opcoes] a avaliação comercial não tem critério restrito (D91.4): `restrito: true` → 400
  * @returns {import("../ia/avaliacaoAtendimentoService").CriterioAvaliacao[]}
  * @throws {ErroRequisicao}
  */
-function validarCriterios(lista) {
+function validarCriterios(lista, { aceitarRestrito = true } = {}) {
   if (!Array.isArray(lista) || lista.length < 1 || lista.length > MAXIMO_CRITERIOS) throw recusar(`Informe de 1 a ${MAXIMO_CRITERIOS} critérios.`);
   /** @type {Set<string>} */
   const codigos = new Set();
@@ -237,6 +265,7 @@ function validarCriterios(lista) {
     if (!textoNoLimite(c.nome, LIMITE_NOME_CRITERIO)) throw recusar("O nome do critério tem de 2 a 60 caracteres.");
     if (!textoNoLimite(c.instrucao, LIMITE_INSTRUCAO_CRITERIO)) throw recusar("A instrução do critério tem de 10 a 500 caracteres.");
     if (typeof c.restrito !== "boolean") throw recusar("Informe se o critério é restrito.");
+    if (c.restrito && !aceitarRestrito) throw recusar(MSG_RESTRITO_COMERCIAL);
     return { codigo: c.codigo, tipo: c.tipo, nome: /** @type {string} */ (c.nome), instrucao: /** @type {string} */ (c.instrucao), restrito: c.restrito };
   });
 }
@@ -301,14 +330,15 @@ function validarCorpoClassificacao(corpo) {
 }
 
 /**
- * Valida o corpo contra a allowlist do contrato D1 da avaliação.
+ * Valida o corpo contra a allowlist do contrato D1 da avaliação (a mesma do DC1).
  * @param {unknown} corpo
+ * @param {{ aceitarRestrito?: boolean }} [opcoes]
  * @returns {{ criterios: import("../ia/avaliacaoAtendimentoService").CriterioAvaliacao[], contexto: string, total_linhas: number, prazo_ms: number }}
  * @throws {ErroRequisicao}
  */
-function validarCorpoAvaliacao(corpo) {
+function validarCorpoAvaliacao(corpo, opcoes) {
   const c = exigirChavesPermitidas(corpo, ALLOWLIST_AVALIACAO, "na avaliação");
-  const criterios = validarCriterios(c.criterios);
+  const criterios = validarCriterios(c.criterios, opcoes);
   if (typeof c.contexto !== "string" || c.contexto.length < 1 || c.contexto.length > MAXIMO_CONTEXTO) throw recusar("Contexto inválido.");
   const linhas = c.total_linhas;
   if (!ehInteiro(linhas) || /** @type {number} */ (linhas) < 1 || /** @type {number} */ (linhas) > MAXIMO_LINHAS) throw recusar("Total de linhas inválido.");
@@ -349,6 +379,7 @@ function lerJson(req, res, next) {
  *   desligamento?: Pick<import("../utils/desligamento").Desligamento, "recusarDuranteEncerramento">,
  *   sugerir?: typeof sugestaoTicketService.sugerir,
  *   avaliar?: typeof avaliacaoAtendimentoService.avaliar,
+ *   avaliarComercial?: typeof avaliacaoComercialService.avaliarComercial,
  *   classificar?: typeof classificacaoTicketService.classificar,
  *   portao?: Pick<ReturnType<typeof import("../ia/portaoIa").criarPortaoIa>, "executar">,
  *   portaoLote?: Pick<ReturnType<typeof import("../ia/portaoIa").criarPortaoIa>, "executar">,
@@ -357,7 +388,7 @@ function lerJson(req, res, next) {
  * }} [opcoes] dependências (os testes injetam)
  * @returns {(server: import("express").Express) => void}
  */
-function criarIaController({ desligamento = desligamentoDoProcesso, sugerir = sugestaoTicketService.sugerir, avaliar = avaliacaoAtendimentoService.avaliar, classificar = classificacaoTicketService.classificar, portao, portaoLote, fetch, agora = Date.now } = {}) {
+function criarIaController({ desligamento = desligamentoDoProcesso, sugerir = sugestaoTicketService.sugerir, avaliar = avaliacaoAtendimentoService.avaliar, avaliarComercial = avaliacaoComercialService.avaliarComercial, classificar = classificacaoTicketService.classificar, portao, portaoLote, fetch, agora = Date.now } = {}) {
   /** @type {import("express").RequestHandler} */
   const recusarDuranteEncerramento = (req, res, next) => desligamento.recusarDuranteEncerramento(req, res, next);
 
@@ -409,10 +440,15 @@ function criarIaController({ desligamento = desligamentoDoProcesso, sugerir = su
       }
     });
 
-    server.post("/ia/avaliacao-atendimento", exigirTokenServico, recusarDuranteEncerramento, lerJson, async (req, res) => {
+    // D1 (suporte) e DC1 (comercial): o mesmo fluxo, o portão de LOTE e o log só com critérios, código e ms.
+    /**
+     * @param {{ rotulo: string, aceitarRestrito: boolean, executar: typeof avaliacaoAtendimentoService.avaliar, msgErro: string }} rota
+     * @returns {import("express").RequestHandler}
+     */
+    const tratarAvaliacao = ({ rotulo, aceitarRestrito, executar, msgErro }) => async (req, res) => {
       let dados;
       try {
-        dados = validarCorpoAvaliacao(req.body);
+        dados = validarCorpoAvaliacao(req.body, { aceitarRestrito });
       } catch (erro) {
         // Só lança ErroRequisicao (mensagens fixas, sem eco do conteúdo).
         res.status(400).json({ msg: /** @type {Error} */ (erro).message });
@@ -422,10 +458,10 @@ function criarIaController({ desligamento = desligamentoDoProcesso, sugerir = su
       const inicio = agora();
       const { criterios, contexto, total_linhas: totalLinhas, prazo_ms: prazoMs } = dados;
       /** @param {string} codigo */
-      const registrar = (codigo) => console.log(`[IA] Avaliação do atendimento: criterios=${criterios.length} codigo=${codigo} ms=${agora() - inicio}`);
+      const registrar = (codigo) => console.log(`[IA] ${rotulo}: criterios=${criterios.length} codigo=${codigo} ms=${agora() - inicio}`);
       try {
         const vez = await (portaoLote ?? portaoLoteDoProcesso()).executar(prazoMs, (restanteMs) =>
-          avaliar({ criterios, contexto, total_linhas: totalLinhas, prazoMs: restanteMs, ...(fetch ? { fetch } : {}) }),
+          executar({ criterios, contexto, total_linhas: totalLinhas, prazoMs: restanteMs, ...(fetch ? { fetch } : {}) }),
         );
         if (vez.prazoEsgotado) {
           registrar("PRAZO");
@@ -443,10 +479,26 @@ function criarIaController({ desligamento = desligamentoDoProcesso, sugerir = su
         responderErroIa(res, resultado.erro);
       } catch (erro) {
         // Só o nome do erro: a mensagem poderia carregar trecho do contexto.
-        console.error("[IA] Erro inesperado na avaliação do atendimento:", erro instanceof Error ? erro.name : "erro");
-        res.status(500).json({ msg: "Erro interno ao avaliar o atendimento." });
+        console.error(`[IA] Erro inesperado na ${rotulo.toLowerCase()}:`, erro instanceof Error ? erro.name : "erro");
+        res.status(500).json({ msg: msgErro });
       }
-    });
+    };
+
+    server.post(
+      "/ia/avaliacao-atendimento",
+      exigirTokenServico,
+      recusarDuranteEncerramento,
+      lerJson,
+      tratarAvaliacao({ rotulo: "Avaliação do atendimento", aceitarRestrito: true, executar: avaliar, msgErro: "Erro interno ao avaliar o atendimento." }),
+    );
+
+    server.post(
+      "/ia/avaliacao-comercial",
+      exigirTokenServico,
+      recusarDuranteEncerramento,
+      lerJson,
+      tratarAvaliacao({ rotulo: "Avaliação comercial", aceitarRestrito: false, executar: avaliarComercial, msgErro: "Erro interno ao avaliar o atendimento comercial." }),
+    );
 
     server.post("/ia/classificacao-ticket", exigirTokenServico, recusarDuranteEncerramento, lerJson, async (req, res) => {
       let dados;
@@ -487,15 +539,36 @@ function criarIaController({ desligamento = desligamentoDoProcesso, sugerir = su
       }
     });
 
-    server.post("/ia/avaliacao-atendimento/previa", exigirTokenServico, recusarDuranteEncerramento, lerJson, (req, res) => {
+    // D2 (suporte) e DC2 (comercial): o prompt exato da avaliação, com a conversa trocada por um marcador. Não chama a MiniMax.
+    /**
+     * @param {{ aceitarRestrito: boolean, montar: (criterios: import("../ia/avaliacaoAtendimentoService").CriterioAvaliacao[]) => { sistema: string, usuario: string } }} rota
+     * @returns {import("express").RequestHandler}
+     */
+    const tratarPrevia = ({ aceitarRestrito, montar }) => (req, res) => {
       try {
         const c = exigirChavesPermitidas(req.body, ALLOWLIST_PREVIA, "na prévia");
-        res.status(200).json(avaliacaoAtendimentoService.previa(validarCriterios(c.criterios)));
+        res.status(200).json(montar(validarCriterios(c.criterios, { aceitarRestrito })));
       } catch (erro) {
         // validarCriterios e exigirChavesPermitidas só lançam ErroRequisicao.
         res.status(400).json({ msg: /** @type {Error} */ (erro).message });
       }
-    });
+    };
+
+    server.post(
+      "/ia/avaliacao-atendimento/previa",
+      exigirTokenServico,
+      recusarDuranteEncerramento,
+      lerJson,
+      tratarPrevia({ aceitarRestrito: true, montar: (criterios) => avaliacaoAtendimentoService.previa(criterios) }),
+    );
+
+    server.post(
+      "/ia/avaliacao-comercial/previa",
+      exigirTokenServico,
+      recusarDuranteEncerramento,
+      lerJson,
+      tratarPrevia({ aceitarRestrito: false, montar: avaliacaoComercialService.previaComercial }),
+    );
   };
 }
 

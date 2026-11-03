@@ -3,6 +3,29 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.36.0] - 2026-11-02
+
+### Adicionado
+
+- Avaliação da IA do atendimento comercial (Fase 91, Task 91.1, contratos DC1 e DC2):
+  - `POST /ia/avaliacao-comercial` (DC1): a avaliação do D1 (Fase 55) com o prompt próprio `PROMPT_SISTEMA_COMERCIAL`, de `src/ia/avaliacaoComercialService.js`, que usa os rótulos "Empresa", "Contato" e "Registro do comercial", avalia só as falas da Empresa e os registros do comercial (o Contato é contexto), tira o tempo de resposta dos carimbos e dirige a recomendação ao responsável. Mesmo portão de LOTE (`MINIMAX_IA_CONCORRENCIA_LOTE`) da avaliação do suporte e da classificação, então não atrasa a sugestão interativa.
+  - `POST /ia/avaliacao-comercial/previa` (DC2): o mesmo `sistema` do DC1 e o `usuario` com o marcador "(aqui entra a linha do tempo da oportunidade, mascarada e numerada)" e `total_linhas` = "N". Não chama a MiniMax.
+  - A allowlist do corpo é a do D1 (`criterios`, `contexto`, `total_linhas`, `prazo_ms`): chave desconhecida (inclusive `hash_empresa`, `cod_*`, `titulo`, `descricao`, `nome_usuario`, valores e `nota_interna`) → 400 sem chamar a MiniMax. Não há critério restrito ao gestor na avaliação comercial: `restrito: true` → 400 `{ msg: "Critério restrito não existe na avaliação comercial." }` nas duas rotas (`restrito` segue obrigatório e booleano).
+  - `X-Internal-Token` conferido antes de ler o corpo, 503 + `Retry-After` no desligamento, 502 `RESPOSTA_INVALIDA`, 503 `IA_INDISPONIVEL` e 504 `PRAZO` como no D1. O log leva só o nº de critérios, o código e os ms (`[IA] Avaliação comercial: criterios=N codigo=C ms=N`), nunca o contexto, as instruções nem a resposta.
+- Contrato do envio: `avaliacao_comercial` (e `recomendacao`, `motivo`) cobertos pelo teste que recusa com 400, sem tocar o Baileys, o campo no envio, na reação, na edição e na exclusão.
+
+### Alterado
+
+- `avaliacaoAtendimentoService`: `montarPedido`, `previa` e `avaliar` aceitam o prompt de sistema (a `previa`, também o marcador) por parâmetro, com o padrão igual ao atual. O D1, o prompt e a prévia do suporte continuam byte a byte iguais (teste de regressão por sha256). O `IaController` passa a usar um tratador comum para as duas avaliações, com as mesmas mensagens e o mesmo log do D1.
+
+### Contrato para o back (canal D)
+
+- DC1 `POST /ia/avaliacao-comercial` e DC2 `POST /ia/avaliacao-comercial/previa`, como descritos acima e no cabeçalho de `src/http/IaController.js`. O 500 do DC1 responde `{ msg: "Erro interno ao avaliar o atendimento comercial." }`.
+
+### Observações
+
+- **Publicar antes do back.** Rota nova do canal D: o wa-back sobe primeiro. Com o wa-back antigo, o 404 vira INDISPONIVEL no back e nada é gravado. Sem variável de ambiente nem mudança de infraestrutura.
+
 ## [0.35.4] - 2026-10-29
 
 ### Corrigido
