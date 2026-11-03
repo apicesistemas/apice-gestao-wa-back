@@ -221,6 +221,23 @@ test("IMAGEM e VIDEO saem com jpegThumbnail null; menções em grupo vão em men
   assert.equal(envios[1].conteudo.jpegThumbnail, null);
 });
 
+test("IMAGEM com PNG declarado como JPEG é aceita e sai como image/png; PDF declarado como imagem continua recusado", async () => {
+  const png = await postEnviar("7", formulario({ ...BASE, tipo: "IMAGEM" }, { buffer: arquivos.png(), mimetype: "image/jpeg", nome: "captura.png" }));
+  assert.equal(png.status, 200);
+  assert.equal(envios.length, 1);
+  assert.equal(envios[0].conteudo.mimetype, "image/png");
+
+  const pdf = await postEnviar("7", formulario({ ...BASE, tipo: "IMAGEM" }, { buffer: arquivos.pdf(), mimetype: "image/jpeg", nome: "x.jpg" }));
+  assert.equal(pdf.status, 400);
+  assert.equal(envios.length, 1);
+});
+
+test("IMAGEM com WebP declarado como JPEG é recusada com 400, sem tocar o Baileys", async () => {
+  const webp = await postEnviar("7", formulario({ ...BASE, tipo: "IMAGEM" }, { buffer: arquivos.webp(), mimetype: "image/jpeg", nome: "figura.jpg" }));
+  assert.equal(webp.status, 400);
+  assert.equal(envios.length, 0);
+});
+
 test("DOCUMENTO com conteúdo MP4 ou 3GP vai como { document, mimetype, fileName } e nenhuma chave video; VIDEO segue como video", async () => {
   const doc = await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO", legenda: "gravação" }, { buffer: arquivos.mp4(), mimetype: "video/mp4", nome: "treino" }));
   assert.equal(doc.status, 200);

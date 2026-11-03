@@ -51,6 +51,30 @@ test("um conteúdo que não bate com o tipo declarado é recusado", () => {
   assert.deepEqual(validarMidia(arquivos.docx(), arquivos.MIME_XLSX, TETO), { ok: false, motivo: "TIPO_DIVERGENTE" });
 });
 
+test("imagem raster (JPEG, PNG, WebP) declarada como outra da família vale pelo tipo detectado", () => {
+  // O WhatsApp declara image/jpeg em toda imageMessage, mas capturas de tela chegam em PNG.
+  /** @type {[Buffer, string, string][]} conteúdo, declarado, detectado */
+  const casos = [
+    [arquivos.png(), "image/jpeg", "image/png"],
+    [arquivos.png(), "IMAGE/PJPEG; q=1", "image/png"],
+    [arquivos.jpeg(), "image/png", "image/jpeg"],
+    [arquivos.webp(), "image/jpeg", "image/webp"],
+    [arquivos.webp(), "image/jpg", "image/webp"],
+  ];
+  for (const [buffer, declarado, detectado] of casos) {
+    assert.deepEqual(validarMidia(buffer, declarado, TETO), { ok: true, mimetype: detectado, tamanho_bytes: buffer.length }, `${declarado} → ${detectado}`);
+  }
+});
+
+test("fora da família raster a divergência continua recusada (GIF, PDF, PNG como PDF)", () => {
+  assert.deepEqual(validarMidia(arquivos.gif(), "image/jpeg", TETO), { ok: false, motivo: "TIPO_DIVERGENTE" });
+  assert.deepEqual(validarMidia(arquivos.png(), "image/gif", TETO), { ok: false, motivo: "TIPO_DIVERGENTE" });
+  assert.deepEqual(validarMidia(arquivos.png(), "application/pdf", TETO), { ok: false, motivo: "TIPO_DIVERGENTE" });
+  assert.deepEqual(validarMidia(arquivos.pdf(), "image/jpeg", TETO), { ok: false, motivo: "TIPO_DIVERGENTE" });
+  assert.deepEqual(validarMidia(arquivos.pfx(), "image/jpeg", TETO), { ok: false, motivo: "TIPO_DIVERGENTE" });
+  assert.deepEqual(validarMidia(arquivos.pfx(), "image/png", TETO), { ok: false, motivo: "TIPO_DIVERGENTE" });
+});
+
 test("conteúdo sem assinatura conhecida é recusado como não reconhecido, mesmo com tipo declarado aceito", () => {
   const executavel = Buffer.concat([Buffer.from("MZ", "latin1"), Buffer.alloc(64)]);
   assert.equal(detectarTipoPorConteudo(executavel), null);

@@ -183,6 +183,13 @@ test("obterMidiaValidada baixa, valida e devolve o buffer com o mimetype detecta
   });
 });
 
+test("obterMidiaValidada aceita PNG declarado como image/jpeg (captura de tela) com o mimetype detectado", async () => {
+  const conteudo = arquivos.png();
+  const resultado = await obterMidiaValidada(socketFalso, imagemWa(), metadados({ mimetype: "image/jpeg", nome_arquivo: null }), { tetoBytes: 1024, prazoMs: 1000, baixar: async () => streamDe(conteudo) });
+  assert.equal(resultado.ok, true);
+  assert.equal(resultado.ok && resultado.mimetype, "image/png");
+});
+
 test("obterMidiaValidada usa a duração real do OGG/Opus no lugar da declarada", async () => {
   const resultado = await obterMidiaValidada(socketFalso, imagemWa(), metadados({ mimetype: "audio/ogg; codecs=opus", duracao_segundos: 99, ptt: true }), {
     tetoBytes: 1024,

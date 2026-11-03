@@ -3,6 +3,12 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.36.1] - 2026-11-03
+
+### Corrigido
+
+- Captura de tela (PNG) enviada num grupo aparecia como "Mídia não recebida. O conteúdo do arquivo não corresponde ao tipo informado." (`TIPO_DIVERGENTE`). O WhatsApp declara `image/jpeg` em toda `imageMessage`, mas alguns clientes (Desktop/Web, capturas coladas) mandam PNG. Em `validarMidia`, JPEG, PNG e WebP declarados uns como os outros (inclusive `image/jpg` e `image/pjpeg`) passam a valer pelo mimetype **detectado** pelos magic bytes. GIF, PDF e as demais famílias seguem recusados por divergência. Vale também para o envio (`/enviar` IMAGEM): um PNG declarado como JPEG sai como `image/png`. Sem mudança de contrato com o back.
+
 ## [0.36.0] - 2026-11-02
 
 ### Adicionado

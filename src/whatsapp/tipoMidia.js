@@ -200,6 +200,12 @@ const DECLARADOS_ACEITOS = {
   [MIME_PKCS12]: [MIME_PKCS12, "application/pkcs12"],
 };
 
+/**
+ * Imagens raster intercambiáveis: o WhatsApp declara `image/jpeg` em toda `imageMessage`, mas
+ * clientes Desktop/Web (capturas coladas) mandam PNG. Entre elas vale o tipo detectado.
+ */
+const FAMILIA_RASTER = new Set(["image/jpeg", "image/png", "image/webp"]);
+
 /** Declarações que não dizem o tipo: valem pelo conteúdo detectado. */
 const MIME_GENERICO = "application/octet-stream";
 const DECLARADOS_GENERICOS = new Set(["", "application/octet-stream", "binary/octet-stream"]);
@@ -222,7 +228,8 @@ function normalizarMimetype(mimetype) {
 /**
  * Valida a mídia baixada: tamanho real até o teto, tipo reconhecido pelo conteúdo e compatível
  * com o declarado. Sem tipo declarado (ou `application/octet-stream`), vale o detectado. Um MP4
- * genérico declarado como `audio/mp4` (m4a) é o mesmo contêiner e sai como `audio/mp4`.
+ * genérico declarado como `audio/mp4` (m4a) é o mesmo contêiner e sai como `audio/mp4`. JPEG, PNG
+ * e WebP declarados uns como os outros valem pelo detectado (GIF fica fora da família).
  * Com `documentoGenerico` (só a entrada de mensagem DOCUMENTO), o conteúdo não reconhecido ou
  * divergente do declarado é aceito como `application/octet-stream`; vazio e acima do teto seguem recusados.
  * @param {Buffer} buffer
@@ -244,6 +251,7 @@ function validarMidia(buffer, mimetypeDeclarado, tetoBytes, opcoes = {}) {
   const declarado = normalizarMimetype(mimetypeDeclarado);
   if (DECLARADOS_GENERICOS.has(declarado)) return aceito(detectado);
   if (DECLARADOS_ACEITOS[detectado]?.includes(declarado)) return aceito(detectado);
+  if (FAMILIA_RASTER.has(detectado) && [...FAMILIA_RASTER].some((tipo) => DECLARADOS_ACEITOS[tipo].includes(declarado))) return aceito(detectado);
   if (detectado === "video/mp4" && DECLARADOS_ACEITOS["audio/mp4"].includes(declarado)) return aceito("audio/mp4");
   return recusar("TIPO_DIVERGENTE");
 }
