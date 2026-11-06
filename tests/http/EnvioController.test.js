@@ -339,6 +339,18 @@ test("envio, reação, edição e exclusão com campos do feedback de desempenho
   assert.deepEqual(marcadas, []);
 });
 
+test("envio, reação, edição e exclusão com campos da pesquisa de clima (pesquisa_clima, comentarios_clima, devolutiva) respondem 400 sem tocar o Baileys (teste de contrato)", async () => {
+  for (const campo of ["pesquisa_clima", "comentarios_clima", "devolutiva"]) {
+    await esperarErro(await postEnviar("7", formulario({ ...BASE, tipo: "TEXTO", texto: "Oi", [campo]: "texto da pesquisa de clima" })), 400);
+    await esperarErro(await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO", [campo]: "texto da pesquisa de clima" }, { buffer: arquivos.pdf(), mimetype: "application/pdf", nome: "a.pdf" })), 400);
+    await esperarErro(await postReagir("7", { ...BASE, key: { remoteJid: JID_CLIENTE, fromMe: false, id: "3EB0A" }, emoji: "👍", [campo]: "texto da pesquisa de clima" }), 400);
+    await esperarErro(await postEditar("7", { ...BASE, key: KEY_EDITAR, texto: "novo", [campo]: "texto da pesquisa de clima" }), 400);
+    await esperarErro(await postApagar("7", { ...BASE, key: KEY_EDITAR, [campo]: "texto da pesquisa de clima" }), 400);
+  }
+  assert.equal(envios.length, 0);
+  assert.deepEqual(marcadas, []);
+});
+
 test("envio, reação, edição e exclusão com campos da classificação (classificacao, natureza, taxonomia, ids, especificacao) respondem 400 sem tocar o Baileys (teste de contrato, Fase 57)", async () => {
   for (const campo of ["classificacao", "natureza", "taxonomia", "cod_produto_suporte", "cod_area_produto", "especificacao"]) {
     await esperarErro(await postEnviar("7", formulario({ ...BASE, tipo: "TEXTO", texto: "Oi", [campo]: "Uso do sistema" })), 400);

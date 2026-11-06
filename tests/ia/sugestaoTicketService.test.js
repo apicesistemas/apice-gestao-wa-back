@@ -111,6 +111,7 @@ test("parse defensivo: bloco cercado por ```, texto em volta, raciocínio <think
     '```\n{"titulo":"A"}\n```',
     'Claro! Segue:\n{"titulo":"A"}\nEspero ter ajudado.',
     '<think>vou usar {"titulo":"errado"} talvez</think>\n{"titulo":"A"}',
+    '{"titulo":"A"} <think>{"titulo":"B"}',
     '{\n  "titulo": "A"\n}',
   ];
   for (const v of variantes) {

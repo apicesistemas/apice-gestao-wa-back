@@ -113,7 +113,8 @@ function montarPedidoUsuario({ campos, contexto, tipos_resolucao: tipos, minimo_
  * @returns {Record<string, unknown> | null}
  */
 function extrairObjeto(texto) {
-  let t = texto.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  // Um <think> sem </think> (resposta cortada por tokens) vai até o fim: o JSON do raciocínio nunca vale como resposta.
+  let t = texto.replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/<think>[\s\S]*$/i, "").trim();
   const cercado = /```(?:json)?\s*([\s\S]*?)```/i.exec(t);
   if (cercado) t = cercado[1].trim();
   const candidatos = [t];

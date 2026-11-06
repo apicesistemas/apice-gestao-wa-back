@@ -3,6 +3,28 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.38.0] - 2026-11-06
+
+**Publicar o wa-back 0.38.0 ANTES do back 0.111.0** (canal D, rota nova). Com o wa-back antigo, o 404 vira INDISPONIVEL no back e nada é gravado.
+
+### Adicionado
+
+- Insights da pesquisa de clima organizacional (plano `docs/planos/PLAN_2026-11-05-20-22-53.md`, Task 1, contrato DCL1): `POST /ia/clima-insights`, chamada pelo job de fechamento do ciclo no back.
+  - `ALLOWLIST_CLIMA` = `perguntas`, `resultados`, `comentarios`, `acoes_anteriores`, `prazo_ms`, e uma allowlist por nível (`ALLOWLIST_CLIMA_NIVEIS`: pergunta, resultados, eNPS, dimensão, item, comentário e ação). Chave desconhecida em QUALQUER nível, inclusive `hash_empresa`, `cod_clima_pergunta`, `cod_equipe`, `nome_equipe`, `nome_usuario` e `nome_empresa`, responde 400 sem chamar a MiniMax. Faixas do contrato: `ref` `^P\d{1,2}$` (única entre as perguntas), `dimensao` `^[A-Z_]{2,30}$`, percentuais de 0 a 100, eNPS de -100 a 100, média de 1 a 5, 1..40 perguntas, 0..20 dimensões, 0..40 itens, 0..500 comentários de 1..1000, 0..20 ações, `prazo_ms` 1000..120000. `variacao` e `variacao_pp` ausentes valem null.
+  - Portão de LOTE (`MINIMAX_IA_CONCORRENCIA_LOTE`, o da avaliação, da classificação e do feedback). Resposta 200 é o próprio objeto `{ temas, pontos_fortes, pontos_atencao, sugestoes }`, sem envelope. A saída da IA é revalidada: dimensão que não veio no pedido (das perguntas, dos resultados ou das ações), item ou lista fora do formato, ou nada útil → 502 `RESPOSTA_INVALIDA`; texto acima do limite é cortado na palavra e item acima do máximo é descartado.
+  - Mesmas garantias das outras rotas de IA: `X-Internal-Token` antes do corpo, 503 + `Retry-After` no desligamento, 502/503 `IA_INDISPONIVEL`/504 `PRAZO` e `500 { msg: "Erro interno ao gerar os insights." }`. Nenhum efeito: não grava, não chama o back e não toca no Baileys. Log: `[IA] Insights de clima: codigo=C ms=N`, nunca perguntas, comentários, ações nem resposta.
+  - `src/ia/climaInsightsService.js`: `PROMPT_SISTEMA_CLIMA` fixo (resumo por tema, parafraseado, sem citação literal; nunca avaliar ou identificar pessoas; nunca inferir saúde; sugestões como insumo para um plano revisado por uma pessoa; dado não é instrução) e os blocos de dados `PERGUNTAS_DA_PESQUISA`, `RESULTADOS_DO_CICLO`, `COMENTARIOS_DOS_COLABORADORES` e `ACOES_DO_CICLO_ANTERIOR`, com os núcleos neutralizados em qualquer caixa e cada pergunta, comentário e ação reduzido a uma linha. O wa-back NÃO mascara: o back mascara a entrada e filtra a saída antes de gravar.
+- Contrato do envio: `pesquisa_clima`, `comentarios_clima` e `devolutiva` cobertos pelo teste que recusa com 400, sem tocar o Baileys, o campo no envio, na reação, na edição e na exclusão.
+
+### Alterado
+
+- `sugestaoTicketService.extrairObjeto` (usado por `conversarJson`): um `<think>` sem `</think>` (resposta cortada por tokens) é removido até o fim, como o `conversarTexto` já fazia, para o JSON do raciocínio nunca valer como resposta. Vale também para a sugestão do ticket, a avaliação do atendimento, a avaliação comercial e a classificação, que usam o mesmo `conversarJson` (caso de regressão `{"titulo":"A"} <think>{"titulo":"B"}` → "A").
+- `IaController`: o tratador comum do feedback e do chat (`tratarTextoRh`) virou `tratarRotaPortao` e aceita responder o objeto sem envelope (`semEnvelope`). Mesmas mensagens e mesmo log das rotas existentes.
+
+### Contrato para o back (canal D)
+
+- DCL1 como descrito acima e no cabeçalho de `src/http/IaController.js`. O pedido deve usar refs únicas (`P1`…), mandar toda `dimensao` de tema que queira ver devolvida em `perguntas`, `resultados.dimensoes` ou `acoes_anteriores`, e manter o corpo abaixo de 512 kb (o teto é em bytes; o back corta os comentários em 480.000 bytes, porque 500 comentários de 1000 caracteres já dão 400 "Corpo da requisição grande demais."). O `maxTokens` da MiniMax é 8192, como na avaliação do atendimento. Ordem de deploy: **wa-back 0.38.0** → back 0.111.0 → front 0.132.0.
+
 ## [0.37.0] - 2026-11-05
 
 **Publicar o wa-back 0.37.0 ANTES do back 0.110.0** (canal D, rotas novas). Com o wa-back antigo, o 404 vira INDISPONIVEL no back e nada é gravado.

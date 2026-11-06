@@ -142,6 +142,34 @@
 // Entrada: { instrucao: string 0..4000 } (qualquer outra chave → 400)
 // Saída 2xx: 200 { feedback: { sistema, usuario }, chat: { sistema, usuario } } (dados, regulamento, feedback, histórico e pergunta por marcadores fixos)
 // Erros: 400 { msg } · 401 · 503 + Retry-After. Efeitos: nenhum; não chama a MiniMax.
+//
+// Insights da pesquisa de clima organizacional (plano 2026-11-05-20-22-53, Task 1), contrato DCL1. Só o back chama (token antes
+// do corpo, 503 + Retry-After no desligamento, mesmo teto de corpo). Não grava, não toca no Baileys e não chama o back.
+//
+// Canal: D
+// Método e caminho: POST /ia/clima-insights (DCL1)
+// Quem chama / quem expõe: back waIaService.gerarInsightsClima (job do fechamento) → wa-back IaController
+// Entrada (ALLOWLIST_CLIMA e uma allowlist por nível; chave desconhecida em QUALQUER nível, inclusive hash_empresa, cod_*,
+//   cod_equipe, nome_equipe, nome_usuario e nome_empresa → 400 sem chamar a MiniMax):
+//   { perguntas: [{ ref: /^P\d{1,2}$/ (única), tipo: "LIKERT" | "ENPS" | "ABERTA", dimensao: /^[A-Z_]{2,30}$/, texto: 1..300 }] (1..40),
+//     resultados: { respondentes: int >= 0, participacao_percentual: 0..100, baixa_confiabilidade: boolean,
+//       enps: { valor: -100..100, promotores: 0..100, neutros: 0..100, detratores: 0..100, variacao: number | null },
+//       dimensoes: [{ dimensao, favoravel, neutro, desfavoravel: 0..100, variacao_pp: number | null }] (0..20),
+//       itens: [{ ref, favoravel, neutro, desfavoravel: 0..100, media: 1..5, variacao_pp: number | null }] (0..40) },
+//     comentarios: [{ ref, texto: 1..1000 }] (0..500),
+//     acoes_anteriores: [{ dimensao, titulo: 1..120, situacao: "PLANEJADA" | "EM_ANDAMENTO" | "CONCLUIDA" | "CANCELADA" }] (0..20),
+//     prazo_ms: inteiro 1000..120000 }
+//   (`variacao` e `variacao_pp` ausentes valem null.)
+// Teto do corpo: 512 kb (`lerJson`, em bytes, não em caracteres); acima disso → 400 { msg: "Corpo da requisição grande demais." }. O back corta os
+//   comentários em 480.000 bytes para o pedido caber (500 comentários de 1000 caracteres já passam do teto).
+// Fluxo: portão de LOTE (MINIMAX_IA_CONCORRENCIA_LOTE; a espera conta no prazo) → MiniMax → JSON validado. Fora do formato, com
+//   `dimensao` que não veio na entrada (das perguntas, dos resultados ou das ações) ou sem nenhum item útil → 502.
+// Saída 2xx: 200 { temas: [{ dimensao, resumo: 1..600 }] (0..15), pontos_fortes: [1..300] (0..5), pontos_atencao: [1..300] (0..5),
+//   sugestoes: [{ dimensao, sugestao: 1..400 }] (0..8) } (texto acima do limite é cortado na palavra; item acima do máximo é descartado)
+// Erros: 400 { msg } · 401 · 502 { msg, codigo: "RESPOSTA_INVALIDA" } · 503 { codigo: "IA_INDISPONIVEL" } · 503 + Retry-After sem codigo
+//   (desligamento) · 504 { codigo: "PRAZO" } · 500 { msg: "Erro interno ao gerar os insights." }
+// Efeitos: nenhum. Log: "[IA] Insights de clima: codigo=C ms=N" (nunca perguntas, comentários, ações nem resposta da IA).
+// Compatibilidade: rota nova; publicar o wa-back antes do back (com o wa-back antigo, o 404 vira INDISPONIVEL no back, nada gravado).
 const express = require("express");
 const exigirTokenServico = require("./exigirTokenServico");
 const sugestaoTicketService = require("../ia/sugestaoTicketService");
@@ -149,6 +177,7 @@ const avaliacaoAtendimentoService = require("../ia/avaliacaoAtendimentoService")
 const avaliacaoComercialService = require("../ia/avaliacaoComercialService");
 const classificacaoTicketService = require("../ia/classificacaoTicketService");
 const assistenteRhService = require("../ia/assistenteRhService");
+const climaInsightsService = require("../ia/climaInsightsService");
 const { portaoPadrao, portaoLote: portaoLoteDoProcesso } = require("../ia/portaoIa");
 const desligamentoDoProcesso = require("../utils/desligamento").padrao;
 
@@ -192,6 +221,32 @@ const ALLOWLIST_REGULAMENTO = new Set(["regras_gerais", "cargo"]);
 const ALLOWLIST_CARGO = new Set(["nome", "atribuicoes"]);
 const ALLOWLIST_HISTORICO = new Set(["autor", "texto"]);
 const ALLOWLIST_PREVIA_RH = new Set(["instrucao"]);
+
+/** Allowlists dos insights de clima (DCL1), uma por nível. */
+const ALLOWLIST_CLIMA = new Set(["perguntas", "resultados", "comentarios", "acoes_anteriores", "prazo_ms"]);
+const ALLOWLIST_CLIMA_NIVEIS = {
+  pergunta: new Set(["ref", "tipo", "dimensao", "texto"]),
+  resultados: new Set(["respondentes", "participacao_percentual", "baixa_confiabilidade", "enps", "dimensoes", "itens"]),
+  enps: new Set(["valor", "promotores", "neutros", "detratores", "variacao"]),
+  dimensao: new Set(["dimensao", "favoravel", "neutro", "desfavoravel", "variacao_pp"]),
+  item: new Set(["ref", "favoravel", "neutro", "desfavoravel", "media", "variacao_pp"]),
+  comentario: new Set(["ref", "texto"]),
+  acao: new Set(["dimensao", "titulo", "situacao"]),
+};
+
+/** Limites do contrato DCL1 (tamanho das colunas do CRM, não regra de negócio). */
+const REGEX_REF_CLIMA = /^P\d{1,2}$/;
+const REGEX_DIMENSAO_CLIMA = /^[A-Z_]{2,30}$/;
+const TIPOS_PERGUNTA_CLIMA = ["LIKERT", "ENPS", "ABERTA"];
+const SITUACOES_ACAO_CLIMA = ["PLANEJADA", "EM_ANDAMENTO", "CONCLUIDA", "CANCELADA"];
+const MAXIMO_PERGUNTAS_CLIMA = 40;
+const MAXIMO_DIMENSOES_CLIMA = 20;
+const MAXIMO_ITENS_CLIMA = 40;
+const MAXIMO_COMENTARIOS_CLIMA = 500;
+const MAXIMO_ACOES_CLIMA = 20;
+const MAXIMO_TEXTO_PERGUNTA_CLIMA = 300;
+const MAXIMO_TEXTO_COMENTARIO_CLIMA = 1000;
+const MAXIMO_TITULO_ACAO_CLIMA = 120;
 
 /** Limites dos contratos DRH1 a DRH3 (Assistente de RH). */
 const MAXIMO_INSTRUCAO_RH = 4000;
@@ -613,6 +668,133 @@ function validarCorpoAssistente(corpo) {
 }
 
 /**
+ * Número do contrato DCL1: finito, dentro da faixa e, se pedido, inteiro.
+ * @param {unknown} valor
+ * @param {number} minimo
+ * @param {number} maximo
+ * @param {string} caminho
+ * @param {{ inteiro?: boolean }} [opcoes]
+ * @returns {number}
+ * @throws {ErroRequisicao}
+ */
+function numeroClima(valor, minimo, maximo, caminho, { inteiro = false } = {}) {
+  if (typeof valor !== "number" || !Number.isFinite(valor) || valor < minimo || valor > maximo || (inteiro && !Number.isInteger(valor))) throw recusar(`Valor inválido em ${caminho}.`);
+  return valor;
+}
+
+/** Variação em relação ao ciclo anterior: número finito, ou null (ausente também vale null). */
+const variacaoClima = (/** @type {unknown} */ valor, /** @type {string} */ caminho) => (valor === undefined || valor === null ? null : numeroClima(valor, -Infinity, Infinity, caminho));
+
+/** @param {unknown} valor */
+function refClima(valor) {
+  if (typeof valor !== "string" || !REGEX_REF_CLIMA.test(valor)) throw recusar("Referência da pergunta inválida.");
+  return valor;
+}
+
+/** @param {unknown} valor */
+function dimensaoClima(valor) {
+  if (typeof valor !== "string" || !REGEX_DIMENSAO_CLIMA.test(valor)) throw recusar("Dimensão inválida.");
+  return valor;
+}
+
+/**
+ * @template T
+ * @param {unknown} valor
+ * @param {number} minimo
+ * @param {number} maximo
+ * @param {string} mensagem
+ * @param {(item: unknown) => T} converter
+ * @returns {T[]}
+ * @throws {ErroRequisicao}
+ */
+function listaClima(valor, minimo, maximo, mensagem, converter) {
+  if (!Array.isArray(valor) || valor.length < minimo || valor.length > maximo) throw recusar(mensagem);
+  return valor.map(converter);
+}
+
+/**
+ * Os três percentuais (0..100) de uma dimensão ou de um item.
+ * @param {Record<string, unknown>} o
+ * @param {string} caminho
+ */
+const percentuaisClima = (o, caminho) => ({
+  favoravel: numeroClima(o.favoravel, 0, 100, `${caminho}.favoravel`),
+  neutro: numeroClima(o.neutro, 0, 100, `${caminho}.neutro`),
+  desfavoravel: numeroClima(o.desfavoravel, 0, 100, `${caminho}.desfavoravel`),
+});
+
+/**
+ * @param {unknown} bruto
+ * @returns {import("../ia/climaInsightsService").ResultadosClima}
+ * @throws {ErroRequisicao}
+ */
+function validarResultadosClima(bruto) {
+  const r = exigirChavesPermitidas(bruto, ALLOWLIST_CLIMA_NIVEIS.resultados, "nos resultados");
+  if (typeof r.baixa_confiabilidade !== "boolean") throw recusar("Informe se a confiabilidade é baixa.");
+  const e = exigirChavesPermitidas(r.enps, ALLOWLIST_CLIMA_NIVEIS.enps, "no eNPS");
+  return {
+    respondentes: numeroClima(r.respondentes, 0, Infinity, "resultados.respondentes", { inteiro: true }),
+    participacao_percentual: numeroClima(r.participacao_percentual, 0, 100, "resultados.participacao_percentual"),
+    baixa_confiabilidade: r.baixa_confiabilidade,
+    enps: {
+      valor: numeroClima(e.valor, -100, 100, "resultados.enps.valor"),
+      promotores: numeroClima(e.promotores, 0, 100, "resultados.enps.promotores"),
+      neutros: numeroClima(e.neutros, 0, 100, "resultados.enps.neutros"),
+      detratores: numeroClima(e.detratores, 0, 100, "resultados.enps.detratores"),
+      variacao: variacaoClima(e.variacao, "resultados.enps.variacao"),
+    },
+    dimensoes: listaClima(r.dimensoes, 0, MAXIMO_DIMENSOES_CLIMA, `Informe de 0 a ${MAXIMO_DIMENSOES_CLIMA} dimensões nos resultados.`, (item) => {
+      const d = exigirChavesPermitidas(item, ALLOWLIST_CLIMA_NIVEIS.dimensao, "na dimensão");
+      return { dimensao: dimensaoClima(d.dimensao), ...percentuaisClima(d, "resultados.dimensoes"), variacao_pp: variacaoClima(d.variacao_pp, "resultados.dimensoes.variacao_pp") };
+    }),
+    itens: listaClima(r.itens, 0, MAXIMO_ITENS_CLIMA, `Informe de 0 a ${MAXIMO_ITENS_CLIMA} itens nos resultados.`, (item) => {
+      const i = exigirChavesPermitidas(item, ALLOWLIST_CLIMA_NIVEIS.item, "no item");
+      return { ref: refClima(i.ref), ...percentuaisClima(i, "resultados.itens"), media: numeroClima(i.media, 1, 5, "resultados.itens.media"), variacao_pp: variacaoClima(i.variacao_pp, "resultados.itens.variacao_pp") };
+    }),
+  };
+}
+
+/**
+ * Valida o corpo contra a allowlist do contrato DCL1 (insights da pesquisa de clima).
+ * @param {unknown} corpo
+ * @returns {import("../ia/climaInsightsService").PedidoClima & { prazo_ms: number }}
+ * @throws {ErroRequisicao}
+ */
+function validarCorpoClima(corpo) {
+  const c = exigirChavesPermitidas(corpo, ALLOWLIST_CLIMA, "nos insights de clima");
+  /** @type {Set<string>} */
+  const refs = new Set();
+  const perguntas = listaClima(c.perguntas, 1, MAXIMO_PERGUNTAS_CLIMA, `Informe de 1 a ${MAXIMO_PERGUNTAS_CLIMA} perguntas.`, (item) => {
+    const p = exigirChavesPermitidas(item, ALLOWLIST_CLIMA_NIVEIS.pergunta, "na pergunta");
+    const ref = refClima(p.ref);
+    if (refs.has(ref)) throw recusar("Referência da pergunta repetida.");
+    refs.add(ref);
+    if (typeof p.tipo !== "string" || !TIPOS_PERGUNTA_CLIMA.includes(p.tipo)) throw recusar("Tipo da pergunta inválido.");
+    return {
+      ref,
+      tipo: /** @type {"LIKERT" | "ENPS" | "ABERTA"} */ (p.tipo),
+      dimensao: dimensaoClima(p.dimensao),
+      texto: textoRh(p.texto, 1, MAXIMO_TEXTO_PERGUNTA_CLIMA, `O texto da pergunta tem de 1 a ${MAXIMO_TEXTO_PERGUNTA_CLIMA} caracteres.`),
+    };
+  });
+  const resultados = validarResultadosClima(c.resultados);
+  const comentarios = listaClima(c.comentarios, 0, MAXIMO_COMENTARIOS_CLIMA, `Informe de 0 a ${MAXIMO_COMENTARIOS_CLIMA} comentários.`, (item) => {
+    const m = exigirChavesPermitidas(item, ALLOWLIST_CLIMA_NIVEIS.comentario, "no comentário");
+    return { ref: refClima(m.ref), texto: textoRh(m.texto, 1, MAXIMO_TEXTO_COMENTARIO_CLIMA, `Cada comentário tem de 1 a ${MAXIMO_TEXTO_COMENTARIO_CLIMA} caracteres.`) };
+  });
+  const acoes = listaClima(c.acoes_anteriores, 0, MAXIMO_ACOES_CLIMA, `Informe de 0 a ${MAXIMO_ACOES_CLIMA} ações anteriores.`, (item) => {
+    const a = exigirChavesPermitidas(item, ALLOWLIST_CLIMA_NIVEIS.acao, "na ação");
+    if (typeof a.situacao !== "string" || !SITUACOES_ACAO_CLIMA.includes(a.situacao)) throw recusar("Situação da ação inválida.");
+    return {
+      dimensao: dimensaoClima(a.dimensao),
+      titulo: textoRh(a.titulo, 1, MAXIMO_TITULO_ACAO_CLIMA, `O título da ação tem de 1 a ${MAXIMO_TITULO_ACAO_CLIMA} caracteres.`),
+      situacao: /** @type {"PLANEJADA" | "EM_ANDAMENTO" | "CONCLUIDA" | "CANCELADA"} */ (a.situacao),
+    };
+  });
+  return { perguntas, resultados, comentarios, acoes_anteriores: acoes, prazo_ms: prazoRh(c.prazo_ms) };
+}
+
+/**
  * Responde o erro tipado da MiniMax (comum às duas IAs): 504 prazo, 502 resposta inutilizável, 503 indisponível.
  * @param {import("express").Response} res
  * @param {string} erro
@@ -648,6 +830,7 @@ function lerJson(req, res, next) {
  *   classificar?: typeof classificacaoTicketService.classificar,
  *   gerarFeedback?: typeof assistenteRhService.gerarFeedback,
  *   responderAssistente?: typeof assistenteRhService.responder,
+ *   gerarInsightsClima?: typeof climaInsightsService.gerarInsights,
  *   portao?: Pick<ReturnType<typeof import("../ia/portaoIa").criarPortaoIa>, "executar">,
  *   portaoLote?: Pick<ReturnType<typeof import("../ia/portaoIa").criarPortaoIa>, "executar">,
  *   fetch?: typeof fetch,
@@ -655,7 +838,7 @@ function lerJson(req, res, next) {
  * }} [opcoes] dependências (os testes injetam)
  * @returns {(server: import("express").Express) => void}
  */
-function criarIaController({ desligamento = desligamentoDoProcesso, sugerir = sugestaoTicketService.sugerir, avaliar = avaliacaoAtendimentoService.avaliar, avaliarComercial = avaliacaoComercialService.avaliarComercial, classificar = classificacaoTicketService.classificar, gerarFeedback = assistenteRhService.gerarFeedback, responderAssistente = assistenteRhService.responder, portao, portaoLote, fetch, agora = Date.now } = {}) {
+function criarIaController({ desligamento = desligamentoDoProcesso, sugerir = sugestaoTicketService.sugerir, avaliar = avaliacaoAtendimentoService.avaliar, avaliarComercial = avaliacaoComercialService.avaliarComercial, classificar = classificacaoTicketService.classificar, gerarFeedback = assistenteRhService.gerarFeedback, responderAssistente = assistenteRhService.responder, gerarInsightsClima = climaInsightsService.gerarInsights, portao, portaoLote, fetch, agora = Date.now } = {}) {
   /** @type {import("express").RequestHandler} */
   const recusarDuranteEncerramento = (req, res, next) => desligamento.recusarDuranteEncerramento(req, res, next);
 
@@ -837,7 +1020,7 @@ function criarIaController({ desligamento = desligamentoDoProcesso, sugerir = su
       tratarPrevia({ aceitarRestrito: false, montar: avaliacaoComercialService.previaComercial }),
     );
 
-    // DRH1 (feedback, portão de LOTE) e DRH2 (chat, portão INTERATIVO): texto livre, o mesmo fluxo e o log só com código e ms.
+    // DRH1 (feedback, portão de LOTE), DRH2 (chat, portão INTERATIVO) e DCL1 (insights de clima, portão de LOTE): o mesmo fluxo e o log só com código e ms.
     /**
      * @param {{
      *   rotulo: string,
@@ -845,12 +1028,13 @@ function criarIaController({ desligamento = desligamentoDoProcesso, sugerir = su
      *   validar: (corpo: unknown) => { prazo_ms: number },
      *   obterPortao: () => Pick<ReturnType<typeof import("../ia/portaoIa").criarPortaoIa>, "executar">,
      *   executar: (pedido: any) => Promise<Record<string, any>>,
-     *   saida: "texto" | "resposta",
+     *   saida: "texto" | "resposta" | "insights",
+     *   semEnvelope?: boolean,
      *   msgErro: string,
      * }} rota
      * @returns {import("express").RequestHandler}
      */
-    const tratarTextoRh = ({ rotulo, rotuloErro, validar, obterPortao, executar, saida, msgErro }) => async (req, res) => {
+    const tratarRotaPortao = ({ rotulo, rotuloErro, validar, obterPortao, executar, saida, semEnvelope = false, msgErro }) => async (req, res) => {
       let dados;
       try {
         dados = validar(req.body);
@@ -874,13 +1058,13 @@ function criarIaController({ desligamento = desligamentoDoProcesso, sugerir = su
         const resultado = vez.valor;
         if (saida in resultado) {
           registrar("OK");
-          res.status(200).json({ [saida]: resultado[saida] });
+          res.status(200).json(semEnvelope ? resultado[saida] : { [saida]: resultado[saida] });
           return;
         }
         registrar(resultado.erro);
         responderErroIa(res, resultado.erro);
       } catch (erro) {
-        // Só o nome do erro: a mensagem poderia carregar trecho do regulamento, da pergunta ou da resposta.
+        // Só o nome do erro: a mensagem poderia carregar trecho do regulamento, da pergunta, do comentário ou da resposta.
         console.error(`[IA] Erro inesperado no ${rotuloErro}:`, erro instanceof Error ? erro.name : "erro");
         res.status(500).json({ msg: msgErro });
       }
@@ -891,7 +1075,7 @@ function criarIaController({ desligamento = desligamentoDoProcesso, sugerir = su
       exigirTokenServico,
       recusarDuranteEncerramento,
       lerJson,
-      tratarTextoRh({
+      tratarRotaPortao({
         rotulo: "Feedback de desempenho",
         rotuloErro: "feedback de desempenho",
         validar: validarCorpoFeedback,
@@ -907,7 +1091,7 @@ function criarIaController({ desligamento = desligamentoDoProcesso, sugerir = su
       exigirTokenServico,
       recusarDuranteEncerramento,
       lerJson,
-      tratarTextoRh({
+      tratarRotaPortao({
         rotulo: "Assistente de RH",
         rotuloErro: "assistente de RH",
         validar: validarCorpoAssistente,
@@ -915,6 +1099,24 @@ function criarIaController({ desligamento = desligamentoDoProcesso, sugerir = su
         executar: responderAssistente,
         saida: "resposta",
         msgErro: "Erro interno ao responder.",
+      }),
+    );
+
+    // DCL1: os insights do fechamento do ciclo (portão de LOTE). A resposta é o próprio objeto validado, sem envelope.
+    server.post(
+      "/ia/clima-insights",
+      exigirTokenServico,
+      recusarDuranteEncerramento,
+      lerJson,
+      tratarRotaPortao({
+        rotulo: "Insights de clima",
+        rotuloErro: "insights de clima",
+        validar: validarCorpoClima,
+        obterPortao: () => portaoLote ?? portaoLoteDoProcesso(),
+        executar: gerarInsightsClima,
+        saida: "insights",
+        semEnvelope: true,
+        msgErro: "Erro interno ao gerar os insights.",
       }),
     );
 
@@ -949,4 +1151,6 @@ module.exports = Object.assign(IaController, {
   ALLOWLIST_CARGO,
   ALLOWLIST_HISTORICO,
   ALLOWLIST_DADOS,
+  ALLOWLIST_CLIMA,
+  ALLOWLIST_CLIMA_NIVEIS,
 });
