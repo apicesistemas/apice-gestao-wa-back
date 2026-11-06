@@ -19,6 +19,9 @@ const MIME_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingm
 const MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const MIME_DOC = "application/msword";
 const MIME_XLS = "application/vnd.ms-excel";
+const MIME_ODT = "application/vnd.oasis.opendocument.text";
+const MIME_ODS = "application/vnd.oasis.opendocument.spreadsheet";
+const MIME_ODP = "application/vnd.oasis.opendocument.presentation";
 
 // "ftyp" sozinho também casa HEIC/AVIF (imagem): o tipo sai da major brand (bytes 8..12).
 const BRANDS_VIDEO_MP4 = new Set(["isom", "iso2", "iso4", "iso5", "iso6", "mp41", "mp42", "avc1", "dash", "M4V ", "mmp4"]);
@@ -112,6 +115,24 @@ function tipoOoxml(b) {
 }
 
 /**
+ * OpenDocument (ODT, ODS, ODP) pela 1ª entrada do ZIP, o mesmo algoritmo do back: `PK`, método 0
+ * (armazenada), nome de 8 bytes, sem extra, nome `mimetype`, e a partir do byte 38 exatamente um dos três
+ * mimes. O fim do mime é confirmado pelo tamanho comprimido (bytes 18-21) igual ao comprimento do mime, OU
+ * por `PK` / `PK` logo depois dele (o descritor de dados deixa o tamanho em 0). Isso deixa
+ * de fora o modelo (`text-template`, de que o mime do ODT é prefixo), o ODG e o ZIP comum.
+ * @param {Buffer} b
+ * @returns {string | null}
+ */
+function tipoOdf(b) {
+  if (b.length < 38 || !inicia(b, ZIP) || b.readUInt16LE(8) !== 0 || b.readUInt16LE(26) !== 8 || b.readUInt16LE(28) !== 0) return null;
+  if (!inicia(b, ascii("mimetype"), 30)) return null;
+  const mime = [MIME_ODT, MIME_ODS, MIME_ODP].find((m) => inicia(b, ascii(m), 38));
+  if (!mime) return null;
+  const fim = 38 + mime.length;
+  return b.readUInt32LE(18) === mime.length || inicia(b, ZIP, fim) || inicia(b, [0x50, 0x4b, 0x07, 0x08], fim) ? mime : null;
+}
+
+/**
  * DOC/XLS (OLE2) pelos nomes dos streams em UTF-16LE (regra do financeiro).
  * @param {Buffer} b
  */
@@ -169,7 +190,7 @@ function detectarTipoPorConteudo(buffer) {
   if (achado) return achado[0];
   const iso = tipoIsoBmff(buffer);
   if (iso) return iso;
-  if (inicia(buffer, ZIP)) return tipoOoxml(buffer);
+  if (inicia(buffer, ZIP)) return tipoOdf(buffer) ?? tipoOoxml(buffer);
   if (inicia(buffer, OLE)) return tipoOle(buffer);
   return null;
 }
@@ -197,6 +218,9 @@ const DECLARADOS_ACEITOS = {
   [MIME_XLSX]: [MIME_XLSX],
   [MIME_DOC]: [MIME_DOC],
   [MIME_XLS]: [MIME_XLS],
+  [MIME_ODT]: [MIME_ODT],
+  [MIME_ODS]: [MIME_ODS],
+  [MIME_ODP]: [MIME_ODP],
   [MIME_PKCS12]: [MIME_PKCS12, "application/pkcs12"],
 };
 
@@ -276,4 +300,4 @@ function duracaoOggOpusSegundos(buffer) {
   return null;
 }
 
-module.exports = { detectarTipoPorConteudo, validarMidia, duracaoOggOpusSegundos, normalizarMimetype, MIME_DOCX, MIME_XLSX, MIME_DOC, MIME_XLS, MIME_PKCS12 };
+module.exports = { detectarTipoPorConteudo, validarMidia, duracaoOggOpusSegundos, normalizarMimetype, MIME_DOCX, MIME_XLSX, MIME_DOC, MIME_XLS, MIME_ODT, MIME_ODS, MIME_ODP, MIME_PKCS12, MIME_GENERICO };

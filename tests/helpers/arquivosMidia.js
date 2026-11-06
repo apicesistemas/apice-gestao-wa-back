@@ -69,8 +69,9 @@ const mp3 = () => Buffer.concat([Buffer.from("ID3", "latin1"), Buffer.from([0x04
 /**
  * ZIP mínimo (entradas vazias, armazenadas) com diretório central e EOCD, como um DOCX/XLSX.
  * @param {string[]} nomes
+ * @param {Record<string, Buffer>} [conteudos] conteúdo armazenado (sem compressão) por nome de entrada
  */
-function zip(nomes) {
+function zip(nomes, conteudos = {}) {
   /** @type {Buffer[]} */
   const locais = [];
   /** @type {Buffer[]} */
@@ -78,17 +79,22 @@ function zip(nomes) {
   let offset = 0;
   for (const nome of nomes) {
     const n = Buffer.from(nome, "latin1");
+    const dados = conteudos[nome] ?? Buffer.alloc(0);
     const local = Buffer.alloc(30);
     local.writeUInt32LE(0x04034b50, 0);
     local.writeUInt16LE(20, 4);
+    local.writeUInt32LE(dados.length, 18);
+    local.writeUInt32LE(dados.length, 22);
     local.writeUInt16LE(n.length, 26);
     const central = Buffer.alloc(46);
     central.writeUInt32LE(0x02014b50, 0);
     central.writeUInt16LE(20, 4);
     central.writeUInt16LE(20, 6);
+    central.writeUInt32LE(dados.length, 20);
+    central.writeUInt32LE(dados.length, 24);
     central.writeUInt16LE(n.length, 28);
     central.writeUInt32LE(offset, 42);
-    const blocoLocal = Buffer.concat([local, n]);
+    const blocoLocal = Buffer.concat([local, n, dados]);
     locais.push(blocoLocal);
     centrais.push(Buffer.concat([central, n]));
     offset += blocoLocal.length;
@@ -105,6 +111,34 @@ function zip(nomes) {
 
 const docx = () => zip(["[Content_Types].xml", "_rels/.rels", "word/document.xml"]);
 const xlsx = () => zip(["[Content_Types].xml", "_rels/.rels", "xl/workbook.xml"]);
+/** OpenDocument: a 1ª entrada é `mimetype`, armazenada sem compressão, com o mime do documento como conteúdo. */
+/** @param {string} mime */
+const odf = (mime) => zip(["mimetype", "META-INF/manifest.xml", "content.xml"], { mimetype: Buffer.from(mime, "latin1") });
+/**
+ * Cabeçalho local de uma entrada `mimetype` montado campo a campo, para os vetores de borda do ODF.
+ * @param {string} mime
+ * @param {{ metodo?: number, flags?: number, tamanho?: number, extra?: number, proxima?: Buffer }} [opcoes]
+ */
+function odfBruto(mime, { metodo = 0, flags = 0, tamanho = mime.length, extra = 0, proxima = Buffer.alloc(0) } = {}) {
+  const local = Buffer.alloc(30);
+  local.writeUInt32LE(0x04034b50, 0);
+  local.writeUInt16LE(20, 4);
+  local.writeUInt16LE(flags, 6);
+  local.writeUInt16LE(metodo, 8);
+  local.writeUInt32LE(tamanho, 18);
+  local.writeUInt32LE(tamanho, 22);
+  local.writeUInt16LE(8, 26);
+  local.writeUInt16LE(extra, 28);
+  return Buffer.concat([local, Buffer.from("mimetype"), Buffer.alloc(extra, 0x55), Buffer.from(mime, "latin1"), proxima]);
+}
+const PROXIMA_ENTRADA = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00]);
+const PROXIMO_DESCRITOR = Buffer.from([0x50, 0x4b, 0x07, 0x08, 0x00, 0x00]);
+const MIME_ODT = "application/vnd.oasis.opendocument.text";
+const MIME_ODS = "application/vnd.oasis.opendocument.spreadsheet";
+const MIME_ODP = "application/vnd.oasis.opendocument.presentation";
+const odt = () => odf(MIME_ODT);
+const ods = () => odf(MIME_ODS);
+const odp = () => odf(MIME_ODP);
 const zipComum = () => zip(["leia-me.txt", "fotos/foto.jpg"]);
 
 const CABECALHO_OLE = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
@@ -140,6 +174,13 @@ module.exports = {
   docx,
   xlsx,
   zipComum,
+  odf,
+  odfBruto,
+  PROXIMA_ENTRADA,
+  PROXIMO_DESCRITOR,
+  odt,
+  ods,
+  odp,
   ole,
   doc,
   xls,
@@ -149,4 +190,7 @@ module.exports = {
   x509,
   MIME_DOCX,
   MIME_XLSX,
+  MIME_ODT,
+  MIME_ODS,
+  MIME_ODP,
 };

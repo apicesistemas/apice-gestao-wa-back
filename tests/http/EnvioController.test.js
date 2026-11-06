@@ -179,7 +179,7 @@ test("DOCUMENTO PDF vira { document, mimetype, fileName } com a legenda; a cita�
   assert.deepEqual(opcoes.quoted.message, { conversation: "Manda o boleto?" });
 });
 
-test("DOCUMENTO PFX (application/x-pkcs12) é aceito e sai como document com a extensão pfx; X.509 .cer é recusado com 400", async () => {
+test("DOCUMENTO PFX (application/x-pkcs12) é aceito e sai como document com a extensão pfx; X.509 .cer vai como documento genérico; PFX declarado como PDF é recusado", async () => {
   const pfx = arquivos.pfx();
   const resposta = await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO", nome_arquivo: "certificado" }, { buffer: pfx, mimetype: "application/x-pkcs12", nome: "certificado" }));
   assert.equal(resposta.status, 200);
@@ -188,8 +188,13 @@ test("DOCUMENTO PFX (application/x-pkcs12) é aceito e sai como document com a e
   assert.equal(conteudo.mimetype, "application/x-pkcs12");
   assert.equal(conteudo.fileName, "certificado.pfx");
 
+  // Conteúdo não reconhecido como PKCS#12 (X.509) em DOCUMENTO vai como genérico, com o nome original.
+  const cer = await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO", nome_arquivo: "a.cer" }, { buffer: arquivos.x509(), mimetype: "application/x-pkcs12", nome: "a.cer" }));
+  assert.equal(cer.status, 200);
+  assert.equal(envios[envios.length - 1].conteudo.mimetype, "application/octet-stream");
+  assert.equal(envios[envios.length - 1].conteudo.fileName, "a.cer");
+
   const antes = envios.length;
-  await esperarErro(await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO" }, { buffer: arquivos.x509(), mimetype: "application/x-pkcs12", nome: "a.cer" })), 400);
   await esperarErro(await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO" }, { buffer: pfx, mimetype: "application/pdf", nome: "a.pfx" })), 400);
   assert.equal(envios.length, antes);
 });
@@ -645,9 +650,78 @@ test("apagar: 401 sem token, 404 de outro tenant, 409 desconectada e 502 em falh
   assert.doesNotMatch(falha.msg, /@s\.whatsapp\.net/);
 });
 
-test("o ENVIO segue rígido: XML como DOCUMENTO é recusado com 400 e não toca o socket (o modo permissivo é só da entrada)", async () => {
-  const antes = envios.length;
+/** @returns {any} o último envio ao socket falso */
+const ultimoEnvio = () => envios[envios.length - 1];
+
+test("DOCUMENTO com conteúdo não reconhecido (XML, .snag) sai como application/octet-stream com o nome original", async () => {
   const xml = { buffer: Buffer.from('<?xml version="1.0"?><nfeProc/>'), mimetype: "text/xml", nome: "nfe.xml" };
-  await esperarErro(await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO" }, xml)), 400);
+  const resposta = await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO", nome_arquivo: "nfe.xml" }, xml));
+  assert.equal(resposta.status, 200);
+  assert.equal(ultimoEnvio().conteudo.mimetype, "application/octet-stream");
+  assert.equal(ultimoEnvio().conteudo.fileName, "nfe.xml");
+
+  const snag = Buffer.from([0x53, 0x4e, 0x41, 0x47, 0x00, 0x01, 0x02, 0xff, 0xfe]);
+  for (const declarado of ["application/octet-stream", ""]) {
+    const r = await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO", nome_arquivo: "captura.snag" }, { buffer: snag, mimetype: declarado, nome: "captura.snag" }));
+    assert.equal(r.status, 200);
+    const { conteudo } = ultimoEnvio();
+    assert.ok(conteudo.document.equals(snag));
+    assert.equal(conteudo.mimetype, "application/octet-stream");
+    assert.equal(conteudo.fileName, "captura.snag");
+    assert.equal(conteudo.video, undefined);
+    assert.equal(conteudo.image, undefined);
+  }
+});
+
+test("IMAGEM, VIDEO e AUDIO com conteúdo não reconhecido continuam recusados com 400, sem tocar o socket", async () => {
+  const antes = envios.length;
+  const lixo = { buffer: Buffer.from("não é mídia"), mimetype: "application/octet-stream", nome: "x.snag" };
+  for (const tipo of ["IMAGEM", "VIDEO", "AUDIO"]) {
+    await esperarErro(await postEnviar("7", formulario({ ...BASE, tipo }, lixo)), 400);
+  }
   assert.equal(envios.length, antes);
+});
+
+test("DOCUMENTO com conteúdo reconhecido de outro tipo ou divergente segue recusado (GIF, WebP, PNG; GIF como PDF)", async () => {
+  const antes = envios.length;
+  await esperarErro(await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO" }, { buffer: arquivos.gif(), mimetype: "image/gif", nome: "a.gif" })), 400);
+  await esperarErro(await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO" }, { buffer: arquivos.webp(), mimetype: "application/octet-stream", nome: "a.webp" })), 400);
+  await esperarErro(await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO" }, { buffer: arquivos.png(), mimetype: "image/png", nome: "a.png" })), 400);
+  await esperarErro(await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO" }, { buffer: arquivos.gif(), mimetype: "application/pdf", nome: "a.pdf" })), 400);
+  assert.equal(envios.length, antes);
+});
+
+test("DOCUMENTO genérico vazio continua recusado", async () => {
+  const antes = envios.length;
+  await esperarErro(await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO" }, { buffer: Buffer.alloc(0), mimetype: "application/octet-stream", nome: "vazio.snag" })), 400);
+  assert.equal(envios.length, antes);
+});
+
+test("DOCUMENTO ODT, ODS e ODP saem com o mime próprio e fileName com a extensão", async () => {
+  /** @type {[Buffer, string, string][]} */
+  const casos = [
+    [arquivos.odt(), arquivos.MIME_ODT, "odt"],
+    [arquivos.ods(), arquivos.MIME_ODS, "ods"],
+    [arquivos.odp(), arquivos.MIME_ODP, "odp"],
+  ];
+  for (const [buffer, mime, ext] of casos) {
+    const r = await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO" }, { buffer, mimetype: mime, nome: `ata.${ext}` }));
+    assert.equal(r.status, 200);
+    assert.equal(ultimoEnvio().conteudo.mimetype, mime);
+    assert.equal(ultimoEnvio().conteudo.fileName, `ata.${ext}`);
+  }
+  // O navegador pode mandar o ODT como octet-stream: vale o conteúdo.
+  const r = await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO" }, { buffer: arquivos.odt(), mimetype: "application/octet-stream", nome: "ata.odt" }));
+  assert.equal(r.status, 200);
+  assert.equal(ultimoEnvio().conteudo.mimetype, arquivos.MIME_ODT);
+});
+
+test("DOCUMENTO genérico sem nome_arquivo ignora o File.name do Blob e sai como documento.bin; o reconhecido segue com o File.name", async () => {
+  const r = await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO" }, { buffer: Buffer.from([0x53, 0x4e, 0x41, 0x47, 0xff]), mimetype: "application/octet-stream", nome: "arquivo" }));
+  assert.equal(r.status, 200);
+  assert.equal(ultimoEnvio().conteudo.mimetype, "application/octet-stream");
+  assert.equal(ultimoEnvio().conteudo.fileName, "documento.bin");
+  const pdf = await postEnviar("7", formulario({ ...BASE, tipo: "DOCUMENTO" }, { buffer: arquivos.pdf(), mimetype: "application/pdf", nome: "boleto.pdf" }));
+  assert.equal(pdf.status, 200);
+  assert.equal(ultimoEnvio().conteudo.fileName, "boleto.pdf");
 });

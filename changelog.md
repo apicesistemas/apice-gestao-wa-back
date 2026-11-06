@@ -3,6 +3,29 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.40.0] - 2026-11-06
+
+**Ordem do deploy OBRIGATÓRIA do plano `PLAN_2026-11-06-15-47-11`: back → wa-back → front.** Com o wa-back antes do back, o back antigo recusa (415) o ODT recebido em `/interno/midia`, que chega com o mime próprio, e a mídia se perde.
+
+### Adicionado
+
+- Envio de qualquer documento pelo livechat (Task 2, canal D `POST /equipe/:cod_equipe/enviar`, multipart). Em `tipo = DOCUMENTO`, conteúdo NÃO reconhecido pelos magic bytes (SNAG etc.) é aceito e enviado como `document` com `mimetype: application/octet-stream` e o nome original (`fileName` sem `.bin` no fim; sem nome, `documento.bin`). O tamanho segue limitado pelo teto técnico (`MIDIA_TETO_BYTES`), e o limite por empresa continua no back.
+- OpenDocument: `tipoMidia.js` detecta ODT, ODS e ODP pela 1ª entrada do ZIP (`PK` + `mimetype` no byte 30, armazenada, com o mime exato logo depois). ZIP sem isso, `.ott` e outros formatos ODF seguem não reconhecidos. Os três mimes entram em `DECLARADOS_ACEITOS` e em `EXTENSAO_DOCUMENTO` (`odt`, `ods`, `odp`).
+- Detecção ODF idêntica à do back (algoritmo único): método 0, nome de 8 bytes, sem extra, `mimetype` e um dos três mimes a partir do byte 38, com o fim do mime confirmado pelo tamanho comprimido igual ao comprimento do mime OU por `PK` + `03 04` / `07 08` logo depois dele. Cobre o ODT com tamanho 0 (descritor de dados) e deixa de fora o método 8, o extra, `text-template` e `.odg`.
+- Na entrada, o ODT/ODS/ODP recebido passa a ir ao back (`/interno/midia`) com o mimetype próprio em vez de `application/octet-stream`.
+
+### Alterado
+
+- IMAGEM, VIDEO e AUDIO com conteúdo não reconhecido continuam recusados (400). Conteúdo reconhecido de outro tipo ou divergente do declarado em DOCUMENTO (GIF, WebP, PNG, JPEG declarado como PDF etc.) continua recusado: o genérico só vale para conteúdo não reconhecido (diferente da entrada, que aceita também o divergente).
+- Um X.509 (`.cer`) em DOCUMENTO deixa de ser recusado e vai como documento genérico. As allowlists do envio (`ALLOWLIST_ENVIO` etc.) não mudam.
+
+- Nome de documento acima de 200 caracteres preserva a ÚLTIMA extensão do nome original (corta a base), em todos os tipos, inclusive o genérico: o corte não deixa mais uma extensão do meio do nome (`.hta-bbb.txt`) virar a final, como na conferência da lista de bloqueio do back.
+- Documento genérico sem `nome_arquivo` sai como `documento.bin`; o `File.name` do Blob ("arquivo") só vale para os tipos reconhecidos.
+
+### Contrato para o back (canal D)
+
+- `POST /equipe/:cod_equipe/enviar` (`tipo=DOCUMENTO`) aceita `midia` com `type = application/octet-stream` (ou vazio) e conteúdo qualquer. A lista de bloqueio de extensões e a recusa de executável (`MZ`, `ELF`) são do back; o wa-back não as aplica.
+
 ## [0.39.0] - 2026-11-06
 
 **Publicar o wa-back 0.39.0 ANTES do back 0.112.0** (canal D, rotas novas). Com o wa-back antigo, o 404 vira INDISPONIVEL no back, e nada é gravado.

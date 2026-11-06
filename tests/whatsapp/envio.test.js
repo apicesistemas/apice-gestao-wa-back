@@ -426,3 +426,49 @@ test("uma falha no sendMessage de mídia também conclui o upload no rastreador"
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(concluidos, 1);
 });
+
+test("DOCUMENTO genérico (octet-stream) mantém o nome original, sem .bin no fim, e sem nome vira documento.bin", () => {
+  const buffer = Buffer.from("conteúdo qualquer do Snagit");
+  const conteudo = montarConteudo({ midia: { buffer, mimetype: "application/octet-stream", nome: "captura.snag", documento: true } });
+  assert.deepEqual(conteudo, { document: buffer, mimetype: "application/octet-stream", fileName: "captura.snag" });
+  assert.equal(montarConteudo({ midia: { buffer, mimetype: "application/octet-stream", nome: "sem-extensao", documento: true } }).fileName, "sem-extensao");
+  assert.equal(montarConteudo({ midia: { buffer, mimetype: "application/octet-stream", nome: "dados.bin", documento: true } }).fileName, "dados.bin");
+  assert.equal(montarConteudo({ midia: { buffer, mimetype: "application/octet-stream", documento: true } }).fileName, "documento.bin");
+  assert.equal(montarConteudo({ midia: { buffer, mimetype: "application/octet-stream", nome: "../x/relatorio.ARJ", documento: true } }).fileName, "relatorio.ARJ");
+});
+
+test("ODT, ODS e ODP saem como document com a extensão do tipo", () => {
+  /** @type {[Buffer, string, string][]} */
+  const casos = [
+    [arquivos.odt(), arquivos.MIME_ODT, "odt"],
+    [arquivos.ods(), arquivos.MIME_ODS, "ods"],
+    [arquivos.odp(), arquivos.MIME_ODP, "odp"],
+  ];
+  for (const [buffer, mime, ext] of casos) {
+    assert.equal(montarConteudo({ midia: { buffer, mimetype: mime, nome: "ata", documento: true } }).fileName, `ata.${ext}`);
+    assert.equal(montarConteudo({ midia: { buffer, mimetype: mime, nome: `ata.${ext}`, documento: true } }).fileName, `ata.${ext}`);
+    assert.equal(montarConteudo({ midia: { buffer, mimetype: mime, documento: true } }).fileName, `documento.${ext}`);
+  }
+});
+
+test("nome de documento acima do limite preserva a ÚLTIMA extensão: o contorno .hta antes de um sufixo .txt não sai como .hta", () => {
+  const buffer = Buffer.from("x");
+  const nome = `${"A".repeat(196)}.hta-${"b".repeat(20)}.txt`;
+  assert.equal(nome.length, 225);
+  const generico = montarConteudo({ midia: { buffer, mimetype: "application/octet-stream", nome, documento: true } }).fileName;
+  assert.ok(generico.length <= 200);
+  assert.ok(generico.endsWith(".txt"));
+  assert.ok(generico.startsWith("A".repeat(196)));
+  // Em todo tipo de documento (aqui o PDF, que já terminava com a extensão do tipo).
+  const nomePdf = `${"A".repeat(250)}.pdf`;
+  const pdf = montarConteudo({ midia: { buffer: arquivos.pdf(), mimetype: "application/pdf", nome: nomePdf, documento: true } }).fileName;
+  assert.equal(pdf.length, 200);
+  assert.ok(pdf.endsWith(".pdf"));
+  // Sem ponto depois do .hta, o "sufixo" é longo: o corte não pode terminar em .hta.
+  const semPonto = `${"A".repeat(196)}.hta-${"b".repeat(40)}`;
+  const cortado = montarConteudo({ midia: { buffer, mimetype: "application/octet-stream", nome: semPonto, documento: true } }).fileName;
+  assert.ok(cortado.length <= 200);
+  assert.ok(!cortado.endsWith(".hta"));
+  // Nome curto não muda.
+  assert.equal(montarConteudo({ midia: { buffer, mimetype: "application/octet-stream", nome: "captura.snag", documento: true } }).fileName, "captura.snag");
+});

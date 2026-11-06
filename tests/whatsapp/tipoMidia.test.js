@@ -185,3 +185,66 @@ test("sem a opção (envio e demais tipos) o conteúdo desconhecido segue recusa
   assert.deepEqual(validarMidia(xml, "text/xml", TETO, { documentoGenerico: false }), { ok: false, motivo: "TIPO_NAO_RECONHECIDO" });
   assert.deepEqual(validarMidia(arquivos.docx(), "application/zip", TETO, {}), { ok: false, motivo: "TIPO_DIVERGENTE" });
 });
+
+// ---- OpenDocument (ODT, ODS, ODP): ZIP com a entrada `mimetype` armazenada logo no início ----
+
+test("ODT, ODS e ODP são reconhecidos pelo conteúdo com o mimetype próprio e aceitam o declarado correto ou genérico", () => {
+  /** @type {[Buffer, string][]} */
+  const casos = [
+    [arquivos.odt(), arquivos.MIME_ODT],
+    [arquivos.ods(), arquivos.MIME_ODS],
+    [arquivos.odp(), arquivos.MIME_ODP],
+  ];
+  for (const [buffer, mime] of casos) {
+    assert.equal(detectarTipoPorConteudo(buffer), mime);
+    assert.deepEqual(validarMidia(buffer, mime, TETO), { ok: true, mimetype: mime, tamanho_bytes: buffer.length });
+    assert.deepEqual(validarMidia(buffer, "application/octet-stream", TETO), { ok: true, mimetype: mime, tamanho_bytes: buffer.length });
+    assert.deepEqual(validarMidia(buffer, "application/zip", TETO), { ok: false, motivo: "TIPO_DIVERGENTE" });
+  }
+  assert.deepEqual(validarMidia(arquivos.odt(), arquivos.MIME_ODS, TETO), { ok: false, motivo: "TIPO_DIVERGENTE" });
+});
+
+test("ZIP sem a entrada mimetype, mimetype de outro formato ou de modelo (ott) continuam não reconhecidos", () => {
+  assert.equal(detectarTipoPorConteudo(arquivos.zipComum()), null);
+  assert.equal(detectarTipoPorConteudo(arquivos.odf("application/vnd.oasis.opendocument.graphics")), null);
+  assert.equal(detectarTipoPorConteudo(arquivos.odf("application/vnd.oasis.opendocument.text-template")), null);
+  // "mimetype" no byte 30, mas sem o mime logo depois
+  assert.equal(detectarTipoPorConteudo(arquivos.zip(["mimetype", "x.txt"], { mimetype: Buffer.from("text/plain") })), null);
+});
+
+test("documentoGenerico: ODT declarado como octet-stream ou com o mime próprio sai com o mime próprio", () => {
+  const odt = arquivos.odt();
+  assert.deepEqual(validarMidia(odt, "application/octet-stream", TETO, GENERICO), { ok: true, mimetype: arquivos.MIME_ODT, tamanho_bytes: odt.length });
+  assert.deepEqual(validarMidia(odt, arquivos.MIME_ODT, TETO, GENERICO), { ok: true, mimetype: arquivos.MIME_ODT, tamanho_bytes: odt.length });
+});
+
+// ---- ODF: vetores de borda do algoritmo único (os mesmos da suíte do back) ----
+
+test("ODF (a) padrão com tamanho e próxima entrada, (b) tamanho 0 + próxima entrada, (c) bit 3 com tamanho e sem próxima entrada, descritor depois do mime: ODT", () => {
+  const { odfBruto, PROXIMA_ENTRADA, PROXIMO_DESCRITOR, MIME_ODT } = arquivos;
+  assert.equal(detectarTipoPorConteudo(odfBruto(MIME_ODT, { proxima: PROXIMA_ENTRADA })), MIME_ODT, "(a)");
+  assert.equal(detectarTipoPorConteudo(odfBruto(MIME_ODT, { tamanho: 0, proxima: PROXIMA_ENTRADA })), MIME_ODT, "(b)");
+  assert.equal(detectarTipoPorConteudo(odfBruto(MIME_ODT, { flags: 0x08 })), MIME_ODT, "(c)");
+  assert.equal(detectarTipoPorConteudo(odfBruto(MIME_ODT, { flags: 0x08, tamanho: 0, proxima: PROXIMO_DESCRITOR })), MIME_ODT, "descritor de dados PK\x07\x08");
+});
+
+test("ODF (d) método 8, (e) extra ≠ 0, (f) text-template, tamanho 0 sem próxima entrada, nome ≠ 8: não reconhecido", () => {
+  const { odfBruto, PROXIMA_ENTRADA, MIME_ODT } = arquivos;
+  assert.equal(detectarTipoPorConteudo(odfBruto(MIME_ODT, { metodo: 8, proxima: PROXIMA_ENTRADA })), null, "(d)");
+  assert.equal(detectarTipoPorConteudo(odfBruto(MIME_ODT, { extra: 4, proxima: PROXIMA_ENTRADA })), null, "(e)");
+  const modelo = "application/vnd.oasis.opendocument.text-template";
+  assert.equal(detectarTipoPorConteudo(odfBruto(modelo, { proxima: PROXIMA_ENTRADA })), null, "(f) tamanho do modelo");
+  assert.equal(detectarTipoPorConteudo(odfBruto(modelo, { tamanho: 0, proxima: PROXIMA_ENTRADA })), null, "(f) tamanho 0");
+  assert.equal(detectarTipoPorConteudo(odfBruto(MIME_ODT, { tamanho: 0 })), null, "tamanho 0 e nada depois");
+  assert.equal(detectarTipoPorConteudo(odfBruto(MIME_ODT).subarray(0, 40)), null, "truncado no meio do mime");
+  const nomeOutro = odfBruto(MIME_ODT, { proxima: PROXIMA_ENTRADA });
+  nomeOutro.writeUInt16LE(7, 26);
+  assert.equal(detectarTipoPorConteudo(nomeOutro), null, "tamanho do nome ≠ 8");
+});
+
+test("ODF (g) ZIP sem mimetype e (h) ODS e ODP: os mimes próprios", () => {
+  const { odfBruto, PROXIMA_ENTRADA, MIME_ODS, MIME_ODP } = arquivos;
+  assert.equal(detectarTipoPorConteudo(arquivos.zipComum()), null, "(g)");
+  assert.equal(detectarTipoPorConteudo(odfBruto(MIME_ODS, { proxima: PROXIMA_ENTRADA })), MIME_ODS, "(h) ods");
+  assert.equal(detectarTipoPorConteudo(odfBruto(MIME_ODP, { tamanho: 0, proxima: PROXIMA_ENTRADA })), MIME_ODP, "(h) odp");
+});

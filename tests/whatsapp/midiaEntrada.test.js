@@ -290,3 +290,14 @@ test("obterMidiaValidada sem documentoGenerico segue recusando o XML", async () 
   });
   assert.deepEqual(resultado, { ok: false, motivo: "TIPO_NAO_RECONHECIDO" });
 });
+
+test("obterMidiaValidada: ODT recebido (declarado octet-stream) é gravado com o mimetype próprio, mesmo com documentoGenerico", async () => {
+  const odt = arquivos.odt();
+  const resultado = await obterMidiaValidada(socketFalso, imagemWa(), metadados({ mimetype: "application/octet-stream", nome_arquivo: "ata.odt" }), {
+    tetoBytes: 1024 * 1024,
+    prazoMs: 1000,
+    documentoGenerico: true,
+    baixar: async () => streamDe(odt),
+  });
+  assert.equal(resultado.ok && resultado.mimetype, arquivos.MIME_ODT);
+});

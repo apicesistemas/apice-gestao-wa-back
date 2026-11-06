@@ -29,7 +29,7 @@ const { criarReacao } = require("../whatsapp/reacao");
 const { criarEdicao } = require("../whatsapp/edicao");
 const { criarExclusao } = require("../whatsapp/exclusao");
 const { normalizarCodEquipe } = require("../whatsapp/BaileysAdapter");
-const { validarMidia } = require("../whatsapp/tipoMidia");
+const { validarMidia, MIME_GENERICO } = require("../whatsapp/tipoMidia");
 const { obterLimitesMidia } = require("../whatsapp/midiaEntrada");
 const desligamentoDoProcesso = require("../utils/desligamento").padrao;
 
@@ -180,14 +180,21 @@ async function dadosDoFormulario(form) {
   const ptt = pttTexto === "true";
 
   const buffer = Buffer.from(await arquivo.arrayBuffer());
-  const validacao = validarMidia(buffer, arquivo.type, obterLimitesMidia().tetoBytes);
+  const teto = obterLimitesMidia().tetoBytes;
+  let validacao = validarMidia(buffer, arquivo.type, teto);
+  // Só o conteúdo NÃO reconhecido vira documento genérico (SNAG etc.), e só em DOCUMENTO. O reconhecido de
+  // outro tipo ou divergente do declarado (GIF, figurinha, PNG como PDF) segue recusado, o que a entrada não faz.
+  if (!validacao.ok && validacao.motivo === "TIPO_NAO_RECONHECIDO" && tipo === "DOCUMENTO") {
+    validacao = validarMidia(buffer, arquivo.type, teto, { documentoGenerico: true });
+  }
   if (!validacao.ok) throw recusar(MSG_RECUSA_MIDIA[validacao.motivo]);
   // Um M4A com brand genérica é detectado como vídeo MP4: no envio de áudio, é áudio.
   const mimetype = tipo === "AUDIO" && validacao.mimetype === "video/mp4" ? "audio/mp4" : validacao.mimetype;
   if (!MIMES_DO_TIPO[tipo].has(mimetype)) throw recusar(MSG_RECUSA_MIDIA.TIPO_DIVERGENTE);
   if (ptt && mimetype !== "audio/ogg") throw recusar("A nota de voz precisa ser um áudio ogg/opus.");
 
-  const nomeArquivo = texto("nome_arquivo") ?? (arquivo instanceof File ? arquivo.name : undefined);
+  // O genérico não herda o File.name do Blob ("arquivo", montado pelo back): sem nome_arquivo, sai "documento.bin".
+  const nomeArquivo = texto("nome_arquivo") ?? (arquivo instanceof File && validacao.mimetype !== MIME_GENERICO ? arquivo.name : undefined);
   return {
     ...base,
     // `documento` é campo interno do objeto, não do formulário: DOCUMENTO nunca vai como imagem, vídeo ou áudio.

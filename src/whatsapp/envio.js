@@ -29,7 +29,7 @@
 // - uma mensagem por chamada (nada de envio em massa). Erros saem como `ErroEnvio` com mensagem
 //   genérica em pt-BR (o erro do Baileys pode trazer JID ou telefone e só vai ao log pelo nome).
 const { normalizarJid, lidDe, telefoneDe, mensagemWaIdValido } = require("./filtroEntrada");
-const { duracaoOggOpusSegundos, normalizarMimetype, MIME_DOCX, MIME_XLSX, MIME_DOC, MIME_XLS, MIME_PKCS12 } = require("./tipoMidia");
+const { duracaoOggOpusSegundos, normalizarMimetype, MIME_DOCX, MIME_XLSX, MIME_DOC, MIME_XLS, MIME_ODT, MIME_ODS, MIME_ODP, MIME_PKCS12, MIME_GENERICO } = require("./tipoMidia");
 const { normalizarCodEquipe } = require("./BaileysAdapter");
 const tmpMidia = require("./tmpMidia");
 
@@ -54,6 +54,11 @@ const EXTENSAO_DOCUMENTO = {
   [MIME_DOC]: "doc",
   [MIME_XLS]: "xls",
   [MIME_PKCS12]: "pfx",
+  [MIME_ODT]: "odt",
+  [MIME_ODS]: "ods",
+  [MIME_ODP]: "odp",
+  // Conteúdo não reconhecido (SNAG etc.): o nome original vale como está, sem extensão acrescentada.
+  [MIME_GENERICO]: "bin",
   // Vídeo enviado como DOCUMENTO (acima do limite de mídia): o cliente recebe o arquivo para baixar.
   "video/mp4": "mp4",
   "video/3gpp": "3gp",
@@ -141,6 +146,20 @@ function textoOpcional(valor, max) {
 }
 
 /**
+ * Limita o nome a MAX_NOME_ARQUIVO preservando a ÚLTIMA extensão (o que vem depois do último ponto do nome
+ * original): a lista de bloqueio do back confere a extensão do nome inteiro, e cortar o fim faria outra
+ * extensão (".hta" no meio) virar a final. Sufixo de MAX_NOME_ARQUIVO ou mais: fica só o fim do nome.
+ * @param {string} nome
+ * @returns {string}
+ */
+function limitarNome(nome) {
+  if (nome.length <= MAX_NOME_ARQUIVO) return nome;
+  const ponto = nome.lastIndexOf(".");
+  const extensao = nome.slice(ponto);
+  return ponto > 0 && extensao.length < MAX_NOME_ARQUIVO ? nome.slice(0, MAX_NOME_ARQUIVO - extensao.length) + extensao : nome.slice(-MAX_NOME_ARQUIVO);
+}
+
+/**
  * Nome do documento: só o nome (sem pasta), sem caracteres de controle, com a extensão do tipo.
  * @param {unknown} nome
  * @param {string} mimetype
@@ -153,10 +172,10 @@ function nomeDocumento(nome, mimetype) {
       ? (nome.split(/[\\/]/).pop() ?? "")
           .replace(/[\u0000-\u001f\u007f]/g, "")
           .trim()
-          .slice(0, MAX_NOME_ARQUIVO)
       : "";
-  const semPontos = base.replace(/^\.+/, "");
+  const semPontos = limitarNome(base).replace(/^\.+/, "");
   if (!semPontos) return `documento.${extensao}`;
+  if (mimetype === MIME_GENERICO) return semPontos;
   const validas = [extensao, ...(EXTENSOES_EXTRAS[mimetype] ?? [])];
   return validas.some((e) => semPontos.toLowerCase().endsWith(`.${e}`)) ? semPontos : `${semPontos}.${extensao}`;
 }
