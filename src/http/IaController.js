@@ -170,6 +170,36 @@
 //   (desligamento) · 504 { codigo: "PRAZO" } · 500 { msg: "Erro interno ao gerar os insights." }
 // Efeitos: nenhum. Log: "[IA] Insights de clima: codigo=C ms=N" (nunca perguntas, comentários, ações nem resposta da IA).
 // Compatibilidade: rota nova; publicar o wa-back antes do back (com o wa-back antigo, o 404 vira INDISPONIVEL no back, nada gravado).
+//
+// IA da Avaliação 360 graus (plano 2026-11-05-20-26-49, Task 1), contratos DAV1 a DAV4. Só o back chama (token antes do corpo,
+// 503 + Retry-After no desligamento, mesmo teto de corpo). Não grava, não toca no Baileys e não chama o back. Chave desconhecida
+// em QUALQUER nível (inclusive hash_empresa, cod_*, nome_usuario, nome_equipe e avaliador) → 400 sem chamar a MiniMax. O wa-back
+// não mascara: o back mascara a entrada e a saída. A resposta é sempre { <chave> } (sem desembrulhar).
+//
+// Canal: D
+// DAV1 POST /ia/avaliacao360/comentario (portão INTERATIVO; back waIaService.verificarComentario360, AV4)
+//   { texto: 1..1000, prazo_ms } → 200 { classificacao: "OK" | "OFENSIVO" | "ATAQUE_PESSOAL" }; outro valor → 502.
+// DAV2 POST /ia/avaliacao360/resumo (portão de LOTE; job da APURAÇÃO)
+//   { grupos: [{ rotulo: "PARES" | "SUBORDINADOS" | "COLABORADORES" (distintos), continuar: [1..1000] (0..60), mudar: [1..1000] (0..60) }] (1..3),
+//     maximo_temas: 1..8, prazo_ms } → 200 { temas: [{ grupo: <rótulo recebido>, tipo: "CONTINUAR" | "MUDAR", texto: 1..400 }] (0..maximo_temas) }.
+//   Tema de grupo não recebido, de pergunta (continuar/mudar) sem comentários ou fora do formato é descartado; `temas` ausente ou uma lista
+//   não vazia sem nenhum tema válido → 502; lista vazia → 200 { temas: [] }.
+// DAV3 POST /ia/avaliacao360/sugestao-pdi (portão INTERATIVO; AV14)
+//   { competencias: [{ nome: 2..40, media_outros: 1..5 | null, media_auto: 1..5 | null, gap, ponto_cego, forca_oculta: boolean }] (1..30),
+//     temas: [{ tipo: "CONTINUAR" | "MUDAR", texto: 1..400 }] (0..8), maximo_acoes: 1..10, prazo_ms }
+//   → 200 { acoes: [{ descricao: 5..300, competencia: string | null, prazo_dias: 7..180 }] (1..maximo_acoes) }. Competência que não veio → null;
+//   prazo fora da faixa é arredondado e preso em 7..180; item sem descrição de 5+ caracteres ou sem prazo numérico é descartado; nenhuma ação → 502.
+// DAV4 POST /ia/avaliacao360/insights (portão de LOTE; job da APURAÇÃO, um por ciclo)
+//   { equipes: [{ rotulo: /^Equipe [1-9]\d?$/ (distintos entre as equipes; repetido → 400), participantes: int >= 0, percentual_resposta: 0..100,
+//       competencias: [{ nome: 2..40, media_outros, media_auto: 1..5 | null, pessoas_gap, pessoas_ponto_cego: int >= 0 }] (0..30) }] (1..20),
+//     empresa: { competencias: [{ nome: 2..40, media_outros: 1..5 | null, evolucao: -4..4 | null }] (0..30) }, maximo_insights: 1..8, prazo_ms }
+//   → 200 { insights: [{ titulo: 1..80, texto: 1..600 }] (1..maximo_insights) }; nenhum insight válido → 502.
+//   (`media_*` e `evolucao` ausentes valem null. Texto acima do limite é cortado na palavra; item acima do máximo é descartado.)
+// prazo_ms: inteiro 1000..120000 em todas.
+// Erros (todas): 400 { msg } · 401 · 502 { msg, codigo: "RESPOSTA_INVALIDA" } · 503 { codigo: "IA_INDISPONIVEL" } · 503 + Retry-After sem codigo
+//   (desligamento) · 504 { codigo: "PRAZO" } · 500 { msg }.
+// Efeitos: nenhum. Log: "[IA] Avaliação 360, <rota>: codigo=C ms=N" (nunca comentário, tema, competência, insight nem número).
+// Compatibilidade: rotas novas; publicar o wa-back antes do back (com o wa-back antigo, o 404 vira INDISPONIVEL no back).
 const express = require("express");
 const exigirTokenServico = require("./exigirTokenServico");
 const sugestaoTicketService = require("../ia/sugestaoTicketService");
@@ -178,6 +208,7 @@ const avaliacaoComercialService = require("../ia/avaliacaoComercialService");
 const classificacaoTicketService = require("../ia/classificacaoTicketService");
 const assistenteRhService = require("../ia/assistenteRhService");
 const climaInsightsService = require("../ia/climaInsightsService");
+const avaliacao360Service = require("../ia/avaliacao360Service");
 const { portaoPadrao, portaoLote: portaoLoteDoProcesso } = require("../ia/portaoIa");
 const desligamentoDoProcesso = require("../utils/desligamento").padrao;
 
@@ -247,6 +278,34 @@ const MAXIMO_ACOES_CLIMA = 20;
 const MAXIMO_TEXTO_PERGUNTA_CLIMA = 300;
 const MAXIMO_TEXTO_COMENTARIO_CLIMA = 1000;
 const MAXIMO_TITULO_ACAO_CLIMA = 120;
+
+/** Allowlists da IA da Avaliação 360 (DAV1 a DAV4), uma por rota e por nível. */
+const ALLOWLIST_AV360_COMENTARIO = new Set(["texto", "prazo_ms"]);
+const ALLOWLIST_AV360_RESUMO = new Set(["grupos", "maximo_temas", "prazo_ms"]);
+const ALLOWLIST_AV360_PDI = new Set(["competencias", "temas", "maximo_acoes", "prazo_ms"]);
+const ALLOWLIST_AV360_INSIGHTS = new Set(["equipes", "empresa", "maximo_insights", "prazo_ms"]);
+const ALLOWLIST_AV360_NIVEIS = {
+  grupo: new Set(["rotulo", "continuar", "mudar"]),
+  competenciaPdi: new Set(["nome", "media_outros", "media_auto", "gap", "ponto_cego", "forca_oculta"]),
+  tema: new Set(["tipo", "texto"]),
+  equipe: new Set(["rotulo", "participantes", "percentual_resposta", "competencias"]),
+  competenciaEquipe: new Set(["nome", "media_outros", "media_auto", "pessoas_gap", "pessoas_ponto_cego"]),
+  empresa: new Set(["competencias"]),
+  competenciaEmpresa: new Set(["nome", "media_outros", "evolucao"]),
+};
+
+/** Limites do contrato DAV1 a DAV4 (tamanho das colunas e da tela no CRM, não regra de negócio). */
+const MAXIMO_TEXTO_COMENTARIO_360 = 1000;
+const MAXIMO_COMENTARIOS_GRUPO_360 = 60;
+const MAXIMO_TEMAS_RESUMO_360 = 8;
+const MAXIMO_COMPETENCIAS_360 = 30;
+const MAXIMO_TEMAS_PDI_360 = 8;
+const MAXIMO_TEXTO_TEMA_360 = 400;
+const MAXIMO_ACOES_PDI_360 = 10;
+const MAXIMO_EQUIPES_360 = 20;
+const MAXIMO_INSIGHTS_360 = 8;
+const LIMITE_NOME_COMPETENCIA_360 = [2, 40];
+const REGEX_ROTULO_EQUIPE_360 = /^Equipe [1-9]\d?$/;
 
 /** Limites dos contratos DRH1 a DRH3 (Assistente de RH). */
 const MAXIMO_INSTRUCAO_RH = 4000;
@@ -795,6 +854,151 @@ function validarCorpoClima(corpo) {
 }
 
 /**
+ * Média opcional da 360: ausente ou null valem null; senão, de 1 a 5.
+ * @param {unknown} valor
+ * @param {string} caminho
+ * @returns {number | null}
+ * @throws {ErroRequisicao}
+ */
+const mediaOpcional360 = (valor, caminho) => (valor === undefined || valor === null ? null : numeroClima(valor, 1, 5, caminho));
+
+/**
+ * @param {unknown} valor
+ * @param {string} caminho
+ * @returns {boolean}
+ * @throws {ErroRequisicao}
+ */
+function booleano360(valor, caminho) {
+  if (typeof valor !== "boolean") throw recusar(`Valor inválido em ${caminho}.`);
+  return valor;
+}
+
+/** @param {unknown} valor */
+const nomeCompetencia360 = (valor) => textoRh(valor, LIMITE_NOME_COMPETENCIA_360[0], LIMITE_NOME_COMPETENCIA_360[1], "O nome da competência tem de 2 a 40 caracteres.");
+
+/**
+ * Máximo pedido à IA (inteiro de 1 até o teto do contrato).
+ * @param {unknown} valor
+ * @param {number} maximo
+ * @param {string} caminho
+ */
+const maximoPedido360 = (valor, maximo, caminho) => numeroClima(valor, 1, maximo, caminho, { inteiro: true });
+
+/** @param {unknown} item */
+const comentario360 = (item) => textoRh(item, 1, MAXIMO_TEXTO_COMENTARIO_360, `Cada comentário tem de 1 a ${MAXIMO_TEXTO_COMENTARIO_360} caracteres.`);
+
+/**
+ * Valida o corpo contra a allowlist do contrato DAV1 (aviso de linguagem ofensiva).
+ * @param {unknown} corpo
+ * @returns {{ texto: string, prazo_ms: number }}
+ * @throws {ErroRequisicao}
+ */
+function validarCorpoComentario360(corpo) {
+  const c = exigirChavesPermitidas(corpo, ALLOWLIST_AV360_COMENTARIO, "no comentário da avaliação 360");
+  return { texto: textoRh(c.texto, 1, MAXIMO_TEXTO_COMENTARIO_360, `O comentário tem de 1 a ${MAXIMO_TEXTO_COMENTARIO_360} caracteres.`), prazo_ms: prazoRh(c.prazo_ms) };
+}
+
+/**
+ * Valida o corpo contra a allowlist do contrato DAV2 (resumo dos comentários de um avaliado).
+ * @param {unknown} corpo
+ * @returns {{ grupos: import("../ia/avaliacao360Service").GrupoComentarios[], maximo_temas: number, prazo_ms: number }}
+ * @throws {ErroRequisicao}
+ */
+function validarCorpoResumo360(corpo) {
+  const c = exigirChavesPermitidas(corpo, ALLOWLIST_AV360_RESUMO, "no resumo da avaliação 360");
+  /** @type {Set<string>} */
+  const rotulos = new Set();
+  const mensagemLista = `Informe de 0 a ${MAXIMO_COMENTARIOS_GRUPO_360} comentários por pergunta.`;
+  const grupos = listaClima(c.grupos, 1, avaliacao360Service.GRUPOS.length, `Informe de 1 a ${avaliacao360Service.GRUPOS.length} grupos.`, (item) => {
+    const g = exigirChavesPermitidas(item, ALLOWLIST_AV360_NIVEIS.grupo, "no grupo");
+    if (typeof g.rotulo !== "string" || !avaliacao360Service.GRUPOS.includes(g.rotulo)) throw recusar("Rótulo do grupo inválido.");
+    if (rotulos.has(g.rotulo)) throw recusar("Rótulo do grupo repetido.");
+    rotulos.add(g.rotulo);
+    return {
+      rotulo: /** @type {"PARES" | "SUBORDINADOS" | "COLABORADORES"} */ (g.rotulo),
+      continuar: listaClima(g.continuar, 0, MAXIMO_COMENTARIOS_GRUPO_360, mensagemLista, comentario360),
+      mudar: listaClima(g.mudar, 0, MAXIMO_COMENTARIOS_GRUPO_360, mensagemLista, comentario360),
+    };
+  });
+  return { grupos, maximo_temas: maximoPedido360(c.maximo_temas, MAXIMO_TEMAS_RESUMO_360, "maximo_temas"), prazo_ms: prazoRh(c.prazo_ms) };
+}
+
+/**
+ * Valida o corpo contra a allowlist do contrato DAV3 (sugestão de PDI).
+ * @param {unknown} corpo
+ * @returns {{ competencias: import("../ia/avaliacao360Service").CompetenciaPdi[], temas: import("../ia/avaliacao360Service").TemaPdi[], maximo_acoes: number, prazo_ms: number }}
+ * @throws {ErroRequisicao}
+ */
+function validarCorpoPdi360(corpo) {
+  const c = exigirChavesPermitidas(corpo, ALLOWLIST_AV360_PDI, "na sugestão de PDI");
+  const competencias = listaClima(c.competencias, 1, MAXIMO_COMPETENCIAS_360, `Informe de 1 a ${MAXIMO_COMPETENCIAS_360} competências.`, (item) => {
+    const k = exigirChavesPermitidas(item, ALLOWLIST_AV360_NIVEIS.competenciaPdi, "na competência");
+    return {
+      nome: nomeCompetencia360(k.nome),
+      media_outros: mediaOpcional360(k.media_outros, "competencias.media_outros"),
+      media_auto: mediaOpcional360(k.media_auto, "competencias.media_auto"),
+      gap: booleano360(k.gap, "competencias.gap"),
+      ponto_cego: booleano360(k.ponto_cego, "competencias.ponto_cego"),
+      forca_oculta: booleano360(k.forca_oculta, "competencias.forca_oculta"),
+    };
+  });
+  const temas = listaClima(c.temas, 0, MAXIMO_TEMAS_PDI_360, `Informe de 0 a ${MAXIMO_TEMAS_PDI_360} temas.`, (item) => {
+    const t = exigirChavesPermitidas(item, ALLOWLIST_AV360_NIVEIS.tema, "no tema");
+    if (typeof t.tipo !== "string" || !avaliacao360Service.TIPOS_TEMA.includes(t.tipo)) throw recusar("Tipo do tema inválido.");
+    return {
+      tipo: /** @type {"CONTINUAR" | "MUDAR"} */ (t.tipo),
+      texto: textoRh(t.texto, 1, MAXIMO_TEXTO_TEMA_360, `O texto do tema tem de 1 a ${MAXIMO_TEXTO_TEMA_360} caracteres.`),
+    };
+  });
+  return { competencias, temas, maximo_acoes: maximoPedido360(c.maximo_acoes, MAXIMO_ACOES_PDI_360, "maximo_acoes"), prazo_ms: prazoRh(c.prazo_ms) };
+}
+
+/**
+ * Valida o corpo contra a allowlist do contrato DAV4 (insights do ciclo).
+ * @param {unknown} corpo
+ * @returns {{ equipes: import("../ia/avaliacao360Service").EquipeInsights[], empresa: import("../ia/avaliacao360Service").EmpresaInsights, maximo_insights: number, prazo_ms: number }}
+ * @throws {ErroRequisicao}
+ */
+function validarCorpoInsights360(corpo) {
+  const c = exigirChavesPermitidas(corpo, ALLOWLIST_AV360_INSIGHTS, "nos insights da avaliação 360");
+  /** @type {Set<string>} */
+  const rotulos = new Set();
+  const equipes = listaClima(c.equipes, 1, MAXIMO_EQUIPES_360, `Informe de 1 a ${MAXIMO_EQUIPES_360} equipes.`, (item) => {
+    const e = exigirChavesPermitidas(item, ALLOWLIST_AV360_NIVEIS.equipe, "na equipe");
+    if (typeof e.rotulo !== "string" || !REGEX_ROTULO_EQUIPE_360.test(e.rotulo)) throw recusar("Rótulo da equipe inválido.");
+    if (rotulos.has(e.rotulo)) throw recusar("Rótulo da equipe repetido.");
+    rotulos.add(e.rotulo);
+    return {
+      rotulo: e.rotulo,
+      participantes: numeroClima(e.participantes, 0, Infinity, "equipes.participantes", { inteiro: true }),
+      percentual_resposta: numeroClima(e.percentual_resposta, 0, 100, "equipes.percentual_resposta"),
+      competencias: listaClima(e.competencias, 0, MAXIMO_COMPETENCIAS_360, `Informe de 0 a ${MAXIMO_COMPETENCIAS_360} competências por equipe.`, (comp) => {
+        const k = exigirChavesPermitidas(comp, ALLOWLIST_AV360_NIVEIS.competenciaEquipe, "na competência da equipe");
+        return {
+          nome: nomeCompetencia360(k.nome),
+          media_outros: mediaOpcional360(k.media_outros, "equipes.competencias.media_outros"),
+          media_auto: mediaOpcional360(k.media_auto, "equipes.competencias.media_auto"),
+          pessoas_gap: numeroClima(k.pessoas_gap, 0, Infinity, "equipes.competencias.pessoas_gap", { inteiro: true }),
+          pessoas_ponto_cego: numeroClima(k.pessoas_ponto_cego, 0, Infinity, "equipes.competencias.pessoas_ponto_cego", { inteiro: true }),
+        };
+      }),
+    };
+  });
+  const emp = exigirChavesPermitidas(c.empresa, ALLOWLIST_AV360_NIVEIS.empresa, "na empresa");
+  const empresa = {
+    competencias: listaClima(emp.competencias, 0, MAXIMO_COMPETENCIAS_360, `Informe de 0 a ${MAXIMO_COMPETENCIAS_360} competências da empresa.`, (comp) => {
+      const k = exigirChavesPermitidas(comp, ALLOWLIST_AV360_NIVEIS.competenciaEmpresa, "na competência da empresa");
+      return {
+        nome: nomeCompetencia360(k.nome),
+        media_outros: mediaOpcional360(k.media_outros, "empresa.competencias.media_outros"),
+        evolucao: k.evolucao === undefined || k.evolucao === null ? null : numeroClima(k.evolucao, -4, 4, "empresa.competencias.evolucao"),
+      };
+    }),
+  };
+  return { equipes, empresa, maximo_insights: maximoPedido360(c.maximo_insights, MAXIMO_INSIGHTS_360, "maximo_insights"), prazo_ms: prazoRh(c.prazo_ms) };
+}
+
+/**
  * Responde o erro tipado da MiniMax (comum às duas IAs): 504 prazo, 502 resposta inutilizável, 503 indisponível.
  * @param {import("express").Response} res
  * @param {string} erro
@@ -831,6 +1035,10 @@ function lerJson(req, res, next) {
  *   gerarFeedback?: typeof assistenteRhService.gerarFeedback,
  *   responderAssistente?: typeof assistenteRhService.responder,
  *   gerarInsightsClima?: typeof climaInsightsService.gerarInsights,
+ *   verificarComentario360?: typeof avaliacao360Service.verificarComentario,
+ *   resumirComentarios360?: typeof avaliacao360Service.resumirComentarios,
+ *   sugerirPdi360?: typeof avaliacao360Service.sugerirPdi,
+ *   gerarInsights360?: typeof avaliacao360Service.gerarInsights360,
  *   portao?: Pick<ReturnType<typeof import("../ia/portaoIa").criarPortaoIa>, "executar">,
  *   portaoLote?: Pick<ReturnType<typeof import("../ia/portaoIa").criarPortaoIa>, "executar">,
  *   fetch?: typeof fetch,
@@ -838,7 +1046,7 @@ function lerJson(req, res, next) {
  * }} [opcoes] dependências (os testes injetam)
  * @returns {(server: import("express").Express) => void}
  */
-function criarIaController({ desligamento = desligamentoDoProcesso, sugerir = sugestaoTicketService.sugerir, avaliar = avaliacaoAtendimentoService.avaliar, avaliarComercial = avaliacaoComercialService.avaliarComercial, classificar = classificacaoTicketService.classificar, gerarFeedback = assistenteRhService.gerarFeedback, responderAssistente = assistenteRhService.responder, gerarInsightsClima = climaInsightsService.gerarInsights, portao, portaoLote, fetch, agora = Date.now } = {}) {
+function criarIaController({ desligamento = desligamentoDoProcesso, sugerir = sugestaoTicketService.sugerir, avaliar = avaliacaoAtendimentoService.avaliar, avaliarComercial = avaliacaoComercialService.avaliarComercial, classificar = classificacaoTicketService.classificar, gerarFeedback = assistenteRhService.gerarFeedback, responderAssistente = assistenteRhService.responder, gerarInsightsClima = climaInsightsService.gerarInsights, verificarComentario360 = avaliacao360Service.verificarComentario, resumirComentarios360 = avaliacao360Service.resumirComentarios, sugerirPdi360 = avaliacao360Service.sugerirPdi, gerarInsights360 = avaliacao360Service.gerarInsights360, portao, portaoLote, fetch, agora = Date.now } = {}) {
   /** @type {import("express").RequestHandler} */
   const recusarDuranteEncerramento = (req, res, next) => desligamento.recusarDuranteEncerramento(req, res, next);
 
@@ -1028,7 +1236,7 @@ function criarIaController({ desligamento = desligamentoDoProcesso, sugerir = su
      *   validar: (corpo: unknown) => { prazo_ms: number },
      *   obterPortao: () => Pick<ReturnType<typeof import("../ia/portaoIa").criarPortaoIa>, "executar">,
      *   executar: (pedido: any) => Promise<Record<string, any>>,
-     *   saida: "texto" | "resposta" | "insights",
+     *   saida: "texto" | "resposta" | "insights" | "classificacao" | "temas" | "acoes",
      *   semEnvelope?: boolean,
      *   msgErro: string,
      * }} rota
@@ -1120,6 +1328,24 @@ function criarIaController({ desligamento = desligamentoDoProcesso, sugerir = su
       }),
     );
 
+    // DAV1 a DAV4 (Avaliação 360): DAV1 e DAV3 no portão INTERATIVO, DAV2 e DAV4 no de LOTE. A resposta é { <saida> }.
+    /** @type {{ caminho: string, rotulo: string, rotuloErro: string, validar: (corpo: unknown) => { prazo_ms: number }, lote: boolean, executar: (pedido: any) => Promise<Record<string, any>>, saida: "classificacao" | "temas" | "acoes" | "insights", msgErro: string }[]} */
+    const rotasAv360 = [
+      { caminho: "/ia/avaliacao360/comentario", rotulo: "Avaliação 360, comentário", rotuloErro: "comentário da avaliação 360", validar: validarCorpoComentario360, lote: false, executar: verificarComentario360, saida: "classificacao", msgErro: "Erro interno ao verificar o comentário." },
+      { caminho: "/ia/avaliacao360/resumo", rotulo: "Avaliação 360, resumo", rotuloErro: "resumo da avaliação 360", validar: validarCorpoResumo360, lote: true, executar: resumirComentarios360, saida: "temas", msgErro: "Erro interno ao resumir os comentários." },
+      { caminho: "/ia/avaliacao360/sugestao-pdi", rotulo: "Avaliação 360, sugestão de PDI", rotuloErro: "PDI da avaliação 360", validar: validarCorpoPdi360, lote: false, executar: sugerirPdi360, saida: "acoes", msgErro: "Erro interno ao sugerir as ações." },
+      { caminho: "/ia/avaliacao360/insights", rotulo: "Avaliação 360, insights", rotuloErro: "insights da avaliação 360", validar: validarCorpoInsights360, lote: true, executar: gerarInsights360, saida: "insights", msgErro: "Erro interno ao gerar os insights da avaliação." },
+    ];
+    for (const { caminho, lote, ...rota } of rotasAv360) {
+      server.post(
+        caminho,
+        exigirTokenServico,
+        recusarDuranteEncerramento,
+        lerJson,
+        tratarRotaPortao({ ...rota, obterPortao: () => (lote ? (portaoLote ?? portaoLoteDoProcesso()) : (portao ?? portaoPadrao())) }),
+      );
+    }
+
     // DRH3: os dois prompts exatos (feedback e chat) com marcadores no lugar dos dados. Não chama a MiniMax.
     server.post("/ia/feedback-desempenho/previa", exigirTokenServico, recusarDuranteEncerramento, lerJson, (req, res) => {
       try {
@@ -1153,4 +1379,9 @@ module.exports = Object.assign(IaController, {
   ALLOWLIST_DADOS,
   ALLOWLIST_CLIMA,
   ALLOWLIST_CLIMA_NIVEIS,
+  ALLOWLIST_AV360_COMENTARIO,
+  ALLOWLIST_AV360_RESUMO,
+  ALLOWLIST_AV360_PDI,
+  ALLOWLIST_AV360_INSIGHTS,
+  ALLOWLIST_AV360_NIVEIS,
 });

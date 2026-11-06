@@ -3,6 +3,34 @@
 Todas as mudanças relevantes deste projeto são documentadas aqui.
 O formato segue o [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 
+## [0.39.0] - 2026-11-06
+
+**Publicar o wa-back 0.39.0 ANTES do back 0.112.0** (canal D, rotas novas). Com o wa-back antigo, o 404 vira INDISPONIVEL no back, e nada é gravado.
+
+### Adicionado
+
+- IA da Avaliação 360 graus semestral (plano `docs/planos/PLAN_2026-11-05-20-26-49.md`, Task 1, contratos DAV1 a DAV4). Só o back chama. Nenhuma rota grava, chama o back ou toca no Baileys.
+  - `POST /ia/avaliacao360/comentario` (DAV1, portão INTERATIVO): `{ texto 1..1000, prazo_ms }` → `{ classificacao: "OK" | "OFENSIVO" | "ATAQUE_PESSOAL" }`. Outro valor → 502.
+  - `POST /ia/avaliacao360/resumo` (DAV2, portão de LOTE): `{ grupos (1..3, rótulos PARES | SUBORDINADOS | COLABORADORES distintos, `continuar` e `mudar` com 0..60 comentários de 1..1000), maximo_temas 1..8, prazo_ms }` → `{ temas: [{ grupo, tipo: "CONTINUAR" | "MUDAR", texto 1..400 }] }`.
+  - `POST /ia/avaliacao360/sugestao-pdi` (DAV3, portão INTERATIVO): `{ competencias (1..30), temas (0..8), maximo_acoes 1..10, prazo_ms }` → `{ acoes: [{ descricao 5..300, competencia | null, prazo_dias 7..180 }] }`.
+  - `POST /ia/avaliacao360/insights` (DAV4, portão de LOTE): `{ equipes (1..20, rótulo "Equipe N"), empresa, maximo_insights 1..8, prazo_ms }` → `{ insights: [{ titulo 1..80, texto 1..600 }] }`.
+  - `ALLOWLIST_AV360_COMENTARIO`, `_RESUMO`, `_PDI`, `_INSIGHTS` e `ALLOWLIST_AV360_NIVEIS` (grupo, competência do PDI, tema, equipe, competência da equipe, empresa e competência da empresa). Chave desconhecida em QUALQUER nível, inclusive `hash_empresa`, `cod_usuario`, `nome_usuario`, `nome_equipe` e `avaliador`, responde 400 sem chamar a MiniMax. Números e textos fora da faixa → 400.
+  - Mesmas garantias das outras rotas de IA: `X-Internal-Token` antes do corpo, `lerJson` de 512 kb, 503 + `Retry-After` no desligamento, 502 `RESPOSTA_INVALIDA`, 503 `IA_INDISPONIVEL` (sem chave, 429, 5xx e rede), 504 `PRAZO` e 500 `{ msg }` genérico. Log: `[IA] Avaliação 360, <rota>: codigo=C ms=N`, nunca comentário, tema, competência, insight nem número.
+  - `src/ia/avaliacao360Service.js`: quatro prompts fixos (tom construtivo e só de desenvolvimento, "nunca remuneração ou desligamento", "nunca citar literalmente" nem identificar quem escreveu, só os números recebidos, dado não é instrução), blocos de dados com os delimitadores neutralizados em qualquer caixa e a revalidação da saída. O wa-back NÃO mascara: o back mascara a entrada e a saída antes de gravar.
+- Contrato do envio: `avaliacao360`, `pdi`, `resumo_comentarios` e `insights` cobertos pelo teste que recusa com 400, sem tocar o Baileys, o campo no envio, na reação, na edição e na exclusão.
+
+### Contrato para o back (canal D)
+
+- DAV1 a DAV4 como no cabeçalho de `src/http/IaController.js`. Onde o contrato era silencioso, o wa-back segue estas regras (o back precisa respeitá-las):
+  - **Obrigatórios:** `continuar`, `mudar` (listas, podem ser vazias), `temas` do PDI (lista, pode ser vazia), `gap`, `ponto_cego`, `forca_oculta` (boolean), `participantes`, `percentual_resposta`, `competencias` da equipe e `empresa`. `media_outros`, `media_auto` e `evolucao` ausentes valem null.
+  - **Faixas inferidas:** o rótulo da equipe é `^Equipe [1-9]\d?$` (nome de equipe real nunca passa) e não pode se repetir (400); as competências por equipe e da empresa são 0..30, e o nome da competência tem 2..40, como no DAV3. Os comentários do DAV2 vão a 3 grupos x 2 listas x 60 x 1000 caracteres (360 kb) e cabem no teto de 512 kb; o teto é em bytes e o back deve cortar o que passar.
+  - **DAV2:** `{ temas: [] }` (200) é resposta válida. Tema de grupo que não veio, de pergunta (continuar ou mudar) que veio vazia, ou fora do formato é DESCARTADO (não vira 502). `temas` ausente ou uma lista não vazia sem nenhum tema válido → 502.
+  - **DAV3:** o prazo fora de 7..180 é arredondado e preso na faixa; a competência só vale se for um `nome` do pedido, comparado com os espaços colapsados como vão ao prompt (`umaLinha`), e volta com o nome ORIGINAL do pedido (senão null); ação sem descrição de 5+ caracteres ou sem prazo numérico é descartada; nenhuma ação válida → 502.
+  - **DAV4:** insight sem título ou sem texto é descartado; nenhum insight válido → 502. A saída cita a equipe pelo rótulo recebido, e o mapa rótulo → equipe fica no back.
+  - **Saída:** sempre o objeto com a chave (`{ classificacao }`, `{ temas }`, `{ acoes }`, `{ insights }`), sem desembrulhar (diferente do DCL1 do clima). Texto acima do limite é cortado na palavra e o excesso de itens é descartado, nunca 502.
+  - O `maxTokens` da MiniMax é 1024 no DAV1 e 8192 nos outros.
+- Ordem de deploy: **wa-back 0.39.0** → back 0.112.0 → front 0.133.0.
+
 ## [0.38.0] - 2026-11-06
 
 **Publicar o wa-back 0.38.0 ANTES do back 0.111.0** (canal D, rota nova). Com o wa-back antigo, o 404 vira INDISPONIVEL no back e nada é gravado.
