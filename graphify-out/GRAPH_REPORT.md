@@ -1,16 +1,16 @@
 # Graph Report - apice-gestao-wa-back  (2026-11-06)
 
 ## Corpus Check
-- 59 files · ~78,542 words
+- 59 files · ~78,961 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 766 nodes · 1614 edges · 28 communities (26 shown, 2 thin omitted)
+- 768 nodes · 1620 edges · 31 communities (29 shown, 2 thin omitted)
 - Extraction: 88% EXTRACTED · 12% INFERRED · 0% AMBIGUOUS · INFERRED: 200 edges (avg confidence: 0.51)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `518a6c3e`
+- Built from commit: `d34c3348`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -43,6 +43,9 @@
 - ConexaoController.js
 - resolverLid.js
 - criarCacheEnviadas
+- exclusao.js
+- reacao.js
+- exigirTokenServico.js
 
 ## God Nodes (most connected - your core abstractions)
 1. `normalizarJid()` - 28 edges
@@ -57,25 +60,25 @@
 10. `mensagemWaIdValido()` - 15 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `criarPortaoIa()` --indirect_call--> `executar()`  [INFERRED]
+  src/ia/portaoIa.js → scripts/run-tests.js
 - `acharAddRequest()` --indirect_call--> `filho()`  [INFERRED]
-  apice-gestao-wa-back/src/whatsapp/grupoGestao.js → apice-gestao-wa-back/src/audio/trilhaVideo.js
+  src/whatsapp/grupoGestao.js → src/audio/trilhaVideo.js
 - `criarIaController()` --indirect_call--> `caminho()`  [INFERRED]
-  apice-gestao-wa-back/src/http/IaController.js → apice-gestao-wa-back/src/audio/trilhaVideo.js
+  src/http/IaController.js → src/audio/trilhaVideo.js
 - `criarIaController()` --indirect_call--> `contexto()`  [INFERRED]
-  apice-gestao-wa-back/src/http/IaController.js → apice-gestao-wa-back/src/whatsapp/filtroEntrada.js
+  src/http/IaController.js → src/whatsapp/filtroEntrada.js
 - `criarAdapter()` --indirect_call--> `itens()`  [INFERRED]
-  apice-gestao-wa-back/src/whatsapp/BaileysAdapter.js → apice-gestao-wa-back/src/ia/avaliacao360Service.js
-- `criarAdapter()` --indirect_call--> `iniciar()`  [INFERRED]
-  apice-gestao-wa-back/src/whatsapp/BaileysAdapter.js → apice-gestao-wa-back/src/index.js
+  src/whatsapp/BaileysAdapter.js → src/ia/avaliacao360Service.js
 
 ## Import Cycles
 - None detected.
 
-## Communities (28 total, 2 thin omitted)
+## Communities (31 total, 2 thin omitted)
 
 ### Community 0 - "envio.js"
-Cohesion: 0.05
-Nodes (57): ALLOWLIST_EDICAO, ALLOWLIST_ENVIO, ALLOWLIST_EXCLUSAO, ALLOWLIST_REACAO, CAMPOS_COMUNS, CAMPOS_DO_TIPO, codEquipeValido(), { criarEdicao } (+49 more)
+Cohesion: 0.10
+Nodes (30): ALLOWLIST_EDICAO, ALLOWLIST_ENVIO, ALLOWLIST_EXCLUSAO, ALLOWLIST_REACAO, CAMPOS_COMUNS, CAMPOS_DO_TIPO, codEquipeValido(), { criarEdicao } (+22 more)
 
 ### Community 1 - "chamarRotaInterna"
 Cohesion: 0.07
@@ -83,7 +86,7 @@ Nodes (40): alertarChamada(), { chamarRotaInterna }, registrarChamada(), valeNov
 
 ### Community 2 - "index.js"
 Cohesion: 0.05
-Nodes (51): ConexaoController, ContatoController, CONTROLLERS, EnvioController, FotoPerfilController, GrupoController, HealthController, IaController (+43 more)
+Nodes (52): ConexaoController, ContatoController, CONTROLLERS, EnvioController, FotoPerfilController, GrupoController, HealthController, IaController (+44 more)
 
 ### Community 3 - "IaController.js"
 Cohesion: 0.06
@@ -98,16 +101,16 @@ Cohesion: 0.12
 Nodes (28): { extrairTrilhaAudio, ErroTrilhaAudio, MIMETYPE_TRILHA }, filaPadrao, transcricaoInternoClient, transcricaoService, ACEITOS_DIRETO, CONTEINERES_ISO, ehTimeout(), { extrairTrilhaAudio, ErroTrilhaAudio, MIMETYPE_TRILHA } (+20 more)
 
 ### Community 6 - "sugestaoTicketService.js"
-Cohesion: 0.05
-Nodes (72): bloco(), blocosBase(), COMO_LER_NUMEROS, { conversarTexto, cortarNaPalavra }, gerarFeedback(), MARCADORES_PREVIA, montarPedidoChat(), montarPedidoFeedback() (+64 more)
+Cohesion: 0.07
+Nodes (58): bloco(), blocosBase(), COMO_LER_NUMEROS, { conversarTexto, cortarNaPalavra }, gerarFeedback(), MARCADORES_PREVIA, montarPedidoChat(), montarPedidoFeedback() (+50 more)
 
 ### Community 7 - "BaileysAdapter.js"
 Cohesion: 0.06
 Nodes (34): chamadaInternoClient, { criarCacheEnviadas }, { criarCacheNomeGrupo, ErroConsultaGrupo }, { criarConsolidadorChamadas }, { criarLoteRecibos }, { criarPresenca }, { criarRecibos, extrairDeAtualizacoes, extrairDeRecibos, ehPorDestinatario }, { criarRecuperacao } (+26 more)
 
 ### Community 8 - "EnvioController.js"
-Cohesion: 0.10
-Nodes (30): RFC-7845, baixarMidia(), destruir(), ErroMidia, lerComTeto(), loggerBaileys, obterMidiaValidada(), pino (+22 more)
+Cohesion: 0.07
+Nodes (42): RFC-7845, baixarImagem(), { comPrazo, statusDoErro }, { detectarTipoPorConteudo }, ErroFoto, foiRedirecionamento(), lerComTeto(), MENSAGENS_ERRO_FOTO (+34 more)
 
 ### Community 9 - "grupoGestao.js"
 Cohesion: 0.13
@@ -118,8 +121,8 @@ Cohesion: 0.12
 Nodes (23): ALLOWLIST_ADICAO, ALLOWLIST_CONTATO, ALLOWLIST_CRIACAO, criarGrupoController(), { ehProprio }, { ErroConsultaGrupo }, { ErroEnvio, obterSocketDaEquipe }, { ErroGrupo } (+15 more)
 
 ### Community 11 - "diagnosticoPresenca.js"
-Cohesion: 0.17
-Nodes (25): CAMPOS_IGNORADOS, { desembrulhar }, diagnosticoLigado(), dominioDe(), ehEquipe(), gravar(), registrarFormaEventoCall(), registrarFormaMensagem() (+17 more)
+Cohesion: 0.18
+Nodes (24): CAMPOS_IGNORADOS, { desembrulhar }, diagnosticoLigado(), dominioDe(), ehEquipe(), gravar(), registrarFormaEventoCall(), registrarFormaMensagem() (+16 more)
 
 ### Community 12 - "criarAdapter"
 Cohesion: 0.67
@@ -127,15 +130,15 @@ Nodes (3): nomeDoErro(), obterVersaoWaWeb(), resumoFalha()
 
 ### Community 14 - "filtroEntrada.js"
 Cohesion: 0.14
-Nodes (34): CHAVES_RUIDO, chavesDescartadas(), comBotoes(), contexto(), copiarKey(), ehLong(), ENVELOPES, extrairConteudo() (+26 more)
+Nodes (36): chatRegistravel(), CHAVES_RUIDO, chavesDescartadas(), comBotoes(), contexto(), copiarKey(), desembrulhar(), ehLong() (+28 more)
 
 ### Community 15 - "criarRecuperacao"
-Cohesion: 0.21
-Nodes (11): baixarImagem(), { comPrazo, statusDoErro }, { detectarTipoPorConteudo }, ErroFoto, foiRedirecionamento(), lerComTeto(), MENSAGENS_ERRO_FOTO, obterPreview() (+3 more)
+Cohesion: 0.23
+Nodes (14): avaliar(), { conversarJson, cortarNaPalavra }, ehObjeto(), montarPedido(), neutralizarDelimitadores(), previa(), PROMPT_SISTEMA, textoCurto() (+6 more)
 
 ### Community 16 - "normalizarJid"
-Cohesion: 0.08
-Nodes (49): invalido(), mesmaConversa(), validarChatJid(), validarKey(), validarMencoes(), chatRegistravel(), identidadeDe(), identidadePropria() (+41 more)
+Cohesion: 0.06
+Nodes (68): criarEdicao(), padrao, { validarChatJid, validarKey, validarMencoes, montarConteudo, obterSocketDaEquipe, enviarPeloSocket, ErroEnvio }, CHAVES_MIDIA, { duracaoOggOpusSegundos, normalizarMimetype, MIME_DOCX, MIME_XLSX, MIME_DOC, MIME_XLS, MIME_ODT, MIME_ODS, MIME_ODP, MIME_PKCS12, MIME_GENERICO }, enviarPeloSocket(), EXTENSAO_DOCUMENTO, EXTENSOES_EXTRAS (+60 more)
 
 ### Community 17 - "ContatoController.js"
 Cohesion: 0.16
@@ -166,8 +169,8 @@ Cohesion: 0.33
 Nodes (4): CAMINHO_ATIVIDADE, criarRecuperacao(), fs, path
 
 ### Community 25 - "ConexaoController.js"
-Cohesion: 0.22
-Nodes (9): codEquipeValido(), ConexaoController, criarConexaoController(), exigirTokenServico, instanciaManager, { normalizarCodEquipe }, crypto, exigirTokenServico() (+1 more)
+Cohesion: 0.33
+Nodes (6): codEquipeValido(), ConexaoController, criarConexaoController(), exigirTokenServico, instanciaManager, { normalizarCodEquipe }
 
 ### Community 26 - "resolverLid.js"
 Cohesion: 0.40
@@ -176,6 +179,18 @@ Nodes (3): criarResolvedorLid(), { lidDe, telefoneDe }, telefoneDeValor()
 ### Community 27 - "criarCacheEnviadas"
 Cohesion: 0.25
 Nodes (6): criarAdapter(), criarCacheEnviadas(), { normalizarJid }, criarCacheNomeGrupo(), criarRecibos(), criarRegistroAparelho()
+
+### Community 28 - "exclusao.js"
+Cohesion: 0.33
+Nodes (4): ErroEnvio, criarExclusao(), padrao, { validarChatJid, validarKey, obterSocketDaEquipe, enviarPeloSocket, ErroEnvio }
+
+### Community 29 - "reacao.js"
+Cohesion: 0.40
+Nodes (3): criarReacao(), padrao, { validarChatJid, validarKey, obterSocketDaEquipe, enviarPeloSocket, ErroEnvio }
+
+### Community 30 - "exigirTokenServico.js"
+Cohesion: 0.67
+Nodes (3): crypto, exigirTokenServico(), tokensIguais()
 
 ## Knowledge Gaps
 - **275 isolated node(s):** `{ readdirSync }`, `{ spawnSync }`, `path`, `LIMITES_COBERTURA`, `{ extrairTrilhaAudio, ErroTrilhaAudio, MIMETYPE_TRILHA }` (+270 more)
@@ -190,7 +205,7 @@ _Questions this graph is uniquely positioned to answer:_
 - **Why does `criarIaController()` connect `IaController.js` to `run-tests.js`, `trilhaVideo.js`, `sugestaoTicketService.js`, `filtroEntrada.js`?**
   _High betweenness centrality (0.068) - this node is a cross-community bridge._
 - **Why does `contexto()` connect `filtroEntrada.js` to `normalizarJid`, `IaController.js`?**
-  _High betweenness centrality (0.049) - this node is a cross-community bridge._
+  _High betweenness centrality (0.048) - this node is a cross-community bridge._
 - **Are the 2 inferred relationships involving `normalizarJid()` (e.g. with `filtroEntrada.js` and `contexto()`) actually correct?**
   _`normalizarJid()` has 2 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 11 inferred relationships involving `criarIaController()` (e.g. with `IaController.js` and `caminho()`) actually correct?**
@@ -198,4 +213,4 @@ _Questions this graph is uniquely positioned to answer:_
 - **What connects `{ readdirSync }`, `{ spawnSync }`, `path` to the rest of the system?**
   _275 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `envio.js` be split into smaller, more focused modules?**
-  _Cohesion score 0.05 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.0967741935483871 - nodes in this community are weakly interconnected._
