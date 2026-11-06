@@ -23,7 +23,7 @@ apice-gestao-wa-back/
 │   ├── index.js          # boot: TZ, Express, reconexão das instâncias, desligamento gracioso
 │   ├── whatsapp/         # adapter Baileys, instanciaManager (1 instância por equipe), entrada/saída
 │   ├── audio/            # transcrição MiniMax (fila de concorrência)
-│   ├── ia/               # sugestão de texto do ticket pela MiniMax (sugestaoTicketService, portaoIa), rota interna POST /ia/sugestao-ticket; no portão de lote, POST /ia/avaliacao-atendimento, POST /ia/classificacao-ticket e POST /ia/avaliacao-comercial (Fase 91, avaliacaoComercialService, com a prévia em /previa)
+│   ├── ia/               # sugestão de texto do ticket pela MiniMax (sugestaoTicketService, portaoIa), rota interna POST /ia/sugestao-ticket; no portão de lote, POST /ia/avaliacao-atendimento, POST /ia/classificacao-ticket e POST /ia/avaliacao-comercial (Fase 91, avaliacaoComercialService, com a prévia em /previa); feedback diário e Assistente de RH (assistenteRhService): POST /ia/feedback-desempenho (portão de lote, DRH1), POST /ia/assistente-rh (portão interativo, DRH2) e POST /ia/feedback-desempenho/previa (DRH3, sem chamar a MiniMax)
 │   ├── http/             # controllers internos (envio, QR/conexão, grupos, foto, IA, health) + exigência de token
 │   ├── services/         # clientes HTTP das rotas /interno/* do back
 │   ├── db/               # pool MySQL (fuso -03:00), se necessário
@@ -87,6 +87,7 @@ No servidor `192.168.1.167`, na pasta do submódulo: `bash deploy.sh`.
   - [ ] A mesma mensagem recebida duas vezes gera um único registro.
   - [ ] Nenhum payload enviado ao WhatsApp contém transcrição, explicação de resolução, nota interna ou sugestão da IA (teste de contrato).
   - [ ] `POST /ia/sugestao-ticket` recusa com 400, sem chamar a MiniMax, qualquer chave fora da allowlist, e não grava, não chama o back nem toca no Baileys. O log nunca leva o contexto nem a resposta da IA.
+  - [ ] `POST /ia/feedback-desempenho`, `/ia/assistente-rh` e `/ia/feedback-desempenho/previa` recusam com 400, sem chamar a MiniMax, chave fora da allowlist em qualquer nível e valor de `dados` que não seja número finito maior ou igual a 0 (ou null). O texto de fora vai neutralizado entre delimitadores, o prompt fixo vale com a instrução vazia, e o log nunca leva instrução, regulamento, dados, pergunta nem resposta.
   - [ ] `/editar` e `/apagar` recusam com 400, sem tocar no Baileys, campo fora da allowlist e key que não é `fromMe`. O eco da edição e da exclusão feitas pelo CRM não volta ao back.
   - [ ] Uma mensagem enviada pelo aparelho é registrada com origem "aparelho", e o eco de uma mensagem enviada pelo CRM não é registrado de novo.
   - [ ] Depois de reiniciar, as instâncias reconectam sem novo QR Code, e as mensagens recebidas durante a reinicialização são recuperadas.

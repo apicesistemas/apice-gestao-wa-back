@@ -105,12 +105,50 @@
 // Saída 2xx: 200 { cod_produto_suporte: int | null, cod_area_produto: int | null, natureza: string | null }
 // Erros: 400 · 401 · 502 RESPOSTA_INVALIDA (os três nulos ou JSON inválido) · 503 IA_INDISPONIVEL · 503 + Retry-After · 504 PRAZO · 500
 // Efeitos: nenhum. O log leva só o código e os ms. Compatibilidade: rota nova; o wa-back sobe antes do back.
+//
+// Feedback diário de desempenho e Assistente de RH (plano 2026-11-05-19-28-27, Task 1), contratos DRH1, DRH2 e DRH3. Só o back
+// chama (token antes do corpo, 503 + Retry-After no desligamento, mesmo teto de corpo). Nenhuma das rotas grava, toca no
+// Baileys ou chama o back. Todo valor numérico de `dados` é finito e >= 0 ou null (contagens inteiras, percentuais 0..100).
+//
+// Canal: D
+// Método e caminho: POST /ia/feedback-desempenho (DRH1)
+// Quem chama / quem expõe: back waIaService.gerarFeedbackDesempenho (job) → wa-back IaController
+// Entrada (ALLOWLIST_FEEDBACK; chave desconhecida em QUALQUER nível, inclusive hash_empresa, cod_*, nome_usuario, nome_equipe,
+//   comentario, recomendacao, motivo, transcricao e nota_interna → 400 sem chamar a MiniMax):
+//   { instrucao: string 0..4000,
+//     regulamento: { regras_gerais: string 0..20000, cargo: { nome: 1..60, atribuicoes: 0..4000 } | null },
+//     dados: { atendimento: {...10 números}, metas: {...2 percentuais} | null, pausas: {...6}, regras: {...5},
+//              satisfacao: {...} | null, avaliacao: { avaliados, criterios: [{ nome 2..60, tipo "NOTA" | "ALERTA", media 1..5 | null, disparos }] (0..20) } | null },
+//     prazo_ms: inteiro 1000..120000 }   (os grupos e as chaves de cada um estão em ESQUEMA_DADOS, abaixo)
+// Fluxo: portão de LOTE (MINIMAX_IA_CONCORRENCIA_LOTE) → MiniMax → texto aparado e cortado na palavra em 3000. Texto vazio → 502.
+// Saída 2xx: 200 { texto: string 1..3000 }
+// Erros: 400 { msg } · 401 · 502 RESPOSTA_INVALIDA · 503 IA_INDISPONIVEL · 503 + Retry-After sem codigo (desligamento) ·
+//   504 PRAZO · 500 { msg: "Erro interno ao gerar o feedback." }
+// Efeitos: nenhum. Log: "[IA] Feedback de desempenho: codigo=C ms=N" (nunca instrução, regulamento, dados nem texto).
+// Compatibilidade: rota nova; publicar o wa-back antes do back.
+//
+// Canal: D
+// Método e caminho: POST /ia/assistente-rh (DRH2)
+// Quem chama / quem expõe: back waIaService.conversarAssistenteRh → wa-back IaController
+// Entrada (ALLOWLIST_ASSISTENTE): instrucao, regulamento e dados do DRH1, mais
+//   feedback: string 1..3000 · historico: [{ autor: "COLABORADOR" | "ASSISTENTE", texto: 1..2000 }] (0..8) · pergunta: string 1..1000 · prazo_ms 1000..120000
+// Fluxo: portão INTERATIVO (o das sugestões) → MiniMax → resposta de até 2000, cortada na palavra. Vazia → 502.
+// Saída 2xx: 200 { resposta: string 1..2000 }. Erros: os do DRH1, com o 500 { msg: "Erro interno ao responder." }.
+// Efeitos: nenhum. Log: "[IA] Assistente de RH: codigo=C ms=N".
+//
+// Canal: D
+// Método e caminho: POST /ia/feedback-desempenho/previa (DRH3)
+// Quem chama / quem expõe: back (tela de instrução do superadmin) → wa-back IaController
+// Entrada: { instrucao: string 0..4000 } (qualquer outra chave → 400)
+// Saída 2xx: 200 { feedback: { sistema, usuario }, chat: { sistema, usuario } } (dados, regulamento, feedback, histórico e pergunta por marcadores fixos)
+// Erros: 400 { msg } · 401 · 503 + Retry-After. Efeitos: nenhum; não chama a MiniMax.
 const express = require("express");
 const exigirTokenServico = require("./exigirTokenServico");
 const sugestaoTicketService = require("../ia/sugestaoTicketService");
 const avaliacaoAtendimentoService = require("../ia/avaliacaoAtendimentoService");
 const avaliacaoComercialService = require("../ia/avaliacaoComercialService");
 const classificacaoTicketService = require("../ia/classificacaoTicketService");
+const assistenteRhService = require("../ia/assistenteRhService");
 const { portaoPadrao, portaoLote: portaoLoteDoProcesso } = require("../ia/portaoIa");
 const desligamentoDoProcesso = require("../utils/desligamento").padrao;
 
@@ -147,6 +185,82 @@ const ALLOWLIST_TIPO = new Set(["cod_tipo_resolucao", "nome"]);
 const ALLOWLIST_AVALIACAO = new Set(["criterios", "contexto", "total_linhas", "prazo_ms"]);
 const ALLOWLIST_CRITERIO = new Set(["codigo", "tipo", "nome", "instrucao", "restrito"]);
 const ALLOWLIST_PREVIA = new Set(["criterios"]);
+/** Allowlists do Assistente de RH (DRH1 a DRH3), uma por nível. */
+const ALLOWLIST_FEEDBACK = new Set(["instrucao", "regulamento", "dados", "prazo_ms"]);
+const ALLOWLIST_ASSISTENTE = new Set(["instrucao", "regulamento", "dados", "feedback", "historico", "pergunta", "prazo_ms"]);
+const ALLOWLIST_REGULAMENTO = new Set(["regras_gerais", "cargo"]);
+const ALLOWLIST_CARGO = new Set(["nome", "atribuicoes"]);
+const ALLOWLIST_HISTORICO = new Set(["autor", "texto"]);
+const ALLOWLIST_PREVIA_RH = new Set(["instrucao"]);
+
+/** Limites dos contratos DRH1 a DRH3 (Assistente de RH). */
+const MAXIMO_INSTRUCAO_RH = 4000;
+const MAXIMO_REGRAS_GERAIS = 20000;
+const MAXIMO_ATRIBUICOES = 4000;
+const LIMITE_NOME_CARGO = [1, 60];
+const LIMITE_NOME_CRITERIO_RH = [2, 60];
+const MAXIMO_CRITERIOS_RH = 20;
+const MAXIMO_FEEDBACK_RH = 3000;
+const MAXIMO_FALAS = 8;
+const MAXIMO_TEXTO_FALA = 2000;
+const MAXIMO_PERGUNTA = 1000;
+
+/** Tipo de cada número de `dados`: contagem inteira, minutos (finito >= 0), percentual 0..100 e média 1..5. Todos aceitam null. */
+const INT = "inteiro";
+const NUM = "numero";
+const PCT = "percentual";
+const MEDIA = "media";
+/**
+ * Esquema do snapshot `dados` (DRH1). Uma chave por grupo e por número: a allowlist de cada nível sai daqui.
+ * @type {Record<string, Record<string, string | Record<string, string>>>}
+ */
+const ESQUEMA_DADOS = {
+  atendimento: {
+    tickets_atendidos: INT,
+    tickets_resolvidos: INT,
+    tickets_cancelados_sem_retorno: INT,
+    sessoes: INT,
+    em_atendimento_min: NUM,
+    acesso_remoto_min: NUM,
+    minutos_jornada: NUM,
+    ocupacao_percentual: PCT,
+    fora_da_jornada_min: NUM,
+    primeira_resposta_media_min: NUM,
+  },
+  metas: { primeira_resposta_dentro_percentual: PCT, resolucao_dentro_percentual: PCT },
+  pausas: { intervalos: INT, intervalos_excedidos: INT, maior_excesso_min: NUM, interrupcoes: INT, interrupcao_min: NUM, interrupcoes_sem_auxiliado: INT },
+  regras: {
+    limite_intervalo_manha_min: NUM,
+    limite_intervalo_tarde_min: NUM,
+    interrupcao_exige_auxiliado_min: NUM,
+    meta_primeira_resposta_comercial_min: NUM,
+    meta_primeira_resposta_fora_min: NUM,
+  },
+  satisfacao: {
+    respondidas: INT,
+    atendida_nao: INT,
+    nota_media: MEDIA,
+    notas: { 1: INT, 2: INT, 3: INT, 4: INT, 5: INT },
+    motivo_conhecimento: INT,
+    motivo_demora: INT,
+    motivo_profissionalismo: INT,
+    elogios: INT,
+  },
+};
+/** Grupos de `dados` que podem ser null (sem jornada de referência, sem pesquisa, sem avaliação). */
+const GRUPOS_NULOS = new Set(["metas", "satisfacao", "avaliacao"]);
+/** Allowlist de `dados` por nível: o topo, cada grupo (das chaves do ESQUEMA_DADOS), `notas`, `avaliacao` e o critério da avaliação. */
+const ALLOWLIST_DADOS = {
+  topo: new Set([...Object.keys(ESQUEMA_DADOS), "avaliacao"]),
+  atendimento: new Set(Object.keys(ESQUEMA_DADOS.atendimento)),
+  metas: new Set(Object.keys(ESQUEMA_DADOS.metas)),
+  pausas: new Set(Object.keys(ESQUEMA_DADOS.pausas)),
+  regras: new Set(Object.keys(ESQUEMA_DADOS.regras)),
+  satisfacao: new Set(Object.keys(ESQUEMA_DADOS.satisfacao)),
+  notas: new Set(Object.keys(/** @type {Record<string, string>} */ (ESQUEMA_DADOS.satisfacao.notas))),
+  avaliacao: new Set(["avaliados", "criterios"]),
+  criterio: new Set(["nome", "tipo", "media", "disparos"]),
+};
 
 const MSG_INDISPONIVEL = "IA indisponível no momento.";
 const MSG_RESTRITO_COMERCIAL = "Critério restrito não existe na avaliação comercial.";
@@ -348,6 +462,157 @@ function validarCorpoAvaliacao(corpo, opcoes) {
 }
 
 /**
+ * Texto do Assistente de RH: confere o tipo e o tamanho (o mínimo conta sem os espaços das pontas).
+ * @param {unknown} valor
+ * @param {number} minimo
+ * @param {number} maximo
+ * @param {string} mensagem
+ * @returns {string}
+ * @throws {ErroRequisicao}
+ */
+function textoRh(valor, minimo, maximo, mensagem) {
+  if (typeof valor !== "string" || valor.length > maximo || valor.trim().length < minimo) throw recusar(mensagem);
+  return valor;
+}
+
+/**
+ * Um número do snapshot: null, ou finito e >= 0 (inteiro nas contagens, 0..100 nos percentuais, 1..5 nas médias).
+ * @param {unknown} valor
+ * @param {string} tipo
+ * @param {string} caminho
+ * @returns {number | null}
+ * @throws {ErroRequisicao}
+ */
+function numeroRh(valor, tipo, caminho) {
+  if (valor === null) return null;
+  if (typeof valor !== "number" || !Number.isFinite(valor) || valor < 0) throw recusar(`Valor inválido em ${caminho}.`);
+  const ok = tipo === INT ? Number.isInteger(valor) : tipo === PCT ? valor <= 100 : tipo === MEDIA ? valor >= 1 && valor <= 5 : true;
+  if (!ok) throw recusar(`Valor inválido em ${caminho}.`);
+  return valor;
+}
+
+/**
+ * Valida um grupo do snapshot contra o esquema: allowlist do nível, todas as chaves presentes (valor ou null) e cada valor no seu tipo.
+ * Devolve uma cópia só com as chaves do esquema.
+ * @param {unknown} bruto
+ * @param {Record<string, string | Record<string, string>>} esquema
+ * @param {string} caminho
+ * @param {Set<string>} permitidas
+ * @returns {Record<string, unknown>}
+ * @throws {ErroRequisicao}
+ */
+function validarGrupoDados(bruto, esquema, caminho, permitidas) {
+  const g = exigirChavesPermitidas(bruto, permitidas, `em ${caminho}`);
+  /** @type {Record<string, unknown>} */
+  const saida = {};
+  for (const [chave, tipo] of Object.entries(esquema)) {
+    if (!Object.hasOwn(g, chave)) throw recusar(`Informe ${caminho}.${chave}.`);
+    saida[chave] = typeof tipo === "string" ? numeroRh(g[chave], tipo, `${caminho}.${chave}`) : validarGrupoDados(g[chave], tipo, `${caminho}.${chave}`, ALLOWLIST_DADOS.notas);
+  }
+  return saida;
+}
+
+/**
+ * Valida a avaliação do item 24 do snapshot: só nome, tipo, média e disparos de cada critério.
+ * @param {unknown} bruto
+ * @returns {{ avaliados: number | null, criterios: { nome: string, tipo: string, media: number | null, disparos: number | null }[] }}
+ * @throws {ErroRequisicao}
+ */
+function validarAvaliacaoRh(bruto) {
+  const a = exigirChavesPermitidas(bruto, ALLOWLIST_DADOS.avaliacao, "na avaliação");
+  if (!Object.hasOwn(a, "avaliados")) throw recusar("Informe dados.avaliacao.avaliados.");
+  const avaliados = numeroRh(a.avaliados, INT, "dados.avaliacao.avaliados");
+  if (!Array.isArray(a.criterios) || a.criterios.length > MAXIMO_CRITERIOS_RH) throw recusar(`Informe de 0 a ${MAXIMO_CRITERIOS_RH} critérios na avaliação.`);
+  const criterios = a.criterios.map((item) => {
+    const c = exigirChavesPermitidas(item, ALLOWLIST_DADOS.criterio, "no critério");
+    if (!textoNoLimite(c.nome, LIMITE_NOME_CRITERIO_RH)) throw recusar("O nome do critério tem de 2 a 60 caracteres.");
+    if (c.tipo !== "NOTA" && c.tipo !== "ALERTA") throw recusar("Tipo do critério inválido.");
+    if (!Object.hasOwn(c, "media") || !Object.hasOwn(c, "disparos")) throw recusar("Informe a média e os disparos do critério.");
+    // O contrato diz `disparos` int >= 0 (sem null); só a média pode ser null (critério sem nota no dia).
+    if (c.disparos === null) throw recusar("Valor inválido em dados.avaliacao.criterios.disparos.");
+    return { nome: /** @type {string} */ (c.nome), tipo: c.tipo, media: numeroRh(c.media, MEDIA, "dados.avaliacao.criterios.media"), disparos: numeroRh(c.disparos, INT, "dados.avaliacao.criterios.disparos") };
+  });
+  return { avaliados, criterios };
+}
+
+/**
+ * Valida o snapshot `dados` (DRH1 e DRH2): allowlist em cada nível, só números (ou null) e os nomes dos critérios.
+ * @param {unknown} bruto
+ * @returns {Record<string, unknown>}
+ * @throws {ErroRequisicao}
+ */
+function validarDados(bruto) {
+  const d = exigirChavesPermitidas(bruto, ALLOWLIST_DADOS.topo, "nos dados");
+  /** @type {Record<string, unknown>} */
+  const saida = {};
+  for (const [grupo, esquema] of Object.entries(ESQUEMA_DADOS)) {
+    if (!Object.hasOwn(d, grupo)) throw recusar(`Informe dados.${grupo}.`);
+    saida[grupo] = d[grupo] === null && GRUPOS_NULOS.has(grupo) ? null : validarGrupoDados(d[grupo], esquema, `dados.${grupo}`, /** @type {Set<string>} */ (/** @type {Record<string, Set<string>>} */ (ALLOWLIST_DADOS)[grupo]));
+  }
+  if (!Object.hasOwn(d, "avaliacao")) throw recusar("Informe dados.avaliacao.");
+  saida.avaliacao = d.avaliacao === null ? null : validarAvaliacaoRh(d.avaliacao);
+  return saida;
+}
+
+/**
+ * Valida o regulamento (DRH1 e DRH2): regras gerais e cargo (ou null), com allowlist em cada nível.
+ * @param {unknown} bruto
+ * @returns {import("../ia/assistenteRhService").RegulamentoRh}
+ * @throws {ErroRequisicao}
+ */
+function validarRegulamento(bruto) {
+  const r = exigirChavesPermitidas(bruto, ALLOWLIST_REGULAMENTO, "no regulamento");
+  const regras = textoRh(r.regras_gerais, 0, MAXIMO_REGRAS_GERAIS, "As regras gerais têm até 20.000 caracteres.");
+  if (!Object.hasOwn(r, "cargo")) throw recusar("Informe o cargo (ou null).");
+  if (r.cargo === null) return { regras_gerais: regras, cargo: null };
+  const c = exigirChavesPermitidas(r.cargo, ALLOWLIST_CARGO, "no cargo");
+  if (!textoNoLimite(c.nome, LIMITE_NOME_CARGO)) throw recusar("O nome do cargo tem de 1 a 60 caracteres.");
+  return { regras_gerais: regras, cargo: { nome: /** @type {string} */ (c.nome), atribuicoes: textoRh(c.atribuicoes, 0, MAXIMO_ATRIBUICOES, "As atribuições têm até 4.000 caracteres.") } };
+}
+
+/** @param {unknown} valor */
+function prazoRh(valor) {
+  if (!ehInteiro(valor) || /** @type {number} */ (valor) < PRAZO_MINIMO_MS || /** @type {number} */ (valor) > PRAZO_MAXIMO_MS) throw recusar("Prazo inválido.");
+  return /** @type {number} */ (valor);
+}
+
+/** @param {unknown} valor */
+const instrucaoRh = (valor) => textoRh(valor, 0, MAXIMO_INSTRUCAO_RH, "A instrução tem até 4.000 caracteres.");
+
+/**
+ * Valida o corpo contra a allowlist do contrato DRH1.
+ * @param {unknown} corpo
+ * @returns {import("../ia/assistenteRhService").PedidoFeedback & { prazo_ms: number }}
+ * @throws {ErroRequisicao}
+ */
+function validarCorpoFeedback(corpo) {
+  const c = exigirChavesPermitidas(corpo, ALLOWLIST_FEEDBACK, "no feedback");
+  return { instrucao: instrucaoRh(c.instrucao), regulamento: validarRegulamento(c.regulamento), dados: validarDados(c.dados), prazo_ms: prazoRh(c.prazo_ms) };
+}
+
+/**
+ * Valida o corpo contra a allowlist do contrato DRH2.
+ * @param {unknown} corpo
+ * @returns {import("../ia/assistenteRhService").PedidoChat & { prazo_ms: number }}
+ * @throws {ErroRequisicao}
+ */
+function validarCorpoAssistente(corpo) {
+  const c = exigirChavesPermitidas(corpo, ALLOWLIST_ASSISTENTE, "no assistente");
+  const instrucao = instrucaoRh(c.instrucao);
+  const regulamento = validarRegulamento(c.regulamento);
+  const dados = validarDados(c.dados);
+  const feedback = textoRh(c.feedback, 1, MAXIMO_FEEDBACK_RH, "O feedback tem de 1 a 3.000 caracteres.");
+  if (!Array.isArray(c.historico) || c.historico.length > MAXIMO_FALAS) throw recusar(`O histórico tem até ${MAXIMO_FALAS} falas.`);
+  const historico = c.historico.map((item) => {
+    const f = exigirChavesPermitidas(item, ALLOWLIST_HISTORICO, "no histórico");
+    if (f.autor !== "COLABORADOR" && f.autor !== "ASSISTENTE") throw recusar("Autor da fala inválido.");
+    return { autor: /** @type {"COLABORADOR" | "ASSISTENTE"} */ (f.autor), texto: textoRh(f.texto, 1, MAXIMO_TEXTO_FALA, "Cada fala tem de 1 a 2.000 caracteres.") };
+  });
+  const pergunta = textoRh(c.pergunta, 1, MAXIMO_PERGUNTA, "A pergunta tem de 1 a 1.000 caracteres.");
+  return { instrucao, regulamento, dados, feedback, historico, pergunta, prazo_ms: prazoRh(c.prazo_ms) };
+}
+
+/**
  * Responde o erro tipado da MiniMax (comum às duas IAs): 504 prazo, 502 resposta inutilizável, 503 indisponível.
  * @param {import("express").Response} res
  * @param {string} erro
@@ -381,6 +646,8 @@ function lerJson(req, res, next) {
  *   avaliar?: typeof avaliacaoAtendimentoService.avaliar,
  *   avaliarComercial?: typeof avaliacaoComercialService.avaliarComercial,
  *   classificar?: typeof classificacaoTicketService.classificar,
+ *   gerarFeedback?: typeof assistenteRhService.gerarFeedback,
+ *   responderAssistente?: typeof assistenteRhService.responder,
  *   portao?: Pick<ReturnType<typeof import("../ia/portaoIa").criarPortaoIa>, "executar">,
  *   portaoLote?: Pick<ReturnType<typeof import("../ia/portaoIa").criarPortaoIa>, "executar">,
  *   fetch?: typeof fetch,
@@ -388,7 +655,7 @@ function lerJson(req, res, next) {
  * }} [opcoes] dependências (os testes injetam)
  * @returns {(server: import("express").Express) => void}
  */
-function criarIaController({ desligamento = desligamentoDoProcesso, sugerir = sugestaoTicketService.sugerir, avaliar = avaliacaoAtendimentoService.avaliar, avaliarComercial = avaliacaoComercialService.avaliarComercial, classificar = classificacaoTicketService.classificar, portao, portaoLote, fetch, agora = Date.now } = {}) {
+function criarIaController({ desligamento = desligamentoDoProcesso, sugerir = sugestaoTicketService.sugerir, avaliar = avaliacaoAtendimentoService.avaliar, avaliarComercial = avaliacaoComercialService.avaliarComercial, classificar = classificacaoTicketService.classificar, gerarFeedback = assistenteRhService.gerarFeedback, responderAssistente = assistenteRhService.responder, portao, portaoLote, fetch, agora = Date.now } = {}) {
   /** @type {import("express").RequestHandler} */
   const recusarDuranteEncerramento = (req, res, next) => desligamento.recusarDuranteEncerramento(req, res, next);
 
@@ -569,6 +836,98 @@ function criarIaController({ desligamento = desligamentoDoProcesso, sugerir = su
       lerJson,
       tratarPrevia({ aceitarRestrito: false, montar: avaliacaoComercialService.previaComercial }),
     );
+
+    // DRH1 (feedback, portão de LOTE) e DRH2 (chat, portão INTERATIVO): texto livre, o mesmo fluxo e o log só com código e ms.
+    /**
+     * @param {{
+     *   rotulo: string,
+     *   rotuloErro: string,
+     *   validar: (corpo: unknown) => { prazo_ms: number },
+     *   obterPortao: () => Pick<ReturnType<typeof import("../ia/portaoIa").criarPortaoIa>, "executar">,
+     *   executar: (pedido: any) => Promise<Record<string, any>>,
+     *   saida: "texto" | "resposta",
+     *   msgErro: string,
+     * }} rota
+     * @returns {import("express").RequestHandler}
+     */
+    const tratarTextoRh = ({ rotulo, rotuloErro, validar, obterPortao, executar, saida, msgErro }) => async (req, res) => {
+      let dados;
+      try {
+        dados = validar(req.body);
+      } catch (erro) {
+        // Só lança ErroRequisicao (mensagens fixas, sem eco do conteúdo).
+        res.status(400).json({ msg: /** @type {Error} */ (erro).message });
+        return;
+      }
+
+      const inicio = agora();
+      const { prazo_ms: prazoMs, ...pedido } = dados;
+      /** @param {string} codigo */
+      const registrar = (codigo) => console.log(`[IA] ${rotulo}: codigo=${codigo} ms=${agora() - inicio}`);
+      try {
+        const vez = await obterPortao().executar(prazoMs, (restanteMs) => executar({ ...pedido, prazoMs: restanteMs, ...(fetch ? { fetch } : {}) }));
+        if (vez.prazoEsgotado) {
+          registrar("PRAZO");
+          res.status(504).json({ msg: MSG_PRAZO, codigo: "PRAZO" });
+          return;
+        }
+        const resultado = vez.valor;
+        if (saida in resultado) {
+          registrar("OK");
+          res.status(200).json({ [saida]: resultado[saida] });
+          return;
+        }
+        registrar(resultado.erro);
+        responderErroIa(res, resultado.erro);
+      } catch (erro) {
+        // Só o nome do erro: a mensagem poderia carregar trecho do regulamento, da pergunta ou da resposta.
+        console.error(`[IA] Erro inesperado no ${rotuloErro}:`, erro instanceof Error ? erro.name : "erro");
+        res.status(500).json({ msg: msgErro });
+      }
+    };
+
+    server.post(
+      "/ia/feedback-desempenho",
+      exigirTokenServico,
+      recusarDuranteEncerramento,
+      lerJson,
+      tratarTextoRh({
+        rotulo: "Feedback de desempenho",
+        rotuloErro: "feedback de desempenho",
+        validar: validarCorpoFeedback,
+        obterPortao: () => portaoLote ?? portaoLoteDoProcesso(),
+        executar: gerarFeedback,
+        saida: "texto",
+        msgErro: "Erro interno ao gerar o feedback.",
+      }),
+    );
+
+    server.post(
+      "/ia/assistente-rh",
+      exigirTokenServico,
+      recusarDuranteEncerramento,
+      lerJson,
+      tratarTextoRh({
+        rotulo: "Assistente de RH",
+        rotuloErro: "assistente de RH",
+        validar: validarCorpoAssistente,
+        obterPortao: () => portao ?? portaoPadrao(),
+        executar: responderAssistente,
+        saida: "resposta",
+        msgErro: "Erro interno ao responder.",
+      }),
+    );
+
+    // DRH3: os dois prompts exatos (feedback e chat) com marcadores no lugar dos dados. Não chama a MiniMax.
+    server.post("/ia/feedback-desempenho/previa", exigirTokenServico, recusarDuranteEncerramento, lerJson, (req, res) => {
+      try {
+        const c = exigirChavesPermitidas(req.body, ALLOWLIST_PREVIA_RH, "na prévia");
+        res.status(200).json(assistenteRhService.previa(instrucaoRh(c.instrucao)));
+      } catch (erro) {
+        // exigirChavesPermitidas e instrucaoRh só lançam ErroRequisicao.
+        res.status(400).json({ msg: /** @type {Error} */ (erro).message });
+      }
+    });
   };
 }
 
@@ -584,4 +943,10 @@ module.exports = Object.assign(IaController, {
   ALLOWLIST_PRODUTO,
   ALLOWLIST_AREA,
   ALLOWLIST_NATUREZA,
+  ALLOWLIST_FEEDBACK,
+  ALLOWLIST_ASSISTENTE,
+  ALLOWLIST_REGULAMENTO,
+  ALLOWLIST_CARGO,
+  ALLOWLIST_HISTORICO,
+  ALLOWLIST_DADOS,
 });

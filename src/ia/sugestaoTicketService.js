@@ -214,13 +214,13 @@ function erroDoCodigoBase(codigo) {
 }
 
 /**
- * Uma chamada ao chat da MiniMax que devolve um objeto JSON (sem nova tentativa, falha fechada). Serve à
- * sugestão do ticket e à avaliação do atendimento (`avaliacaoAtendimentoService`). Nunca rejeita por
- * erro do provedor e nunca loga: prompt e resposta são conteúdo do cliente.
+ * Uma chamada ao chat da MiniMax (sem nova tentativa, falha fechada) que devolve o `content` bruto da resposta.
+ * Base de `conversarJson` (sugestão do ticket, avaliações, classificação) e de `conversarTexto` (Assistente de RH).
+ * Nunca rejeita por erro do provedor e nunca loga: prompt e resposta são conteúdo do cliente.
  * @param {{ sistema: string, usuario: string, prazoMs: number, fetch?: typeof fetch, maxTokens?: number }} pedido
- * @returns {Promise<{ objeto: Record<string, unknown> } | { erro: CodigoErroSugestao }>}
+ * @returns {Promise<{ conteudo: string } | { erro: CodigoErroSugestao }>}
  */
-async function conversarJson({ sistema, usuario, prazoMs, fetch = globalThis.fetch, maxTokens = MAXIMO_TOKENS_RESPOSTA }) {
+async function chamarChat({ sistema, usuario, prazoMs, fetch = globalThis.fetch, maxTokens = MAXIMO_TOKENS_RESPOSTA }) {
   const chave = process.env.MINIMAX_API_KEY || "";
   if (!chave) return { erro: "SEM_CHAVE" };
   const modelo = (process.env.MINIMAX_MODELO_TEXTO ?? "").trim() || MODELO_PADRAO;
@@ -269,8 +269,32 @@ async function conversarJson({ sistema, usuario, prazoMs, fetch = globalThis.fet
   const conteudo = json?.choices?.[0]?.message?.content;
   if (typeof conteudo !== "string") return { erro: "RESPOSTA_INVALIDA" };
   if (json.choices[0].finish_reason === "length" && !conteudo.replace(/<think>[\s\S]*?<\/think>/gi, "").trim()) return { erro: "RESPOSTA_INVALIDA" };
-  const objeto = extrairObjeto(conteudo);
+  return { conteudo };
+}
+
+/**
+ * Como `chamarChat`, mas espera um objeto JSON na resposta. Serve à sugestão do ticket e às avaliações.
+ * @param {Parameters<typeof chamarChat>[0]} pedido
+ * @returns {Promise<{ objeto: Record<string, unknown> } | { erro: CodigoErroSugestao }>}
+ */
+async function conversarJson(pedido) {
+  const r = await chamarChat(pedido);
+  if ("erro" in r) return r;
+  const objeto = extrairObjeto(r.conteudo);
   return objeto ? { objeto } : { erro: "RESPOSTA_INVALIDA" };
+}
+
+/**
+ * Como `chamarChat`, mas devolve o texto livre: sem o raciocínio (`<think>…</think>`, ou `<think>` aberto até o fim) e aparado. Vazio → RESPOSTA_INVALIDA.
+ * @param {Parameters<typeof chamarChat>[0]} pedido
+ * @returns {Promise<{ texto: string } | { erro: CodigoErroSugestao }>}
+ */
+async function conversarTexto(pedido) {
+  const r = await chamarChat(pedido);
+  if ("erro" in r) return r;
+  // Um <think> sem </think> (resposta cortada por tokens) vai do `<think>` até o fim: o raciocínio nunca vira texto.
+  const texto = r.conteudo.replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/<think>[\s\S]*$/i, "").trim();
+  return texto ? { texto } : { erro: "RESPOSTA_INVALIDA" };
 }
 
 /**
@@ -296,4 +320,4 @@ async function sugerir(pedido) {
   }
 }
 
-module.exports = { sugerir, conversarJson, cortarNaPalavra, URL_CHAT, MODELO_PADRAO, PROMPT_SISTEMA, MAXIMO_TITULO, MAXIMO_DESCRICAO, MAXIMO_EXPLICACAO, CAMPOS_VALIDOS };
+module.exports = { sugerir, conversarJson, conversarTexto, cortarNaPalavra, URL_CHAT, MODELO_PADRAO, PROMPT_SISTEMA, MAXIMO_TITULO, MAXIMO_DESCRICAO, MAXIMO_EXPLICACAO, CAMPOS_VALIDOS };
